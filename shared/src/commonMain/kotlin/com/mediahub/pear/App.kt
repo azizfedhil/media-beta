@@ -3,6 +3,9 @@ package com.mediahub.pear
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import com.mediahub.pear.data.AppData
+import com.mediahub.pear.data.Storage
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.shell.AdaptiveShell
 import com.mediahub.pear.shell.AppEnv
@@ -23,13 +26,17 @@ private val devCatalogues = listOf(
 /**
  * Root of the shared UI: theme, glass settings and the adaptive shell (sidebar on wide windows, tab bar on narrow).
  * [windowControl] lets the dev tools resize the window; [devTools] shows the developer section in Settings.
+ * [storage] is the platform's settings and secret storage; without it nothing is saved (previews, tests).
  */
 @Composable
-fun App(windowControl: WindowControl? = null, devTools: Boolean = true) {
-    val theme = remember { ThemeStore() }
-    val glass = remember { GlassStore() }
+fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null) {
+    val data = remember(storage) { AppData(storage ?: Storage.inMemory()) }
+    val theme = remember(data) { ThemeStore(prefs = data.prefs) }
+    val glass = remember(data) { GlassStore(prefs = data.prefs) }
     val shell = remember { ShellState() }
-    val env = remember { AppEnv(theme, glass, shell, devTools) }
+    val env = remember(data) { AppEnv(theme, glass, shell, data, devTools) }
+    // Each profile has its own content settings: follow the active profile.
+    LaunchedEffect(data.profiles.activeID) { data.content.load(data.profiles.activeID) }
     PearTheme(theme) {
         CompositionLocalProvider(LocalAppEnv provides env, LocalWindowControl provides windowControl) {
             AdaptiveShell(shell, glass, catalogues = if (devTools) devCatalogues else emptyList())

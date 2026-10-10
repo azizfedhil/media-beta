@@ -53,6 +53,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         is Route.Demo -> DemoPage(route, nav)
         Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })
+        Route.StorageCheck -> StorageCheckScreen(env.data, onBack = { nav.pop() })
     }
 }
 
@@ -74,7 +75,7 @@ internal fun PageScaffold(title: String, onBack: (() -> Unit)?, content: @Compos
 
 /** Flat card for placeholder content (glass cards come with the real screens). */
 @Composable
-private fun PageCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+internal fun PageCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val c = PearTheme.colors
     val shape = RoundedCornerShape(PearRadii.card)
     val click = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)
@@ -129,6 +130,7 @@ private fun SettingsPlaceholder(nav: NavController<Route>) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     DevChip("Theme preview", false) { nav.push(Route.ThemePreview) }
                     DevChip("Glass gallery", false) { nav.push(Route.GlassGallery) }
+                    DevChip("Storage check", false) { nav.push(Route.StorageCheck) }
                     DevChip("Push a page", false) { nav.push(Route.Demo(1)) }
                 }
             }

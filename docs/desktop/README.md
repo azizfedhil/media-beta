@@ -1,6 +1,6 @@
 # Pear. desktop (Kotlin Multiplatform + Compose)
 
-Batch notes: `theme.md` (1.2), `glass.md` (1.3), `shell.md` (1.4).
+Batch notes: `theme.md` (1.2), `glass.md` (1.3), `shell.md` (1.4), `storage.md` (2.1).
 
 Plan: "Pear. desktop and Android port plan.md". Decisions: `phase0-decisions.md`.
 

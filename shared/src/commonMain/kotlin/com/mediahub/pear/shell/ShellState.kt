@@ -14,6 +14,7 @@ sealed interface Route {
     data class Demo(val depth: Int) : Route
     data object ThemePreview : Route
     data object GlassGallery : Route
+    data object StorageCheck : Route
 }
 
 /** An add-on catalogue listed under "Catalogues" in the sidebar (real data arrives with Batch 2.3). */
