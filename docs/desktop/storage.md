@@ -35,4 +35,4 @@ Code: `shared/src/commonMain/.../data/` (logic) and `shared/src/desktopMain/.../
 3. Secrets: Store, then Read; the note says whether the OS store or the fallback file was used.
 
 ## Not done here
-Backup export/import (2.5), Simkl token use (2.4), disk cache for HTTP (2.2; `AppDirs.cache` is ready).
+Backup export/import (2.5), Simkl token use (2.4). The HTTP disk cache and the TVDB token use arrived with 2.2 (`metadata.md`).

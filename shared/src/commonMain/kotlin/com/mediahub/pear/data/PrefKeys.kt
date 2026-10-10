@@ -51,6 +51,9 @@ object SecretKeys {
     const val SIMKL_TOKEN = "simkl.token"
     const val SIMKL_REFRESH = "simkl.refresh"
     const val TVDB_TOKEN = "tvdb.token"
+
+    /** When the TVDB token was issued (epoch milliseconds as text). Kept with the token, so no setting is written off the UI thread. */
+    const val TVDB_TOKEN_DATE = "tvdb.tokenDate"
 }
 
 /** Mirrors `ProfileKeys` in Profiles.swift. */

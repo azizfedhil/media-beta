@@ -3,10 +3,12 @@ package com.mediahub.pear
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.Storage
 import com.mediahub.pear.glass.GlassStore
+import com.mediahub.pear.net.Network
 import com.mediahub.pear.shell.AdaptiveShell
 import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.CatalogueItem
@@ -27,10 +29,12 @@ private val devCatalogues = listOf(
  * Root of the shared UI: theme, glass settings and the adaptive shell (sidebar on wide windows, tab bar on narrow).
  * [windowControl] lets the dev tools resize the window; [devTools] shows the developer section in Settings.
  * [storage] is the platform's settings and secret storage; without it nothing is saved (previews, tests).
+ * [network] is the platform's HTTP and disk caches; without it nothing leaves the machine.
  */
 @Composable
-fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null) {
-    val data = remember(storage) { AppData(storage ?: Storage.inMemory()) }
+fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null, network: Network? = null) {
+    val data = remember(storage, network) { AppData(storage ?: Storage.inMemory(), network ?: Network.offline()) }
+    DisposableEffect(data) { onDispose { data.flush() } }
     val theme = remember(data) { ThemeStore(prefs = data.prefs) }
     val glass = remember(data) { GlassStore(prefs = data.prefs) }
     val shell = remember { ShellState() }

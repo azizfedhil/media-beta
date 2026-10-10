@@ -54,6 +54,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })
         Route.StorageCheck -> StorageCheckScreen(env.data, onBack = { nav.pop() })
+        Route.MetadataCheck -> MetadataCheckScreen(env.data, onBack = { nav.pop() })
     }
 }
 
@@ -131,6 +132,7 @@ private fun SettingsPlaceholder(nav: NavController<Route>) {
                     DevChip("Theme preview", false) { nav.push(Route.ThemePreview) }
                     DevChip("Glass gallery", false) { nav.push(Route.GlassGallery) }
                     DevChip("Storage check", false) { nav.push(Route.StorageCheck) }
+                    DevChip("Metadata check", false) { nav.push(Route.MetadataCheck) }
                     DevChip("Push a page", false) { nav.push(Route.Demo(1)) }
                 }
             }

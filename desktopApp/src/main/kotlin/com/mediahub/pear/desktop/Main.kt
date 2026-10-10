@@ -10,6 +10,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.mediahub.pear.App
 import com.mediahub.pear.data.desktopStorage
+import com.mediahub.pear.net.desktopNetwork
 import com.mediahub.pear.shell.WindowControl
 import kotlinx.coroutines.delay
 import java.awt.Dimension
@@ -22,6 +23,8 @@ fun main(args: Array<String>) = application {
 
     // Settings and secrets live in the user's config folder (see docs/desktop/storage.md).
     val storage = remember { desktopStorage() }
+    // HTTP (OkHttp), the answer cache and the permanent TMDB facts (see docs/desktop/metadata.md).
+    val network = remember { desktopNetwork() }
 
     val windowState = rememberWindowState(size = DpSize(1280.dp, 800.dp))
     val control = remember {
@@ -43,6 +46,6 @@ fun main(args: Array<String>) = application {
         state = windowState,
     ) {
         window.minimumSize = Dimension(360, 600) // small enough for the phone layout
-        App(windowControl = control, storage = storage)
+        App(windowControl = control, storage = storage, network = network)
     }
 }

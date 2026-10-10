@@ -1,5 +1,7 @@
 package com.mediahub.pear.data
 
+import kotlin.concurrent.Volatile
+
 /**
  * The app's settings: a key to [PrefValue] map with the same key names as the iOS app's `UserDefaults`
  * (`tmdb.key`, `addon.manifestURLs`, `ui.accent`, ...). Every change is handed to [persistence], which writes it
@@ -8,6 +10,8 @@ package com.mediahub.pear.data
  * Call it from one thread (the UI thread). Reads are plain map lookups, so it is cheap to read often.
  */
 class PrefStore(private val persistence: PrefsPersistence = NoPersistence) {
+    // @Volatile: the metadata clients read API keys from background coroutines. Writes still come from one thread.
+    @Volatile
     private var map: Map<String, PrefValue> = persistence.load()
     private val listeners = mutableListOf<(Set<String>) -> Unit>()
 

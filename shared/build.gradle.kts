@@ -25,15 +25,24 @@ kotlin {
             implementation(libs.haze.blur)
             implementation(libs.haze.glass)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.ktor.client.core)
         }
         val desktopMain by getting {
             dependencies {
                 implementation(libs.jna)
                 implementation(libs.jna.platform)
+                implementation(libs.ktor.client.okhttp)
             }
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+        }
+        val desktopTest by getting {
+            dependencies {
+                implementation(libs.ktor.client.mock)
+            }
         }
     }
 }
