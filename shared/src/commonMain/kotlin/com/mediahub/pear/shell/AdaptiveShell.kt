@@ -52,11 +52,13 @@ fun AdaptiveShell(
             .focusRequester(focus).focusable()
             .onPreviewKeyEvent { handleShellKey(it, shell) },
     ) {
-        val mode = layoutModeFor(maxWidth, shell.layoutOverride)
+        // Read here: inside the nested Row { } the BoxWithConstraints scope is not implicitly reachable.
+        val windowWidth = maxWidth
+        val mode = layoutModeFor(windowWidth, shell.layoutOverride)
         CompositionLocalProvider(LocalWideLayout provides (mode == LayoutMode.Expanded)) {
             if (mode == LayoutMode.Expanded) {
                 Row(Modifier.fillMaxSize()) {
-                    Sidebar(sidebarWidthFor(maxWidth), shell, catalogues, profileName = "Pear")
+                    Sidebar(sidebarWidthFor(windowWidth), shell, catalogues, profileName = "Pear")
                     ShellPages(shell, Modifier.weight(1f).fillMaxHeight())
                 }
             } else {
