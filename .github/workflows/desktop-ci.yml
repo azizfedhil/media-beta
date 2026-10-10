@@ -1,22 +1,6 @@
 name: Desktop CI
+# Manual only: Actions tab -> "Desktop CI" -> Run workflow.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "shared/**"
-      - "desktopApp/**"
-      - "gradle/**"
-      - "*.gradle.kts"
-      - "gradle.properties"
-      - ".github/workflows/desktop-ci.yml"
-  pull_request:
-    paths:
-      - "shared/**"
-      - "desktopApp/**"
-      - "gradle/**"
-      - "*.gradle.kts"
-      - "gradle.properties"
-      - ".github/workflows/desktop-ci.yml"
   workflow_dispatch:
 jobs:
   build:
