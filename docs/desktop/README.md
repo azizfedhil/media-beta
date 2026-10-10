@@ -1,5 +1,7 @@
 # Pear. desktop (Kotlin Multiplatform + Compose)
 
+Batch notes: `theme.md` (1.2), `glass.md` (1.3), `shell.md` (1.4).
+
 Plan: "Pear. desktop and Android port plan.md". Decisions: `phase0-decisions.md`.
 
 - `shared/`: KMP module (commonMain UI and data, desktopMain). Android target is stubbed, enabled in Phase 7.

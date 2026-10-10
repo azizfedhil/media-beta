@@ -1,44 +1,38 @@
 package com.mediahub.pear
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.mediahub.pear.glass.GlassStore
-import com.mediahub.pear.preview.DevChip
-import com.mediahub.pear.preview.GlassGalleryScreen
-import com.mediahub.pear.preview.ThemePreviewScreen
+import com.mediahub.pear.shell.AdaptiveShell
+import com.mediahub.pear.shell.AppEnv
+import com.mediahub.pear.shell.CatalogueItem
+import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.LocalWindowControl
+import com.mediahub.pear.shell.ShellState
+import com.mediahub.pear.shell.WindowControl
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.ThemeStore
 
-private enum class DevScreen(val label: String) { Theme("Theme"), Glass("Glass") }
+/** Stand-ins for the add-on catalogues listed in the sidebar, until Batch 2.3 loads real ones. */
+private val devCatalogues = listOf(
+    "Trending Movies", "Trending Series", "Top Rated Movies", "Popular Series", "New Releases", "Anime Movies",
+    "Documentaries", "Kids and Family", "Award Winners", "Staff Picks",
+).mapIndexed { i, title -> CatalogueItem("dev/$i", title) }
 
-/** Root of the shared UI. Shows the dev screens until the adaptive shell arrives in Batch 1.4. */
+/**
+ * Root of the shared UI: theme, glass settings and the adaptive shell (sidebar on wide windows, tab bar on narrow).
+ * [windowControl] lets the dev tools resize the window; [devTools] shows the developer section in Settings.
+ */
 @Composable
-fun App() {
+fun App(windowControl: WindowControl? = null, devTools: Boolean = true) {
     val theme = remember { ThemeStore() }
     val glass = remember { GlassStore() }
-    var screen by remember { mutableStateOf(DevScreen.Glass) }
+    val shell = remember { ShellState() }
+    val env = remember { AppEnv(theme, glass, shell, devTools) }
     PearTheme(theme) {
-        Box(Modifier.fillMaxSize()) {
-            when (screen) {
-                DevScreen.Theme -> ThemePreviewScreen(theme)
-                DevScreen.Glass -> GlassGalleryScreen(glass)
-            }
-            Row(Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DevScreen.entries.forEach { s -> DevChip(s.label, screen == s) { screen = s } }
-            }
+        CompositionLocalProvider(LocalAppEnv provides env, LocalWindowControl provides windowControl) {
+            AdaptiveShell(shell, glass, catalogues = if (devTools) devCatalogues else emptyList())
         }
     }
 }

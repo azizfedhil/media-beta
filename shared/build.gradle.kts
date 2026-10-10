@@ -12,6 +12,9 @@ kotlin {
     // and put Android-only code in src/androidMain. Left out now so desktop CI needs no Android SDK.
 
     sourceSets {
+        // Haze's glass module is gated behind @ExperimentalHazeApi (see docs/desktop/glass.md). A marker that does
+        // not exist only produces a warning, so this is safe if a later Haze version removes the gate.
+        all { languageSettings.optIn("dev.chrisbanes.haze.ExperimentalHazeApi") }
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.animation)

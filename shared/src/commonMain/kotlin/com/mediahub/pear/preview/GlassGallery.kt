@@ -96,7 +96,7 @@ private fun DrawScope.drawBusy(phase: Float) {
 /** Batch 1.3 "done when" screen: every glass component over a busy, moving background. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun GlassGalleryScreen(store: GlassStore) {
+fun GlassGalleryScreen(store: GlassStore, onBack: (() -> Unit)? = null) {
     val c = PearTheme.colors
     val t = PearTheme.type
     var animate by remember { mutableStateOf(true) }
@@ -178,7 +178,7 @@ fun GlassGalleryScreen(store: GlassStore) {
 
         // Floating top bar, above the scroll content so content slides under it.
         GlassBar(Modifier.align(Alignment.TopCenter).padding(16.dp).widthIn(max = 1000.dp).fillMaxWidth()) {
-            GlassButton({}, symbol = "chevron.left", size = 38.dp)
+            if (onBack != null) GlassButton(onBack, symbol = "chevron.left", size = 38.dp)
             PearText("Glass gallery", style = t.headline, modifier = Modifier.weight(1f))
             GlassPill {
                 GlassPillButton("magnifyingglass", {})
