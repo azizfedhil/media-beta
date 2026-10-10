@@ -14,8 +14,12 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)
+            implementation(compose.animation)
             implementation(compose.foundation)
             implementation(compose.ui)
+            implementation(libs.haze)
+            implementation(libs.haze.blur)
+            implementation(libs.haze.glass)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
