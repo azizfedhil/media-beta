@@ -1,0 +1,62 @@
+name: Desktop CI
+on:
+  push:
+    branches: [main]
+    paths:
+      - "shared/**"
+      - "desktopApp/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/desktop-ci.yml"
+  pull_request:
+    paths:
+      - "shared/**"
+      - "desktopApp/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/desktop-ci.yml"
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.1"
+      - name: Build, test, package
+        run: gradle :shared:build :desktopApp:createDistributable --console=plain
+      - name: Smoke test (opens the window for 3 s under Xvfb)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        env:
+          SKIKO_RENDER_API: SOFTWARE_FAST
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libxrender1 libxtst6 libxi6 libfontconfig1
+          xvfb-run -a gradle :desktopApp:run --args="--smoke" --console=plain
+      - name: Generate Gradle wrapper (commit these files once)
+        if: runner.os == 'Linux'
+        run: gradle wrapper --gradle-version 9.5.1 --console=plain
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: gradle-wrapper
+          path: |
+            gradlew
+            gradlew.bat
+            gradle/wrapper/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pear-desktop-${{ runner.os }}
+          path: desktopApp/build/compose/binaries/main/app/
