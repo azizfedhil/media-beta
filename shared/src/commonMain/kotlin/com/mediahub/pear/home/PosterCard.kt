@@ -108,9 +108,8 @@ fun PosterCard(
                 ) {
                     PearText(
                         text = "★ " + (kotlin.math.round(r * 10) / 10).toString(),
-                        style = PearTheme.type.caption2.weight(FontWeight.Bold),
+                        style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 10.sp),
                         color = Color.White,
-                        fontSize = 10.sp,
                     )
                 }
             }
@@ -123,7 +122,7 @@ fun PosterCard(
                         .background(Color.Black.copy(alpha = 0.65f))
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                 ) {
-                    PearText(net.name, style = PearTheme.type.caption2, color = Color.White, fontSize = 9.sp, maxLines = 1)
+                    PearText(net.name, style = PearTheme.type.caption2.copy(fontSize = 9.sp), color = Color.White, maxLines = 1)
                 }
             }
         }

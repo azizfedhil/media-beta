@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.history.Fmt
 import com.mediahub.pear.history.HistoryEntry
 import com.mediahub.pear.history.UpNextItem
+import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii

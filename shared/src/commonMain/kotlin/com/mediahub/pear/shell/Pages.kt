@@ -31,6 +31,9 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import com.mediahub.pear.home.HomeScreen
+import com.mediahub.pear.model.CatalogRow
+import com.mediahub.pear.model.MetaPreview
 
 private val PageMaxWidth = 900.dp
 
@@ -44,8 +47,8 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
     when (route) {
         is Route.Root -> when (route.tab) {
             AppTab.Home -> HomeScreen(
-                onSelectTitle = { item, s, ep -> nav.push(Route.Demo(1)) /* Detail view connects in 3.2 */ },
-                onSeeAll = { row -> nav.push(Route.Catalogue(row.id, row.title)) }
+                onSelectTitle = { item: MetaPreview, s: Int?, ep: Int? -> nav.push(Route.Demo(1)) },
+                onSeeAll = { row: CatalogRow -> nav.push(Route.Catalogue(row.id, row.title)) },
             )
             AppTab.Settings -> SettingsPlaceholder(nav)
             AppTab.Explore -> Placeholder("Explore", "ExploreView.swift", "Batch 3.3", nav)

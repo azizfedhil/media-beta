@@ -19,9 +19,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
+import com.mediahub.pear.shell.LocalHttp
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearTheme
 import kotlinx.coroutines.Dispatchers
@@ -72,10 +73,12 @@ fun RemoteImage(
 
         failed = false
         val targetUrl = url
-        val loaded = withContext(Dispatchers.Default) {
-            var bytes = attempt { http.execute(HttpRequest(targetUrl, timeoutMillis = 10_000)).body }
+        val loaded: ImageBitmap? = withContext(Dispatchers.Default) {
+            val targetReq = HttpRequest(targetUrl, timeoutMillis = 10_000)
+            var bytes: ByteArray? = attempt { http.execute(targetReq).body }
             if (bytes == null && fallbackUrl != null) {
-                bytes = attempt { http.execute(HttpRequest(fallbackUrl, timeoutMillis = 10_000)).body }
+                val fallbackReq = HttpRequest(fallbackUrl, timeoutMillis = 10_000)
+                bytes = attempt { http.execute(fallbackReq).body }
             }
             bytes?.let { decodeImageBitmap(it) }
         }
@@ -101,7 +104,7 @@ fun RemoteImage(
             }
             failed -> {
                 Box(Modifier.fillMaxSize().background(PearTheme.colors.fill), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    PearIcon("film", size = androidx.compose.ui.unit.dp(24), tint = PearTheme.colors.textTertiary)
+                    PearIcon("film", size = 24.dp, tint = PearTheme.colors.textTertiary)
                 }
             }
             else -> {
