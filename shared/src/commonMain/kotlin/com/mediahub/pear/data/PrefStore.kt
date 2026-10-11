@@ -44,7 +44,7 @@ class PrefStore(private val persistence: PrefsPersistence = NoPersistence) {
 
     fun stringList(key: String): List<String>? = (map[key] as? PrefValue.TextList)?.value
 
-    fun moment(key: String): Long? = (map[key] as? PrefValue.Moment)?.value
+    fun moment(key: String): Long? = (map[key] as? PrefValue.Moment)?.epochMillis
 
     /** JSON the iOS app keeps as `Data` (profiles, history, pins). Accepts bytes or plain text. */
     fun jsonText(key: String): String? = when (val v = map[key]) {

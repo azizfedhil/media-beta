@@ -16,6 +16,8 @@ sealed interface Route {
     data object GlassGallery : Route
     data object StorageCheck : Route
     data object MetadataCheck : Route
+    data object AddonsCheck : Route
+    data object HistoryCheck : Route
 }
 
 /** An add-on catalogue listed under "Catalogues" in the sidebar (real data arrives with Batch 2.3). */

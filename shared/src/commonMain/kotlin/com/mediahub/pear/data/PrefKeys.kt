@@ -50,6 +50,10 @@ object PrefKeys {
 object SecretKeys {
     const val SIMKL_TOKEN = "simkl.token"
     const val SIMKL_REFRESH = "simkl.refresh"
+
+    /** When the access token runs out (epoch milliseconds as text) and which client id it belongs to. Kept with the token, like the TVDB date. */
+    const val SIMKL_TOKEN_EXPIRY = "simkl.tokenExpiry"
+    const val SIMKL_CLIENT_ID = "simkl.tokenClientID"
     const val TVDB_TOKEN = "tvdb.token"
 
     /** When the TVDB token was issued (epoch milliseconds as text). Kept with the token, so no setting is written off the UI thread. */

@@ -55,6 +55,8 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })
         Route.StorageCheck -> StorageCheckScreen(env.data, onBack = { nav.pop() })
         Route.MetadataCheck -> MetadataCheckScreen(env.data, onBack = { nav.pop() })
+        Route.AddonsCheck -> AddonsCheckScreen(env.data, onBack = { nav.pop() })
+        Route.HistoryCheck -> HistoryCheckScreen(env.data, onBack = { nav.pop() })
     }
 }
 
@@ -133,6 +135,8 @@ private fun SettingsPlaceholder(nav: NavController<Route>) {
                     DevChip("Glass gallery", false) { nav.push(Route.GlassGallery) }
                     DevChip("Storage check", false) { nav.push(Route.StorageCheck) }
                     DevChip("Metadata check", false) { nav.push(Route.MetadataCheck) }
+                    DevChip("Add-ons check", false) { nav.push(Route.AddonsCheck) }
+                    DevChip("History & Simkl check", false) { nav.push(Route.HistoryCheck) }
                     DevChip("Push a page", false) { nav.push(Route.Demo(1)) }
                 }
             }

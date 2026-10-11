@@ -205,7 +205,7 @@ private suspend fun imdbOf(tmdb: com.mediahub.pear.meta.TmdbClient, m: MetaPrevi
 }
 
 @Composable
-private fun TextInput(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
+internal fun TextInput(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
     val c = PearTheme.colors
     Box(modifier.fillMaxWidth().clip(RoundedCornerShape(PearRadii.card)).background(c.fill).padding(horizontal = 12.dp, vertical = 10.dp)) {
         if (value.isEmpty()) PearText(placeholder, style = PearTheme.type.body, color = c.textSecondary)

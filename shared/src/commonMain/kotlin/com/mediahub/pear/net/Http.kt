@@ -27,8 +27,14 @@ class HttpRequest(
     val timeoutMillis: Long = 30_000,
 )
 
-class HttpReply(val status: Int, val body: ByteArray) {
+class HttpReply(
+    val status: Int,
+    val body: ByteArray,
+    /** Response headers, names in lower case (only the first value of a repeated header). */
+    val headers: Map<String, String> = emptyMap(),
+) {
     val text: String get() = body.decodeToString()
+    fun header(name: String): String? = headers[name.lowercase()]
 }
 
 /** Base of everything the metadata clients throw on purpose, so a caller can tell them from programming errors. */

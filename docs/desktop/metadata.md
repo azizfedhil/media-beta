@@ -56,6 +56,6 @@ Facts are written 8 s after the last change and when the window closes (`AppData
 
 ## Not done here
 - `ArtworkPool` / image loading (Phase 3). The client already hands posters and backdrops from the logo request to `TmdbClient.artwork` (an `ArtworkSink`).
-- Add-on manifest, catalogue and stream clients, `Addon`, `StreamItem`, `CatalogRow` (Batch 2.3). `ContentRules.rowKey` for add-ons exists as `addonRowKey(manifestId, type, id)`.
+- Add-on clients and models: done in Batch 2.3 (`addons.md`), together with `TitleClassifier`, which 2.2 had left out.
 - Not compiled by the author (no Gradle in the authoring environment): the first `gradle :shared:build` is the real check. Tests: `shared/src/commonTest/.../{meta,model,net}`,
   `data/ContentFilterTest.kt`, `shared/src/desktopTest/.../net`.

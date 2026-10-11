@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import com.mediahub.pear.addons.HomeCatalogs
 import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.Storage
 import com.mediahub.pear.glass.GlassStore
@@ -19,12 +20,6 @@ import com.mediahub.pear.shell.WindowControl
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.ThemeStore
 
-/** Stand-ins for the add-on catalogues listed in the sidebar, until Batch 2.3 loads real ones. */
-private val devCatalogues = listOf(
-    "Trending Movies", "Trending Series", "Top Rated Movies", "Popular Series", "New Releases", "Anime Movies",
-    "Documentaries", "Kids and Family", "Award Winners", "Staff Picks",
-).mapIndexed { i, title -> CatalogueItem("dev/$i", title) }
-
 /**
  * Root of the shared UI: theme, glass settings and the adaptive shell (sidebar on wide windows, tab bar on narrow).
  * [windowControl] lets the dev tools resize the window; [devTools] shows the developer section in Settings.
@@ -34,16 +29,19 @@ private val devCatalogues = listOf(
 @Composable
 fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null, network: Network? = null) {
     val data = remember(storage, network) { AppData(storage ?: Storage.inMemory(), network ?: Network.offline()) }
-    DisposableEffect(data) { onDispose { data.flush() } }
+    DisposableEffect(data) { onDispose { data.close() } }
     val theme = remember(data) { ThemeStore(prefs = data.prefs) }
     val glass = remember(data) { GlassStore(prefs = data.prefs) }
     val shell = remember { ShellState() }
     val env = remember(data) { AppEnv(theme, glass, shell, data, devTools) }
-    // Each profile has its own content settings: follow the active profile.
-    LaunchedEffect(data.profiles.activeID) { data.content.load(data.profiles.activeID) }
+    // Each profile has its own content settings, history and library: follow the active profile.
+    LaunchedEffect(data.profiles.activeID) { data.switchProfile(data.profiles.activeID) }
     PearTheme(theme) {
         CompositionLocalProvider(LocalAppEnv provides env, LocalWindowControl provides windowControl) {
-            AdaptiveShell(shell, glass, catalogues = if (devTools) devCatalogues else emptyList())
+            // The sidebar lists the same add-on catalogues Home shows (spec: `HomeModel.homeJobs`).
+            val catalogues = HomeCatalogs.jobs(data.addons.enabledAddons, data.content.rules, data.addons.pickerIds)
+                .map { (addon, cat) -> CatalogueItem("${addon.id}/${cat.type}/${cat.id}", HomeCatalogs.rowTitle(cat)) }
+            AdaptiveShell(shell, glass, catalogues = catalogues)
         }
     }
 }

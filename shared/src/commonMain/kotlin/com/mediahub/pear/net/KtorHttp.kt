@@ -42,7 +42,9 @@ class KtorHttp(
                     socketTimeoutMillis = request.timeoutMillis
                 }
             }
-            return HttpReply(response.status.value, response.bodyAsBytes())
+            val headers = HashMap<String, String>()
+            for (name in response.headers.names()) response.headers[name]?.let { headers[name.lowercase()] = it }
+            return HttpReply(response.status.value, response.bodyAsBytes(), headers)
         } catch (e: CancellationException) {
             // A timeout surfaces as a cancellation. If our own coroutine is still alive it was not us who was
             // cancelled, so it is a network failure; if we were cancelled, ensureActive() throws the right thing.

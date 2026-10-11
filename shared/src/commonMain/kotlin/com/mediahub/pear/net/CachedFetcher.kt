@@ -15,6 +15,7 @@ internal object Ttl {
  * - If the server can't be reached (or is failing: 5xx, 429), an older cached answer is better than an error.
  *   A 401/403/404 is never covered up that way.
  * - [ttlMillis] of 0 skips the cache completely (answers that belong to one account).
+ * - [readCache] false asks the server even when a fresh answer is kept (a "reload"), but still stores the new answer.
  */
 internal class CachedFetcher(
     private val http: Http,
@@ -26,9 +27,10 @@ internal class CachedFetcher(
         ttlMillis: Long,
         build: suspend () -> HttpRequest,
         parse: (ByteArray) -> T,
+        readCache: Boolean = true,
     ): T {
         val useCache = ttlMillis > 0
-        val hit = if (useCache) attempt { cache.get(key) } else null
+        val hit = if (useCache && readCache) attempt { cache.get(key) } else null
         if (hit != null && (now() - hit.storedAtMillis) in 0 until ttlMillis) {
             attempt { parse(hit.body) }?.let { return it }
         }
