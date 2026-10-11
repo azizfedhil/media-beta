@@ -37,11 +37,12 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
     // Each profile has its own content settings, history and library: follow the active profile.
     LaunchedEffect(data.profiles.activeID) { data.switchProfile(data.profiles.activeID) }
     PearTheme(theme) {
-        CompositionLocalProvider(LocalAppEnv provides env, LocalWindowControl provides windowControl) {
-            // The sidebar lists the same add-on catalogues Home shows (spec: `HomeModel.homeJobs`).
-            val catalogues = HomeCatalogs.jobs(data.addons.enabledAddons, data.content.rules, data.addons.pickerIds)
-                .map { (addon, cat) -> CatalogueItem("${addon.id}/${cat.type}/${cat.id}", HomeCatalogs.rowTitle(cat)) }
-            AdaptiveShell(shell, glass, catalogues = catalogues)
+        CompositionLocalProvider(
+            LocalAppEnv provides env,
+            LocalWindowControl provides windowControl,
+            com.mediahub.pear.shell.LocalHttp provides data.network.http
+        ) {
+            AdaptiveShell()
         }
     }
 }

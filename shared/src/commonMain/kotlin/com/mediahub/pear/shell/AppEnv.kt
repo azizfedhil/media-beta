@@ -6,6 +6,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.AppData
 import com.mediahub.pear.glass.GlassStore
+import com.mediahub.pear.net.Http
+import com.mediahub.pear.net.OfflineHttp
 import com.mediahub.pear.theme.ThemeStore
 
 /** App-wide objects every screen can reach. Grows with the data layer (Phase 2). */
@@ -29,3 +31,13 @@ val LocalBottomInset = compositionLocalOf { 0.dp }
 
 /** Height of the phone tab bar and of the round search button beside it. */
 val TabBarHeight: Dp = 64.dp
+
+val LocalHttp = staticCompositionLocalOf<Http> { OfflineHttp }
+
+class AppEnv(
+    val theme: ThemeStore,
+    val glass: GlassStore,
+    val shell: ShellState,
+    val data: AppData,
+    val devTools: Boolean,
+)

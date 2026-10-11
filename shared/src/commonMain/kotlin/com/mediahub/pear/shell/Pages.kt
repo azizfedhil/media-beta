@@ -43,7 +43,10 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
     val env = LocalAppEnv.current
     when (route) {
         is Route.Root -> when (route.tab) {
-            AppTab.Home -> HomePlaceholder(nav)
+            AppTab.Home -> HomeScreen(
+                onSelectTitle = { item, s, ep -> nav.push(Route.Demo(1)) /* Detail view connects in 3.2 */ },
+                onSeeAll = { row -> nav.push(Route.Catalogue(row.id, row.title)) }
+            )
             AppTab.Settings -> SettingsPlaceholder(nav)
             AppTab.Explore -> Placeholder("Explore", "ExploreView.swift", "Batch 3.3", nav)
             AppTab.Library -> Placeholder("Library", "LibraryView.swift", "Batch 3.4", nav)
