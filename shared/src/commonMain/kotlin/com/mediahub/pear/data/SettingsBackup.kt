@@ -1,5 +1,6 @@
 package com.mediahub.pear.data
 
+import com.mediahub.pear.theme.ThemeStore
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -128,9 +129,13 @@ object SettingsBackup {
     /**
      * Restores backup and triggers a live reload across all data layer stores.
      */
-    suspend fun applyBackup(bytes: ByteArray, data: AppData): Int {
+    /**
+     * Restores backup and automatically reloads all data layer stores in [data],
+     * and reloads [theme] if provided.
+     */
+    suspend fun applyBackup(bytes: ByteArray, data: AppData, theme: ThemeStore? = null): Int {
         val count = restore(bytes, data.prefs)
-        data.theme.reload()
+        theme?.reload()
         data.profiles.reload()
         data.content.reload()
         data.history.reload()
@@ -141,6 +146,9 @@ object SettingsBackup {
         data.addons.reloadFromPrefs()
         return count
     }
+
+    suspend fun applyBackup(text: String, data: AppData, theme: ThemeStore? = null): Int =
+        applyBackup(text.encodeToByteArray(), data, theme)
 
     suspend fun applyBackup(text: String, data: AppData): Int = applyBackup(text.encodeToByteArray(), data)
 

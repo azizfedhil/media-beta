@@ -64,12 +64,19 @@ internal fun BackupCheckScreen(data: AppData, onBack: () -> Unit) {
                         statusMessage = "Export failed: ${e.message}"
                     }
                 }
-                DevChip("Export JSON", false) {
-                    try {
-                        resultText = SettingsBackup.exportJson(data.prefs, includeData)
-                        statusMessage = "Exported JSON (${resultText.length} chars)."
-                    } catch (e: Exception) {
-                        statusMessage = "Export failed: ${e.message}"
+                DevChip("Import from text above", false) {
+                    if (resultText.isBlank()) {
+                        statusMessage = "No backup text to import."
+                        return@DevChip
+                    }
+                    scope.launch {
+                        try {
+                            val count = SettingsBackup.applyBackup(resultText, data)
+                            statusMessage = "Successfully imported $count settings!"
+                            refreshState()
+                        } catch (e: Exception) {
+                            statusMessage = "Import error: ${e.message}"
+                        }
                     }
                 }
             }
