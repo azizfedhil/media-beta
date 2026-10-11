@@ -57,6 +57,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.MetadataCheck -> MetadataCheckScreen(env.data, onBack = { nav.pop() })
         Route.AddonsCheck -> AddonsCheckScreen(env.data, onBack = { nav.pop() })
         Route.HistoryCheck -> HistoryCheckScreen(env.data, onBack = { nav.pop() })
+        Route.BackupCheck -> BackupCheckScreen(env.data, onBack = { nav.pop() })
     }
 }
 
@@ -137,6 +138,7 @@ private fun SettingsPlaceholder(nav: NavController<Route>) {
                     DevChip("Metadata check", false) { nav.push(Route.MetadataCheck) }
                     DevChip("Add-ons check", false) { nav.push(Route.AddonsCheck) }
                     DevChip("History & Simkl check", false) { nav.push(Route.HistoryCheck) }
+                     DevChip("Backup check", false) { nav.push(Route.BackupCheck) }
                     DevChip("Push a page", false) { nav.push(Route.Demo(1)) }
                 }
             }

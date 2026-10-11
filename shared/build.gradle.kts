@@ -33,6 +33,7 @@ kotlin {
                 implementation(libs.jna)
                 implementation(libs.jna.platform)
                 implementation(libs.ktor.client.okhttp)
+                implementation(libs.dd.plist)
             }
         }
         commonTest.dependencies {
