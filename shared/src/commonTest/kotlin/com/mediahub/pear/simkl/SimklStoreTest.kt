@@ -118,7 +118,7 @@ private fun TestScope.setup(
         secrets.set(SecretKeys.SIMKL_REFRESH, "REF")
         secrets.set(SecretKeys.SIMKL_TOKEN_EXPIRY, (expiry ?: 99_999_999_999L).toString())
     }
-    val store = SimklStore(server.http, secrets, facts, backgroundScope, clock, appVersion = "9.9")
+    val store = SimklStore(server.http, secrets, facts, this, clock, appVersion = "9.9")
     return Setup(server, secrets, facts, store)
 }
 

@@ -76,6 +76,9 @@ class AddonStore(
         private set
 
     init {
+        if (prefs.stringList(PrefKeys.ADDON_MANIFEST_URLS) == null) {
+            persist()
+        }
         restoreJob = scope.launch { restore(known) }
     }
 

@@ -15,6 +15,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
 import kotlin.math.ceil
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 
 /** Season and episode, ordered like Swift's `(season, episode)` tuples. */
 data class SE(val season: Int, val episode: Int) : Comparable<SE> {
@@ -26,30 +28,24 @@ data class SE(val season: Int, val episode: Int) : Comparable<SE> {
  * history reads in both apps. Playback progress and watched state are kept apart: playing an episode partway never clears
  * the watched marker.
  */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class HistoryEntry(
     val item: MetaPreview,
-    /** Stream id including the episode ("2:5"), so resume only applies to the same episode. */
     val key: String,
     val position: Double,
     val duration: Double,
-    /** Epoch milliseconds in memory; Swift's `Date` number in the JSON. */
     @Serializable(with = AppleDate::class) val updated: Long,
-    val season: Int? = null,
-    val episode: Int? = null,
-    val episodeTitle: String? = null,
-    /** Episode still, or the movie backdrop. */
-    val thumb: String? = null,
-    /** Series: everything up to wS·wE is watched (0·0 = explicitly cleared). */
-    val wS: Int? = null,
-    val wE: Int? = null,
-    /** Movies: explicitly watched / unwatched. */
-    val done: Boolean? = null,
-    /** The title's other id (tt... vs tmdb:...). */
-    val alias: String? = null,
-    /** Up Next was dismissed while the watched marker was at hS·hE; it comes back once a later episode is finished. */
-    val hS: Int? = null,
-    val hE: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val season: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val episode: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val episodeTitle: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val thumb: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val wS: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val wE: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val done: Boolean? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val alias: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val hS: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val hE: Int? = null,
 ) {
     val id: String get() = item.id
     fun matches(x: String): Boolean = item.id == x || alias == x
