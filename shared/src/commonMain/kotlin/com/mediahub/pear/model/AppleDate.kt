@@ -1,10 +1,13 @@
 package com.mediahub.pear.model
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonUnquotedLiteral
 
 /** Seconds between 1970-01-01 and 2001-01-01 (Swift's reference date). */
 private const val APPLE_EPOCH_OFFSET_SECONDS = 978_307_200.0
@@ -21,7 +24,25 @@ object AppleDate : KSerializer<Long> {
 
     override val descriptor = PrimitiveSerialDescriptor("AppleDate", PrimitiveKind.DOUBLE)
 
-    override fun serialize(encoder: Encoder, value: Long) = encoder.encodeDouble(toApple(value))
+    @OptIn(ExperimentalSerializationApi::class)
+    override fun serialize(encoder: Encoder, value: Long) {
+        if (encoder is JsonEncoder) {
+            encoder.encodeJsonElement(JsonUnquotedLiteral(formatAppleDate(value)))
+        } else {
+            encoder.encodeDouble(toApple(value))
+        }
+    }
 
     override fun deserialize(decoder: Decoder): Long = fromApple(decoder.decodeDouble())
+
+    /** Formats the Apple date number as decimal text without JVM scientific notation (e.g. 781234567.5). */
+    fun formatAppleDate(epochMillis: Long): String {
+        val totalMillis = epochMillis - 978_307_200_000L
+        val sign = if (totalMillis < 0) "-" else ""
+        val absMillis = kotlin.math.abs(totalMillis)
+        val sec = absMillis / 1000L
+        val rem = absMillis % 1000L
+        val frac = rem.toString().padStart(3, '0').trimEnd('0')
+        return "$sign$sec." + if (frac.isEmpty()) "0" else frac
+    }
 }
