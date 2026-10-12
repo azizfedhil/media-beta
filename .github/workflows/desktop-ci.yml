@@ -9,6 +9,11 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    # Force bash for all multi-line `run` steps; on Windows the default shell is
+    # PowerShell, which can't parse POSIX `if [ ... ]; then ... fi` syntax.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,7 +28,10 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then
             curl -sSL -o "$RUNNER_TEMP/mpv-dev.7z" \
               https://github.com/shinchiro/mpv-winbuild-cmake/releases/latest/download/mpv-dev-x86_64-v3.7z
-            7z x -y -o"$GITHUB_WORKSPACE/desktopApp/packaging/resources/windows-x64" "$RUNNER_TEMP/mpv-dev.7z" libmpv-2.dll
+            # `7z` is not on the bash PATH on Windows runners; use the bundled 7-Zip binary instead.
+            "/c/Program Files/7-Zip/7z.exe" x -y \
+              -o"$GITHUB_WORKSPACE/desktopApp/packaging/resources/windows-x64" \
+              "$RUNNER_TEMP/mpv-dev.7z" libmpv-2.dll
           else
             sudo apt-get update && sudo apt-get install -y libmpv2
             cp /usr/lib/x86_64-linux-gnu/libmpv.so.2 "$GITHUB_WORKSPACE/desktopApp/packaging/resources/linux-x64/" || \
