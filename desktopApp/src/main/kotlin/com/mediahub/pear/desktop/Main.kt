@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.mediahub.pear.App
@@ -33,6 +34,12 @@ fun main(args: Array<String>) = application {
     val control = remember {
         object : WindowControl {
             override val size: DpSize get() = windowState.size
+
+            override var isFullscreen: Boolean
+                get() = windowState.placement == WindowPlacement.Fullscreen
+                set(value) {
+                    windowState.placement = if (value) WindowPlacement.Fullscreen else WindowPlacement.Floating
+                }
 
             override fun resize(width: Dp, height: Dp) {
                 // Keep the window on screen: laptops can be shorter than a phone-sized window.

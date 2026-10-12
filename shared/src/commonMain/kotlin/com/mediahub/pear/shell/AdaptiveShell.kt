@@ -60,6 +60,8 @@ fun AdaptiveShell(
         val windowWidth = maxWidth
         val mode = layoutModeFor(windowWidth, shell.layoutOverride)
         val activeProfileName = env.data.profiles.active.name
+        // The player takes the whole window: no sidebar or tab bar over the picture.
+        val playerOnTop = shell.currentNav().top is Route.Player
 
         // Ambient glow background derived from the hero poster
         val animatedAmbient by animateColorAsState(shell.heroAmbientColor, tween(1800))
@@ -100,7 +102,7 @@ fun AdaptiveShell(
                         // Home's feed folds the sidebar down to icons as it is scrolled or dragged.
                         val homeShown = shell.tab == AppTab.Home && shell.catalogue == null
                         val fold by animateFloatAsState(if (homeShown) shell.feedCollapse.progress else 0f, tween(140))
-                        Sidebar(
+                        if (!playerOnTop) Sidebar(
                             width = lerp(sidebarWidthFor(windowWidth), Breakpoints.sidebarIconsOnly, fold),
                             forceIcons = fold > 0.45f,
                             shell = shell,
@@ -113,7 +115,7 @@ fun AdaptiveShell(
             } else {
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
                     GlassScene(glass, Modifier.fillMaxSize(), background = { ShellPages(shell, Modifier.fillMaxSize()) }) {
-                        CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
+                        if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
                     }
                 }
             }

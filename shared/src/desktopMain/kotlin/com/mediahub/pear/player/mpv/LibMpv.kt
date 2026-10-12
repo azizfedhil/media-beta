@@ -1,9 +1,11 @@
 package com.mediahub.pear.player.mpv
 
+import com.sun.jna.Callback
 import com.sun.jna.Library
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
+import com.sun.jna.ptr.PointerByReference
 
 object MpvFormat {
     const val NONE = 0
@@ -49,6 +51,20 @@ open class MpvEventProperty : Structure {
     constructor(p: Pointer) : super(p) { read() }
 }
 
+/** Called by mpv from any thread when a new frame is ready. Do nothing here except signal another thread. */
+interface MpvRenderUpdateCallback : Callback {
+    fun invoke(ctx: Pointer?)
+}
+
+object MpvRenderParam {
+    const val API_TYPE = 1
+    const val SW_SIZE = 17
+    const val SW_FORMAT = 18
+    const val SW_STRIDE = 19
+    const val SW_POINTER = 20
+    const val UPDATE_FRAME = 1L
+}
+
 interface LibMpv : Library {
     fun mpv_create(): Pointer?
     fun mpv_initialize(ctx: Pointer): Int
@@ -66,6 +82,13 @@ interface LibMpv : Library {
     fun mpv_unobserve_property(ctx: Pointer, registered_reply_userdata: Long): Int
     fun mpv_wait_event(ctx: Pointer, timeout: Double): Pointer?
     fun mpv_error_string(error: Int): String?
+
+    // Render API (software renderer). `params` is an array of { int type; void *data } ending with type 0.
+    fun mpv_render_context_create(res: PointerByReference, mpv: Pointer, params: Pointer): Int
+    fun mpv_render_context_render(ctx: Pointer, params: Pointer): Int
+    fun mpv_render_context_update(ctx: Pointer): Long
+    fun mpv_render_context_set_update_callback(ctx: Pointer, callback: MpvRenderUpdateCallback?, callbackCtx: Pointer?)
+    fun mpv_render_context_free(ctx: Pointer)
 }
 
 object MpvNativeLoader {

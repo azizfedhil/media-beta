@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,6 +28,7 @@ import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.history.Fmt
 import com.mediahub.pear.player.PlaybackState
 import com.mediahub.pear.player.TrackKind
+import com.mediahub.pear.player.VideoSurface
 import com.mediahub.pear.player.createDefaultPlayerEngine
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.theme.PearText
@@ -66,6 +68,10 @@ fun PlayerCheckScreen(
                 .padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                VideoSurface(engine, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+            }
+
             // Player Engine State Overview
             GlassCard(Modifier.fillMaxWidth()) {
                 PearText("libmpv Engine State", style = PearTheme.type.headline)

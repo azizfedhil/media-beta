@@ -1,5 +1,6 @@
 package com.mediahub.pear.player.mpv
 
+import com.mediahub.pear.player.AspectMode
 import com.mediahub.pear.player.DummyPlayerEngine
 import com.mediahub.pear.player.PlaybackState
 import com.mediahub.pear.player.PlayerEngine
@@ -27,6 +28,10 @@ class MpvPlayerEngine private constructor(
     private val isReleased = AtomicBoolean(false)
     private val lock = Any()
     private var destroyed = false
+
+    @Volatile private var renderer: MpvVideoRenderer? = null
+    private var hdrToneMap = true
+    private var hdrFilterOn = false
 
     /** Runs a native call only while the handle is alive; destroy takes the same lock, so no use-after-free. */
     private inline fun <T> native(default: T, block: () -> T): T = synchronized(lock) { if (destroyed) default else block() }
@@ -69,6 +74,7 @@ class MpvPlayerEngine private constructor(
         mpv.mpv_observe_property(handle, 7L, "volume", MpvFormat.DOUBLE)
         mpv.mpv_observe_property(handle, 8L, "track-list/count", MpvFormat.INT64)
         mpv.mpv_observe_property(handle, 9L, "eof-reached", MpvFormat.FLAG)
+        mpv.mpv_observe_property(handle, 10L, "video-params/gamma", MpvFormat.STRING)
 
         // Event loop thread
         val eventThread = Thread({
@@ -106,6 +112,8 @@ class MpvPlayerEngine private constructor(
                     }
                 }
             }
+            // The render context must go before the mpv handle.
+            renderer?.close()
             synchronized(lock) {
                 destroyed = true
                 mpv.mpv_terminate_destroy(handle)
@@ -151,6 +159,13 @@ class MpvPlayerEngine private constructor(
                     } else if (!buffering && _state.value == PlaybackState.Buffering) {
                         _state.value = PlaybackState.Playing
                     }
+                }
+            }
+            "video-params/gamma" -> {
+                if (prop.format == MpvFormat.STRING) {
+                    val gamma = data.getPointer(0)?.getString(0)
+                    val hdr = gamma == "pq" || gamma == "hlg"
+                    native(Unit) { applyHdrFilter(hdr && hdrToneMap) }
                 }
             }
             "eof-reached" -> {
@@ -232,7 +247,7 @@ class MpvPlayerEngine private constructor(
             headers.forEach { (k, v) ->
                 mpv.mpv_command(handle, arrayOf("change-list", "http-header-fields", "append", "$k: $v", null))
             }
-            mpv.mpv_set_property_string(handle, "hwdec", if (hardwareDecoding) "auto-safe" else "no")
+            mpv.mpv_set_property_string(handle, "hwdec", if (hardwareDecoding) "auto-copy-safe" else "no")
             // Always set, so a previous resume point never sticks to the next file.
             mpv.mpv_set_property_string(handle, "start", if (startPositionSeconds > 0) startPositionSeconds.toString() else "none")
             mpv.mpv_set_property_string(handle, "pause", "no")
@@ -281,6 +296,37 @@ class MpvPlayerEngine private constructor(
         refreshTrackList()
     }
 
+    /** Frames only reach the screen through a render context; [VideoSurface] asks for one. */
+    fun createRenderer(): MpvVideoRenderer? = synchronized(lock) {
+        if (destroyed) return@synchronized null
+        renderer?.close()
+        MpvVideoRenderer.create(mpv, handle).also { renderer = it }
+    }
+
+    override fun setAspectMode(mode: AspectMode) {
+        native(0) {
+            mpv.mpv_set_property_string(handle, "keepaspect", if (mode == AspectMode.Stretch) "no" else "yes")
+            mpv.mpv_set_property_string(handle, "panscan", if (mode == AspectMode.Fill) "1.0" else "0.0")
+            0
+        }
+    }
+
+    override fun setHdrToneMapping(enabled: Boolean) {
+        hdrToneMap = enabled
+        if (!enabled) native(Unit) { applyHdrFilter(false) }
+    }
+
+    /** Software rendering has no GPU tone mapper, so HDR goes through ffmpeg's zscale + tonemap before the copy. Call under [lock]. */
+    private fun applyHdrFilter(on: Boolean) {
+        if (on == hdrFilterOn) return
+        hdrFilterOn = on
+        if (on) {
+            mpv.mpv_command(handle, arrayOf("vf", "add", "@pearhdr:lavfi=[zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p]", null))
+        } else {
+            mpv.mpv_command(handle, arrayOf("vf", "remove", "@pearhdr", null))
+        }
+    }
+
     override fun release() {
         // The event thread sees the flag within 100 ms and destroys the handle itself, never from under itself.
         isReleased.set(true)
@@ -299,6 +345,8 @@ class MpvPlayerEngine private constructor(
 
             // Base options before initialization
             mpv.mpv_set_option_string(handle, "config", "no")
+            // Frames are pulled through the render API (see MpvVideoRenderer), never shown in an mpv window.
+            mpv.mpv_set_option_string(handle, "vo", "libmpv")
             mpv.mpv_set_option_string(handle, "idle", "yes")
             mpv.mpv_set_option_string(handle, "keep-open", "always")
             mpv.mpv_set_option_string(handle, "volume-max", "100")

@@ -12,6 +12,9 @@ enum class PlaybackState {
     Error,
 }
 
+/** How video fills the surface: Fit keeps the aspect (black bars), Fill crops to cover, Stretch ignores the aspect. */
+enum class AspectMode { Fit, Fill, Stretch }
+
 enum class TrackKind {
     Audio,
     Subtitle,
@@ -58,6 +61,10 @@ interface PlayerEngine {
     fun setRate(rate: Double)
     fun setVolume(volume: Float)
     fun selectTrack(kind: TrackKind, trackId: Int?)
+    fun setAspectMode(mode: AspectMode) {}
+
+    /** Tone-map HDR (PQ/HLG) video to SDR. On by default. */
+    fun setHdrToneMapping(enabled: Boolean) {}
 
     fun release()
 }

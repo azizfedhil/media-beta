@@ -8,6 +8,11 @@ import androidx.compose.ui.unit.DpSize
 interface WindowControl {
     val size: DpSize
     fun resize(width: Dp, height: Dp)
+
+    /** Whole-screen window (the player's fullscreen button). */
+    var isFullscreen: Boolean
+        get() = false
+        set(_) {}
 }
 
 val LocalWindowControl = staticCompositionLocalOf<WindowControl?> { null }
