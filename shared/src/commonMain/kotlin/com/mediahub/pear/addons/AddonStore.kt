@@ -30,14 +30,13 @@ const val DEFAULT_ADDON_URL = "https://v3-cinemeta.strem.io/manifest.json"
  * Saved under the iOS keys: `addon.manifestURLs` (every saved address, in order), `addon.disabled`,
  * `addon.catalogPicker`. Add-on addresses can hold API keys (debrid add-ons); the iOS app keeps them in the settings
  * file too (its own TODO), so the backup format stays the same.
- *
- * Not here: the signed-in Jellyfin/Plex servers that Swift's `enabledAddons` puts first (not in the port plan).
  */
 class AddonStore(
     private val prefs: PrefStore,
     private val client: AddonClient,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
     private val defaults: List<String> = listOf(DEFAULT_ADDON_URL),
+    var serverAddons: () -> List<Addon> = { emptyList() },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private var restoreJob: Job? = null
@@ -84,8 +83,11 @@ class AddonStore(
 
     // MARK: Reading
 
-    /** Installed add-ons that are switched on, in the user's order. */
-    val enabledAddons: List<Addon> get() = addons.filter { it.id !in disabledIds }
+    /** Installed add-ons that are switched on, in the user's order. Media servers are not included. */
+    val enabledInstalledAddons: List<Addon> get() = addons.filter { it.id !in disabledIds }
+
+    /** Everything sources, search and Home draw from: signed-in media servers first, then installed enabled add-ons. */
+    val enabledAddons: List<Addon> get() = serverAddons() + enabledInstalledAddons
 
     /** Saved add-ons whose manifest couldn't be fetched (offline, server asleep). [retryUnreachable] tries again. */
     val unreachable: List<String>
@@ -259,7 +261,6 @@ class AddonStore(
                         val url = attempt { Addon.normalize(s) } ?: return@launch
                         val m = attempt { client.manifest(url) } ?: return@launch
                         val a = Addon(url, m)
-                        // Skips ones removed meanwhile, and ones already there.
                         if (a.id in known && addons.none { it.id == a.id }) {
                             addons = addons + a
                             sortToKnown()

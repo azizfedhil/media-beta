@@ -46,7 +46,9 @@ class AppData(
     val mediaServers = MediaServerStore(storage.prefs, storage.secrets, network.http)
 
     val addonClient = AddonClient(network.http, network.cache)
-    val addons = AddonStore(storage.prefs, addonClient, addonDispatcher, serverAddons = { mediaServers.addons })
+    val addons = AddonStore(storage.prefs, addonClient, addonDispatcher).apply {
+        serverAddons = { mediaServers.addons }
+    }
 
     val pinned = PinnedSources(storage.prefs)
     val subtitles = OpenSubtitlesClient(
