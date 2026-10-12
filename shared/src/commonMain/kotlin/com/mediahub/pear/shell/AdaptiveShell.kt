@@ -42,6 +42,7 @@ import com.mediahub.pear.nav.LocalPageActive
 import com.mediahub.pear.nav.NavHost
 import com.mediahub.pear.profile.ProfileAvatarButton
 import com.mediahub.pear.profile.ProfileSheetOverlay
+import com.mediahub.pear.detail.SourcePickerOverlay
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.mediahub.pear.theme.PearTheme
@@ -78,31 +79,7 @@ fun AdaptiveShell(
                 GlassScene(
                     store = glass,
                     modifier = Modifier.fillMaxSize(),
-                    background = {
-                        // One soft colour wash over the whole page: strongest behind the hero, dissolving to near-black.
-                        Box(
-                            Modifier.fillMaxSize().drawBehind {
-                                val c = animatedAmbient
-                                drawRect(
-                                    Brush.radialGradient(
-                                        0f to c.copy(alpha = 0.75f),
-                                        0.40f to c.copy(alpha = 0.38f),
-                                        0.75f to c.copy(alpha = 0.12f),
-                                        1f to Color.Transparent,
-                                        center = Offset(size.width * 0.30f, size.height * 0.38f),
-                                        radius = maxOf(size.width, size.height) * 1.0f,
-                                    ),
-                                )
-                                drawRect(
-                                    Brush.verticalGradient(
-                                        0f to c.copy(alpha = 0.20f),
-                                        0.55f to Color.Transparent,
-                                        1f to Color.Black.copy(alpha = 0.55f),
-                                    ),
-                                )
-                            },
-                        )
-                    },
+                    background = { AmbientWash(animatedAmbient) },
                 ) {
                     Row(Modifier.fillMaxSize()) {
                         // Home's feed folds the sidebar down to icons as it is scrolled or dragged.
@@ -118,11 +95,13 @@ fun AdaptiveShell(
                         )
                         ShellPages(shell, Modifier.weight(1f).fillMaxHeight())
                     }
+                    ShellOverlays(shell, showProfiles) { showProfiles = it }
                 }
             } else {
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
-                    GlassScene(glass, Modifier.fillMaxSize(), background = { ShellPages(shell, Modifier.fillMaxSize()) }) {
+                    GlassScene(glass, Modifier.fillMaxSize(), background = { AmbientWash(animatedAmbient); ShellPages(shell, Modifier.fillMaxSize()) }) {
                         if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
+                        ShellOverlays(shell, showProfiles) { showProfiles = it }
                         if (!playerOnTop) ProfileAvatarButton(
                             profile = env.data.profiles.active,
                             onClick = { showProfiles = true },
@@ -132,19 +111,6 @@ fun AdaptiveShell(
                     }
                 }
             }
-        }
-        if (showProfiles) {
-            ProfileSheetOverlay(
-                onDismiss = { showProfiles = false },
-                onOpenProfileDetail = {
-                    showProfiles = false
-                    shell.currentNav().push(Route.ProfileDetail)
-                },
-                onOpenDownloads = {
-                    showProfiles = false
-                    shell.currentNav().push(Route.Downloads)
-                },
-            )
         }
     }
 }
@@ -208,4 +174,54 @@ private fun KeepAlive(shown: Boolean, content: @Composable () -> Unit) {
             }
         },
     ) { content() }
+}
+
+/** One soft colour wash over the whole page, from the hero's poster: strongest behind the hero, dissolving to near-black. */
+@Composable
+private fun AmbientWash(color: Color) {
+    Box(
+        Modifier.fillMaxSize().drawBehind {
+            drawRect(
+                Brush.radialGradient(
+                    0f to color.copy(alpha = 0.75f),
+                    0.40f to color.copy(alpha = 0.38f),
+                    0.75f to color.copy(alpha = 0.12f),
+                    1f to Color.Transparent,
+                    center = Offset(size.width * 0.30f, size.height * 0.38f),
+                    radius = maxOf(size.width, size.height) * 1.0f,
+                ),
+            )
+            drawRect(
+                Brush.verticalGradient(
+                    0f to color.copy(alpha = 0.20f),
+                    0.55f to Color.Transparent,
+                    1f to Color.Black.copy(alpha = 0.55f),
+                ),
+            )
+        },
+    )
+}
+
+/**
+ * What floats over the app: "Who's watching?" and the source picker. Drawn inside the glass scene, so their glass blurs
+ * the app behind them, in both layouts.
+ */
+@Composable
+private fun ShellOverlays(shell: ShellState, showProfiles: Boolean, onProfiles: (Boolean) -> Unit) {
+    if (showProfiles) {
+        ProfileSheetOverlay(
+            onDismiss = { onProfiles(false) },
+            onOpenProfileDetail = {
+                onProfiles(false)
+                shell.currentNav().push(Route.ProfileDetail)
+            },
+            onOpenDownloads = {
+                onProfiles(false)
+                shell.currentNav().push(Route.Downloads)
+            },
+        )
+    }
+    shell.sourcePicker?.let { picker ->
+        SourcePickerOverlay(picker, onClose = { shell.closeSourcePicker() })
+    }
 }

@@ -93,9 +93,10 @@ fun HeroCarousel(
 
     val item = items.getOrElse(currentIndex) { items.first() }
 
-    // Update the ambient glow
-    LaunchedEffect(item.name) {
-        env.shell.heroAmbientColor = fallbackHeroAmbientColor(item.name)
+    // Update the ambient glow: the poster's colour, as the wide hero uses; the title's hue is the fallback.
+    val dominant = rememberDominantColor(item.posterUrl ?: item.backdropUrl)
+    LaunchedEffect(item.name, dominant) {
+        env.shell.heroAmbientColor = dominant ?: fallbackHeroAmbientColor(item.name)
     }
 
     Box(

@@ -66,3 +66,14 @@ is shared between the two passes a scale of 1x when the layout is compact.
   the title it was loaded for, so one title never shows another's logo while the carousel moves on.
 - Layout follows the mockup: type pill, logo, ratings, synopsis and Details stack from a fixed distance above the bottom edge (Details
   136 dp up), and the dots sit below them, centred. The phone carousel is unchanged.
+
+## Overlays, the source picker and the ambient colour
+
+- Anything that floats over the app is drawn by `ShellOverlays` inside the glass scene, in both layouts. A glass surface blurs
+  what its `GlassScene` captured in the background, so an overlay drawn inside a page (which is part of that background) comes out
+  transparent. "Who's watching?" was drawn outside the scene and so had no glass at all.
+- The source picker is `ShellState.sourcePicker`, opened by the detail page (`openSourcePicker`) and drawn by `SourcePickerOverlay`.
+  Phone: the bottom sheet (`SourceSheet`). Wide: a centred panel, about 84% of the window (up to 980 x 720 dp), with the sources as
+  a grid of cards and the add-on filter across the top.
+- The ambient colour is drawn behind the app in both layouts (`AmbientWash`). The phone hero takes the poster's colour as the wide
+  hero does; the title's hue is the fallback.

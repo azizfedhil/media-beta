@@ -58,6 +58,7 @@ import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.SourcePickerRequest
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
@@ -92,7 +93,6 @@ fun DetailScreen(
     var selectedEpisode by remember { mutableIntStateOf(startEpisode ?: 1) }
     var episodes by remember { mutableStateOf<List<EpisodeItem>>(emptyList()) }
 
-    var showSourcesSheet by remember { mutableStateOf(false) }
 
     // Library and watched states
     val isWatched = env.data.history.entry(item.id)?.isTitleWatched == true
@@ -120,6 +120,24 @@ fun DetailScreen(
         if (env.data.meta.mdblist.hasKey && imdbId.isNotEmpty()) {
             ratings = env.data.meta.mdblist.ratings(imdbId, item.type)
         }
+    }
+
+    // The picker is drawn over the whole app by the shell (see ShellOverlays), not here: a sheet inside the page would
+    // sit in the blur source and come out transparent.
+    fun openSourcePicker() {
+        if (imdbId.isEmpty()) return
+        env.shell.openSourcePicker(
+            SourcePickerRequest(
+                item = item,
+                imdbId = imdbId,
+                season = if (isSeries) selectedSeason else null,
+                episode = if (isSeries) selectedEpisode else null,
+                episodeTitle = episodes.firstOrNull { it.id == selectedEpisode }?.name,
+                thumb = (if (isSeries) episodes.firstOrNull { it.id == selectedEpisode }?.image else null) ?: item.backdropUrl,
+                logo = logoUrl,
+                onSelect = { request -> onPlay(request) },
+            ),
+        )
     }
 
     // Load episodes when season changes
@@ -155,7 +173,7 @@ fun DetailScreen(
                             episode = selectedEpisode,
                             isWatched = isWatched,
                             isInLibrary = isInLibrary,
-                            onPlay = { showSourcesSheet = true },
+                            onPlay = { openSourcePicker() },
                             onToggleLibrary = {
                                 if (isInLibrary) env.data.library.remove(item.id)
                                 else env.data.library.set(item, LibraryStatus.PlanToWatch)
@@ -193,7 +211,7 @@ fun DetailScreen(
                                 onSelectSeason = { selectedSeason = it; selectedEpisode = 1 },
                                 onSelectEpisode = { ep ->
                                     selectedEpisode = ep.id
-                                    showSourcesSheet = true
+                                    openSourcePicker()
                                 },
                                 isEpisodeWatched = { epId ->
                                     env.data.history.isWatched(selectedSeason, epId, item.id)
@@ -264,7 +282,7 @@ fun DetailScreen(
                         episode = selectedEpisode,
                         isWatched = isWatched,
                         isInLibrary = isInLibrary,
-                        onPlay = { showSourcesSheet = true },
+                        onPlay = { openSourcePicker() },
                         onToggleLibrary = {
                             if (isInLibrary) env.data.library.remove(item.id)
                             else env.data.library.set(item, LibraryStatus.PlanToWatch)
@@ -294,7 +312,7 @@ fun DetailScreen(
                         onSelectSeason = { selectedSeason = it; selectedEpisode = 1 },
                         onSelectEpisode = { ep ->
                             selectedEpisode = ep.id
-                            showSourcesSheet = true
+                            openSourcePicker()
                         },
                         isEpisodeWatched = { epId ->
                             env.data.history.isWatched(selectedSeason, epId, item.id)
@@ -317,29 +335,6 @@ fun DetailScreen(
                 Box(Modifier.padding(horizontal = 20.dp)) {
                     AboutDetailsSection(details, isSeries)
                 }
-            }
-        }
-
-        // Sources Sheet Dialog
-        if (showSourcesSheet && imdbId.isNotEmpty()) {
-            Box(
-                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable { showSourcesSheet = false },
-                contentAlignment = Alignment.BottomCenter,
-            ) {
-                SourceSheet(
-                    item = item,
-                    imdbId = imdbId,
-                    season = if (isSeries) selectedSeason else null,
-                    episode = if (isSeries) selectedEpisode else null,
-                    episodeTitle = episodes.firstOrNull { it.id == selectedEpisode }?.name,
-                    thumb = (if (isSeries) episodes.firstOrNull { it.id == selectedEpisode }?.image else null) ?: item.backdropUrl,
-                    logo = logoUrl,
-                    onSelectSource = { request ->
-                        showSourcesSheet = false
-                        onPlay(request)
-                    },
-                    onClose = { showSourcesSheet = false },
-                )
             }
         }
     }

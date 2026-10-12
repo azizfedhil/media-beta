@@ -44,6 +44,21 @@ sealed interface Route {
 
 class CatalogueItem(val id: String, val title: String)
 
+/**
+ * A source picker for one title or episode. [ShellOverlays] draws it over the whole app, in the glass layer, so it can
+ * blur what is behind it. Drawn inside a page it would sit in the blur source and come out transparent.
+ */
+class SourcePickerRequest(
+    val item: MetaPreview,
+    val imdbId: String,
+    val season: Int?,
+    val episode: Int?,
+    val episodeTitle: String?,
+    val thumb: String?,
+    val logo: String?,
+    val onSelect: (PlayRequest) -> Unit,
+)
+
 class ShellState(initialTab: AppTab = AppTab.Home) {
     var tab: AppTab by mutableStateOf(initialTab)
         private set
@@ -59,6 +74,18 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
 
     var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36))
 
+    /** The source picker, if one is open. */
+    var sourcePicker: SourcePickerRequest? by mutableStateOf(null)
+        private set
+
+    fun openSourcePicker(request: SourcePickerRequest) {
+        sourcePicker = request
+    }
+
+    fun closeSourcePicker() {
+        sourcePicker = null
+    }
+
     private val tabNavs = HashMap<AppTab, NavController<Route>>()
 
     var catalogueNav: NavController<Route>? by mutableStateOf(null)
@@ -67,6 +94,7 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
     fun navFor(tab: AppTab): NavController<Route> = tabNavs.getOrPut(tab) { NavController(Route.Root(tab)) }
 
     fun select(tab: AppTab) {
+        sourcePicker = null
         catalogue = null
         catalogueNav = null
         this.tab = tab
