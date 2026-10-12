@@ -1,6 +1,7 @@
 package com.mediahub.pear.home
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -216,9 +217,9 @@ private fun HeroMetaContent(item: MetaPreview, onDetailsClick: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 PearIcon(if (item.type == "series") "tv" else "film", size = 11.dp, tint = Color.White)
-                PearText(item.typeLabel.uppercase(), style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color.White, fontSize = 9.sp)
+                PearText(item.typeLabel.uppercase(), style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 9.sp), color = Color.White)
                 item.year?.let { y ->
-                    PearText(y.toString(), style = PearTheme.type.caption2.weight(FontWeight.SemiBold), color = Color.White.copy(alpha = 0.85f), fontSize = 9.sp)
+                    PearText(y.toString(), style = PearTheme.type.caption2.weight(FontWeight.SemiBold).copy(fontSize = 9.sp), color = Color.White.copy(alpha = 0.85f))
                 }
             }
         }
@@ -227,10 +228,10 @@ private fun HeroMetaContent(item: MetaPreview, onDetailsClick: () -> Unit) {
     // Large Title Art
     PearText(
         text = item.name.uppercase(),
-        style = PearTheme.type.largeTitle.weight(FontWeight.Black),
+        sstyle = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(letterSpacing = 1.sp),
+        color = Color.White,
         color = Color.White,
         maxLines = 2,
-        letterSpacing = 1.sp,
     )
 
     // Score badge (Rotten Tomatoes tomato icon + 83%)

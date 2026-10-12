@@ -133,7 +133,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit) {
                     .background(Color(0xFF8B6EF5).copy(alpha = 0.85f))
                     .padding(horizontal = 7.dp, vertical = 3.dp),
             ) {
-                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black), color = Color.White, fontSize = 8.sp)
+                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 8.sp), color = Color.White)
             }
 
             // Center play icon overlay (from mockup)
@@ -194,7 +194,7 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit) {
                     .background(Color(0xFF8B6EF5).copy(alpha = 0.85f))
                     .padding(horizontal = 7.dp, vertical = 3.dp),
             ) {
-                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black), color = Color.White, fontSize = 8.sp)
+                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 8.sp), color = Color.White)
             }
 
             Box(

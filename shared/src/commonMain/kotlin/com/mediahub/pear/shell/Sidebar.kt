@@ -219,7 +219,7 @@ private fun BrandBadge(title: String) {
         contentAlignment = Alignment.Center,
     ) {
         if (label.isNotEmpty()) {
-            PearText(label, style = PearTheme.type.caption2.weight(FontWeight.Black), color = Color.White, fontSize = 7.sp)
+            PearText(label, style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 7.sp), color = Color.White)
         } else {
             PearIcon("film.stack", size = 11.dp, tint = Color.White)
         }
