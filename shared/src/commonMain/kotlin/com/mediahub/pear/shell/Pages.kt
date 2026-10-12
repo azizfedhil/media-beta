@@ -37,7 +37,16 @@ import com.mediahub.pear.preview.GlassGalleryScreen
 import com.mediahub.pear.preview.ThemePreviewScreen
 import com.mediahub.pear.profile.ProfileDetailScreen
 import com.mediahub.pear.search.SearchScreen
+import com.mediahub.pear.settings.AIOMetadataSettingsScreen
+import com.mediahub.pear.settings.AboutScreen
+import com.mediahub.pear.settings.AddonsSettingsScreen
 import com.mediahub.pear.settings.ContentSettingsScreen
+import com.mediahub.pear.settings.IntegrationsScreen
+import com.mediahub.pear.settings.MediaServersScreen
+import com.mediahub.pear.settings.OnboardingScreen
+import com.mediahub.pear.settings.PlayerControlsSettingsScreen
+import com.mediahub.pear.settings.SettingsScreen
+import com.mediahub.pear.settings.SubtitleSettingsScreen
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
@@ -64,7 +73,25 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
                 onSelectTitle = { item -> nav.push(Route.Detail(item)) },
                 onOpenDownloads = { nav.push(Route.Downloads) },
             )
-            AppTab.Settings -> SettingsPlaceholder(nav)
+            AppTab.Settings -> SettingsScreen(
+                onNavigateIntegrations = { nav.push(Route.Integrations) },
+                onNavigateAddons = { nav.push(Route.AddonsSettings) },
+                onNavigateContent = { nav.push(Route.ContentSettings) },
+                onNavigateSubtitles = { nav.push(Route.SubtitleSettings) },
+                onNavigatePlayerControls = { nav.push(Route.PlayerControlsSettings) },
+                onNavigateAbout = { nav.push(Route.About) },
+                onNavigateDeveloperCheck = { target ->
+                    when (target) {
+                        "ThemePreview" -> nav.push(Route.ThemePreview)
+                        "GlassGallery" -> nav.push(Route.GlassGallery)
+                        "StorageCheck" -> nav.push(Route.StorageCheck)
+                        "MetadataCheck" -> nav.push(Route.MetadataCheck)
+                        "AddonsCheck" -> nav.push(Route.AddonsCheck)
+                        "HistoryCheck" -> nav.push(Route.HistoryCheck)
+                        "BackupCheck" -> nav.push(Route.BackupCheck)
+                    }
+                },
+            )
         }
         is Route.Catalogue -> CatalogGridScreen(
             row = route.row,
@@ -82,15 +109,40 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         )
         Route.ProfileDetail -> ProfileDetailScreen(
             onBack = { nav.pop() },
-            onNavigateIntegrations = { /* Handled in Batch 3.5 */ },
+            onNavigateIntegrations = { nav.push(Route.Integrations) },
             onNavigateDownloads = { nav.push(Route.Downloads) },
         )
         Route.ContentSettings -> ContentSettingsScreen(
             onBack = { nav.pop() },
-            onNavigateAIOMetadata = { /* Handled in Batch 3.5 */ },
+            onNavigateAIOMetadata = { nav.push(Route.AIOMetadataSettings) },
         )
         Route.Downloads -> DownloadsScreen(
             onBack = { nav.pop() },
+        )
+        Route.Integrations -> IntegrationsScreen(
+            onBack = { nav.pop() },
+            onNavigateMediaServers = { nav.push(Route.MediaServers) },
+        )
+        Route.MediaServers -> MediaServersScreen(
+            onBack = { nav.pop() },
+        )
+        Route.AddonsSettings -> AddonsSettingsScreen(
+            onBack = { nav.pop() },
+        )
+        Route.AIOMetadataSettings -> AIOMetadataSettingsScreen(
+            onBack = { nav.pop() },
+        )
+        Route.SubtitleSettings -> SubtitleSettingsScreen(
+            onBack = { nav.pop() },
+        )
+        Route.PlayerControlsSettings -> PlayerControlsSettingsScreen(
+            onBack = { nav.pop() },
+        )
+        Route.About -> AboutScreen(
+            onBack = { nav.pop() },
+        )
+        Route.Onboarding -> OnboardingScreen(
+            onFinish = { nav.pop() },
         )
         Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })
@@ -99,7 +151,6 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.AddonsCheck -> AddonsCheckScreen(env.data, onBack = { nav.pop() })
         Route.HistoryCheck -> HistoryCheckScreen(env.data, onBack = { nav.pop() })
         Route.BackupCheck -> BackupCheckScreen(env.data, onBack = { nav.pop() })
-        else -> {}
     }
 }
 
@@ -131,84 +182,13 @@ internal fun PageCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
 }
 
 @Composable
-private fun layoutSummary(): String = if (LocalWideLayout.current) "Wide layout (sidebar)" else "Phone layout (tab bar)"
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SettingsPlaceholder(nav: NavController<Route>) {
-    val env = LocalAppEnv.current
-    val c = PearTheme.colors
-    val windowControl = LocalWindowControl.current
-    PageScaffold("Settings", onBack = null) {
-        PageCard {
-            PearText("Settings", style = PearTheme.type.title3.weight(FontWeight.Bold))
-            PearText("Placeholder. SettingsView.swift is ported in Batch 3.5.", color = c.textSecondary)
-        }
-        if (env.devTools) {
-            PageCard {
-                PearText("Developer: component gallery", style = PearTheme.type.headline)
-                PearText("Screens for comparing against the iPad and iPhone apps.", style = PearTheme.type.footnote, color = c.textSecondary)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DevChip("Theme preview", false) { nav.push(Route.ThemePreview) }
-                    DevChip("Glass gallery", false) { nav.push(Route.GlassGallery) }
-                    DevChip("Storage check", false) { nav.push(Route.StorageCheck) }
-                    DevChip("Metadata check", false) { nav.push(Route.MetadataCheck) }
-                    DevChip("Add-ons check", false) { nav.push(Route.AddonsCheck) }
-                    DevChip("History & Simkl check", false) { nav.push(Route.HistoryCheck) }
-                    DevChip("Backup check", false) { nav.push(Route.BackupCheck) }
-                    DevChip("Push a page", false) { nav.push(Route.Demo(1)) }
-                }
-            }
-            PageCard {
-                PearText("Developer: layout", style = PearTheme.type.headline)
-                PearText(layoutSummary(), style = PearTheme.type.footnote, color = c.textSecondary)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LayoutOverride.entries.forEach { o ->
-                        DevChip(o.label, env.shell.layoutOverride == o) { env.shell.layoutOverride = o }
-                    }
-                    if (windowControl != null) {
-                        val saved = env.shell.savedWindowSize
-                        DevChip(if (saved != null) "Phone-sized window: on" else "Phone-sized window", saved != null) {
-                            if (saved == null) {
-                                env.shell.savedWindowSize = windowControl.size
-                                windowControl.resize(390.dp, 844.dp)
-                            } else {
-                                windowControl.resize(saved.width, saved.height)
-                                env.shell.savedWindowSize = null
-                            }
-                        }
-                    }
-                }
-                PearText("Resize the window across 640 dp and the layout switches by itself (Auto).", style = PearTheme.type.footnote, color = c.textSecondary)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Placeholder(title: String, swiftFile: String, batch: String, nav: NavController<Route>, onBack: (() -> Unit)? = null) {
-    val c = PearTheme.colors
-    PageScaffold(title, onBack = onBack) {
-        PageCard {
-            PearText(title, style = PearTheme.type.title3.weight(FontWeight.Bold))
-            PearText("Placeholder. $swiftFile is ported in $batch.", color = c.textSecondary)
-            PearText(layoutSummary(), style = PearTheme.type.footnote, color = c.textSecondary)
-        }
-        PageCard(onClick = { nav.push(Route.Demo(1)) }) {
-            PearText("Click to push a page", color = c.textSecondary)
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
 private fun DemoPage(route: Route.Demo, nav: NavController<Route>) {
     val c = PearTheme.colors
     PageScaffold("Page ${route.depth}", onBack = { nav.pop() }) {
         PageCard {
             PearText("Pushed page ${route.depth}", style = PearTheme.type.title3.weight(FontWeight.Bold))
             PearText("Stack depth: ${nav.depth}. The page below keeps its scroll position.", color = c.textSecondary)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DevChip("Push another", false) { nav.push(Route.Demo(route.depth + 1)) }
                 DevChip("Back", false) { nav.pop() }
                 DevChip("Back to root", false) { nav.popToRoot() }

@@ -22,6 +22,14 @@ sealed interface Route {
     data object ProfileDetail : Route
     data object ContentSettings : Route
     data object Downloads : Route
+    data object Integrations : Route
+    data object MediaServers : Route
+    data object AddonsSettings : Route
+    data object AIOMetadataSettings : Route
+    data object SubtitleSettings : Route
+    data object PlayerControlsSettings : Route
+    data object About : Route
+    data object Onboarding : Route
     data object ThemePreview : Route
     data object GlassGallery : Route
     data object StorageCheck : Route
