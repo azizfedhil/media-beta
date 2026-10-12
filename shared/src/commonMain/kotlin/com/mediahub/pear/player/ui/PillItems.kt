@@ -16,7 +16,10 @@ enum class PillItem(val raw: String, val title: String, val symbol: String) {
     Pip("pip", "Picture in Picture", "pip.enter"),
     Subtitles("subtitles", "Subtitles", "captions.bubble"),
     Audio("audio", "Audio track", "waveform"),
-    Next("next", "Next episode", "forward.end.fill");
+    Next("next", "Next episode", "forward.end.fill"),
+
+    /** Aspect and fast 4K mode (desktop only; iOS keeps these in its own menus). */
+    Display("display", "Display", "slider.horizontal.3");
 
     companion object {
         /** At most this many buttons can stay visible while the pill is folded. */
@@ -58,9 +61,9 @@ enum class PillItem(val raw: String, val title: String, val symbol: String) {
 /**
  * The buttons this build can show, whatever the show. Each one joins the set when its batch lands: Subtitles and
  * Audio in 4.4a, Episodes later. Next depends on the episode (see [pillItemsAvailable]). Picture in Picture never
- * applies on desktop.
+ * applies on desktop. Full screen is not one of these: it is always the pill's last button, and never folds away.
  */
-val desktopPillItems: Set<PillItem> = setOf(PillItem.Speed, PillItem.Sources, PillItem.Volume)
+val desktopPillItems: Set<PillItem> = setOf(PillItem.Speed, PillItem.Sources, PillItem.Volume, PillItem.Display)
 
 /**
  * The buttons available right now: [desktopPillItems], plus Next while the show has an episode after this one

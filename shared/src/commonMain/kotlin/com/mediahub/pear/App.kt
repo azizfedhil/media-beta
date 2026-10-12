@@ -5,7 +5,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import com.mediahub.pear.addons.HomeCatalogs
+import com.mediahub.pear.brand.PearLaunchOverlay
 import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.Storage
 import com.mediahub.pear.glass.GlassStore
@@ -38,7 +42,11 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
         ) {
             val catalogues = HomeCatalogs.jobs(data.addons.enabledAddons, data.content.rules, data.addons.pickerIds)
                 .map { (addon, cat) -> CatalogueItem("${addon.id}/${cat.type}/${cat.id}", HomeCatalogs.rowTitle(cat)) }
-            AdaptiveShell(shell, glass, catalogues = catalogues)
+            // The intro plays over the app while it loads, as the iOS launch screen does.
+            Box(Modifier.fillMaxSize()) {
+                AdaptiveShell(shell, glass, catalogues = catalogues)
+                PearLaunchOverlay()
+            }
         }
     }
 }

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.currentTimeLabel
+import com.mediahub.pear.brand.PearWordmark
 import com.mediahub.pear.glass.GlassSurface
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
@@ -101,16 +102,22 @@ private fun SidebarHeader(profile: Profile, onProfileClick: () -> Unit, iconsOnl
             delay(15_000)
         }
     }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = if (iconsOnly) 0.dp else 6.dp).padding(bottom = 22.dp),
-        horizontalArrangement = if (iconsOnly) Arrangement.Center else Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // The active profile's avatar (its colour, icon or Simkl photo); it opens "Who's watching?".
-        ProfileAvatarButton(profile, onClick = onProfileClick, size = 34.dp)
+    Column(Modifier.fillMaxWidth().padding(bottom = 22.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = if (iconsOnly) 0.dp else 6.dp),
+            horizontalArrangement = if (iconsOnly) Arrangement.Center else Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The active profile's avatar (its colour, icon or Simkl photo); it opens "Who's watching?".
+            ProfileAvatarButton(profile, onClick = onProfileClick, size = 34.dp)
+            if (!iconsOnly) {
+                PearText(profile.name, style = t.body.weight(FontWeight.SemiBold), maxLines = 1, modifier = Modifier.weight(1f))
+                PearText(time, style = t.footnote.monospacedDigits(), color = Color.White.copy(alpha = 0.5f), maxLines = 1)
+            }
+        }
+        // The typed "pear." logo under the profile and the clock. The icon-only sidebar has no room for it.
         if (!iconsOnly) {
-            PearText(profile.name, style = t.body.weight(FontWeight.SemiBold), maxLines = 1, modifier = Modifier.weight(1f))
-            PearText(time, style = t.footnote.monospacedDigits(), color = Color.White.copy(alpha = 0.5f), maxLines = 1)
+            PearWordmark(height = 24.dp, modifier = Modifier.padding(start = 6.dp, top = 16.dp))
         }
     }
 }

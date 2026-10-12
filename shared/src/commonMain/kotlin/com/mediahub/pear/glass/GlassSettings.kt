@@ -9,9 +9,9 @@ import dev.chrisbanes.haze.HazePerformanceMode
 
 /** How translucent surfaces are drawn. Fallback order when too slow: Frosted -> Frosted + Performance -> Flat. */
 enum class GlassMode(val label: String) {
-    /** Haze blur with tint and noise. The default (decided in phase0-decisions.md). */
+    /** Haze blur with tint and noise. The style before Glass became the default. */
     Frosted("Frosted blur"),
-    /** Haze Glass, regular material (blur plus edge refraction and highlights). */
+    /** Haze Glass, regular material (blur plus edge refraction and highlights). The default. */
     Glass("Glass"),
     /** Haze Glass, clear material (more of the background shows). */
     Clear("Glass clear"),
@@ -30,7 +30,7 @@ enum class GlassPerformance(val label: String, internal val haze: HazePerformanc
  * when [prefs] is given. (The iOS `player.glass` key is the player's own on/off switch, connected in Batch 4.3.)
  */
 class GlassStore(
-    initialMode: GlassMode = GlassMode.Frosted,
+    initialMode: GlassMode = GlassMode.Glass,
     initialPerformance: GlassPerformance = GlassPerformance.Balanced,
     private val prefs: PrefStore? = null,
 ) {

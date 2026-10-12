@@ -51,6 +51,9 @@ object WideScale {
 
     /** The home hero (wide): 10% wider. */
     const val HERO_WIDTH = 1.10f
+
+    /** Continue Watching card text (wide): 20% larger than the phone layout's. */
+    const val CONTINUE_TEXT = 1.20f
 }
 
 /** The icon-only sidebar has no titles, no clock and no catalogue list. */

@@ -16,7 +16,10 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -122,46 +125,74 @@ fun ProfileAvatarButton(
     }
 }
 
+/** Width of the wide layout's floating panel. */
+private const val WIDE_PANEL_WIDTH_DP = 380
+
 /**
  * "Who's watching?" over the whole app, opened from the avatar. A tap outside the sheet closes it, as the iOS sheet
  * does. The sheet itself swallows taps so that touching it doesn't close it.
+ *
+ * Phone layout ([sidebarWidth] null): a bottom sheet. Wide layout: a floating panel just right of the sidebar, under
+ * its avatar, the way a popover comes from its button. A bottom sheet across a wide window looked lost there.
  */
 @Composable
 fun ProfileSheetOverlay(
     onDismiss: () -> Unit,
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
+    sidebarWidth: Dp? = null,
 ) {
     val swallow = remember { MutableInteractionSource() }
-    Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(onClick = onDismiss),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        ProfileSheet(
-            onDismiss = onDismiss,
-            onOpenProfileDetail = onOpenProfileDetail,
-            onOpenDownloads = onOpenDownloads,
-            modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
-                .clickable(interactionSource = swallow, indication = null) {},
-        )
+    if (sidebarWidth == null) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            ProfileSheet(
+                onDismiss = onDismiss,
+                onOpenProfileDetail = onOpenProfileDetail,
+                onOpenDownloads = onOpenDownloads,
+                modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
+                    .clickable(interactionSource = swallow, indication = null) {},
+            )
+        }
+    } else {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)).clickable(onClick = onDismiss),
+        ) {
+            Box(Modifier.fillMaxSize().padding(start = sidebarWidth + 12.dp, top = 16.dp), contentAlignment = Alignment.TopStart) {
+                ProfileSheet(
+                    onDismiss = onDismiss,
+                    onOpenProfileDetail = onOpenProfileDetail,
+                    onOpenDownloads = onOpenDownloads,
+                    floating = true,
+                    modifier = Modifier.width(WIDE_PANEL_WIDTH_DP.dp)
+                        .clickable(interactionSource = swallow, indication = null) {},
+                )
+            }
+        }
     }
 }
 
-/** "Who's watching?" sheet dialog. */
+/** "Who's watching?" sheet dialog. [floating] is the wide layout's panel (a card, smaller avatars). */
 @Composable
 fun ProfileSheet(
     onDismiss: () -> Unit,
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
     modifier: Modifier = Modifier,
+    floating: Boolean = false,
 ) {
     val env = LocalAppEnv.current
     val profiles = env.data.profiles
     var isManaging by remember { mutableStateOf(false) }
     var editingProfile by remember { mutableStateOf<Profile?>(null) }
     var isCreatingNew by remember { mutableStateOf(false) }
+    // Five items (four profiles and Add) fit a floating panel only at the smaller size.
+    val avatarSize = if (floating) 56.dp else 72.dp
+    val avatarGap = if (floating) 14.dp else 18.dp
 
-    GlassSheet(modifier = modifier) {
+    GlassSheet(modifier = modifier, floating = floating) {
         if (editingProfile != null || isCreatingNew) {
             ProfileEditor(
                 profile = editingProfile,
@@ -230,10 +261,10 @@ fun ProfileSheet(
                     }
                 }
 
-                // Grid of Profiles
+                // Grid of Profiles. Scrolls sideways when there are more than fit.
                 Row(
-                    Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(avatarGap),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     profiles.profiles.forEach { p ->
@@ -253,14 +284,14 @@ fun ProfileSheet(
                             Box(contentAlignment = Alignment.Center) {
                                 ProfileAvatar(
                                     profile = p,
-                                    size = 72.dp,
+                                    size = avatarSize,
                                     modifier = if (isActive && !isManaging) {
                                         Modifier.border(3.dp, PearTheme.colors.accent, CircleShape)
                                     } else Modifier,
                                 )
                                 if (isManaging) {
                                     Box(
-                                        Modifier.size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)),
+                                        Modifier.size(avatarSize).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         PearIcon("pencil", size = 22.dp, tint = Color.White)
@@ -278,7 +309,7 @@ fun ProfileSheet(
                             modifier = Modifier.clickable { isCreatingNew = true },
                         ) {
                             Box(
-                                Modifier.size(72.dp).clip(CircleShape).background(PearTheme.colors.fill),
+                                Modifier.size(avatarSize).clip(CircleShape).background(PearTheme.colors.fill),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 PearIcon("plus", size = 26.dp, tint = PearTheme.colors.textSecondary)

@@ -83,7 +83,7 @@ private fun InfoThumb(info: PlayerInfo, logo: String?, stacked: Boolean) {
             Box(
                 Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                     .clip(shape)
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
+                    .border(1.dp, Color.White.copy(alpha = 0.06f), shape), // half the 12% it had: the player's outlines are 50% weaker
             ) {
                 RemoteImage(url, Modifier.fillMaxSize())
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent))))

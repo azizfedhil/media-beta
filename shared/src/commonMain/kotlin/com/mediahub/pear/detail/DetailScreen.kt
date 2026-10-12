@@ -448,7 +448,7 @@ private fun SeasonsAndEpisodesSection(
     val isWide = LocalWideLayout.current
     val scale = if (isWide) WideScale.CARD else 1f
     val twoRows = rememberPref(env.data.prefs, PrefKeys.DESKTOP_EPISODES_TWO_ROWS) {
-        it.bool(PrefKeys.DESKTOP_EPISODES_TWO_ROWS, true)
+        it.bool(PrefKeys.DESKTOP_EPISODES_TWO_ROWS, false)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

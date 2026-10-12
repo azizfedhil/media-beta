@@ -11,6 +11,15 @@ import kotlinx.serialization.Serializable
 
 internal const val TMDB_IMG = "https://image.tmdb.org/t/p/"
 
+/** TMDB's small sizes (w92 to w500), the ones saved links may still carry. */
+private val TMDB_SMALL_SIZE = Regex("/t/p/w(92|154|185|300|342|500)/")
+
+/**
+ * A still or card image at w780, the size the cards need on a wide window. Links saved from earlier versions carry
+ * the small sizes (w300), so the card code runs them through this too. Other URLs come back unchanged.
+ */
+internal fun upgradeTmdbStill(url: String?): String? = url?.replace(TMDB_SMALL_SIZE, "/t/p/w780/")
+
 /** One result of a list, search or discover call. */
 @Serializable
 internal class TmdbItem(
@@ -153,7 +162,7 @@ data class EpisodeInfo(
     val runtime: Int? = null,
     @SerialName("air_date") val airDate: String? = null,
 ) {
-    val stillUrl: String? get() = stillPath?.let { TMDB_IMG + "w300" + it }
+    val stillUrl: String? get() = stillPath?.let { TMDB_IMG + "w780" + it }
 }
 
 /** Everything the detail page shows about a title (spec: `TMDBClient.Details`). */

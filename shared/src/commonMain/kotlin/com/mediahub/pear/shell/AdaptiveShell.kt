@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.mediahub.pear.glass.GlassScene
@@ -75,27 +76,31 @@ fun AdaptiveShell(
 
         CompositionLocalProvider(LocalWideLayout provides (mode == LayoutMode.Expanded)) {
             if (mode == LayoutMode.Expanded) {
-                // Entire expanded window shares one GlassScene so the ambient glow bleeds through the sidebar
+                // Home's feed folds the sidebar down to icons as it is scrolled or dragged.
+                val homeShown = shell.tab == AppTab.Home && shell.catalogue == null
+                val fold by animateFloatAsState(if (homeShown) shell.feedCollapse.progress else 0f, tween(140))
+                val sidebarW = lerp(sidebarWidthFor(windowWidth), Breakpoints.sidebarIconsOnly, fold)
+                // Entire expanded window shares one GlassScene so the ambient glow bleeds through the sidebar. The pages
+                // are its backdrop, starting right of the sidebar, as in the phone layout: the glass that floats over
+                // them (the profile panel, the source picker) blurs the pages, and the sidebar keeps its look.
                 GlassScene(
                     store = glass,
                     modifier = Modifier.fillMaxSize(),
-                    background = { AmbientWash(animatedAmbient) },
+                    background = {
+                        AmbientWash(animatedAmbient)
+                        ShellPages(shell, Modifier.fillMaxSize().padding(start = if (playerOnTop) 0.dp else sidebarW))
+                    },
                 ) {
-                    Row(Modifier.fillMaxSize()) {
-                        // Home's feed folds the sidebar down to icons as it is scrolled or dragged.
-                        val homeShown = shell.tab == AppTab.Home && shell.catalogue == null
-                        val fold by animateFloatAsState(if (homeShown) shell.feedCollapse.progress else 0f, tween(140))
-                        if (!playerOnTop) Sidebar(
-                            width = lerp(sidebarWidthFor(windowWidth), Breakpoints.sidebarIconsOnly, fold),
-                            forceIcons = fold > 0.45f,
-                            shell = shell,
-                            catalogues = catalogues,
-                            profile = env.data.profiles.active,
-                            onProfileClick = { showProfiles = true },
-                        )
-                        ShellPages(shell, Modifier.weight(1f).fillMaxHeight())
-                    }
-                    ShellOverlays(shell, showProfiles) { showProfiles = it }
+                    if (!playerOnTop) Sidebar(
+                        modifier = Modifier.align(Alignment.TopStart),
+                        width = sidebarW,
+                        forceIcons = fold > 0.45f,
+                        shell = shell,
+                        catalogues = catalogues,
+                        profile = env.data.profiles.active,
+                        onProfileClick = { showProfiles = true },
+                    )
+                    ShellOverlays(shell, showProfiles, sidebarWidth = sidebarW) { showProfiles = it }
                 }
             } else {
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
@@ -207,9 +212,16 @@ private fun AmbientWash(color: Color) {
  * the app behind them, in both layouts.
  */
 @Composable
-private fun ShellOverlays(shell: ShellState, showProfiles: Boolean, onProfiles: (Boolean) -> Unit) {
+private fun ShellOverlays(
+    shell: ShellState,
+    showProfiles: Boolean,
+    /** The wide layout's sidebar width; the profile panel opens beside it. Null in the phone layout. */
+    sidebarWidth: Dp? = null,
+    onProfiles: (Boolean) -> Unit,
+) {
     if (showProfiles) {
         ProfileSheetOverlay(
+            sidebarWidth = sidebarWidth,
             onDismiss = { onProfiles(false) },
             onOpenProfileDetail = {
                 onProfiles(false)

@@ -168,3 +168,23 @@ Code: `player/ui/SkipRules.kt` (the rules, pure), `player/ui/SkipOverlay.kt` (th
 
 ### Not compiled
 As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest --tests "*SkipRules*" --tests "*NextPill*" --tests "*UpNext*" --tests "*IntroClient*"` first, then `gradle :desktopApp:run` for the list above.
+
+## Outlines (brand pass)
+
+The outlines of the player's surfaces are half as strong as before: the blur border and the tint edge (`PLAYER_OUTLINE` in `player/ui/PlayerSurfaces.kt`, passed to `GlassSurface(outlineStrength = ...)`) and the info card's still. Frosted and Flat use the theme's outline colour at half its alpha. Glass and Clear draw their own edge through Haze, so that edge is unchanged.
+
+## Pill, full screen and folding (brand pass 2)
+
+- **Display is a pill button.** Aspect and fast 4K mode open from it (the Display panel). It counts towards the pill's four buttons, so it can fold, and `PillItem.Display` is the desktop-only addition to the enum (its raw name `display` is new; iOS ignores names it doesn't know).
+- **Full screen is always the pill's last slot.** It is not one of the layout's items, so it never folds and never counts towards the four. It shows the enter or exit icon. It hides only while the volume slider has the pill. The Display panel no longer has a full screen row.
+- **Folding.** The chevron appears when more than four buttons exist (`FOLD_ABOVE`). On desktop that means an episode: Speed, Sources, Volume, Next and Display are five, and Sources, Next and Display fold away behind the chevron by default. A movie has four buttons (Speed, Sources, Volume, Display), so nothing folds there. Subtitles, Audio and Episodes will add more, and folding will then be common on films too.
+
+## Continue Watching text (wide)
+
+The card text was never scaled in the wide layout: the hover lift shadowed the card scale, so the text got 1.0 or 1.02. It now follows the layout: `WideScale.CONTINUE_TEXT` (1.20) in wide, 1.0 in phone, for the title, the S·E line and the episode name.
+
+## Defaults
+
+- The app's glass is **Glass** (Haze glass regular). A saved choice in Settings still wins, so an install that already chose Frosted keeps it until it's changed.
+- Episodes show in **one row**. The Two rows option is still in the Seasons header on wide windows.
+- Episode stills are **w780** (was w300). Saved Continue Watching links carrying the small sizes are upgraded when shown.

@@ -176,11 +176,17 @@ fun GlassMenuDivider() {
 
 /** Bottom sheet panel: rounded top corners and a grabber. */
 @Composable
-fun GlassSheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val c = PearTheme.colors
-    GlassSurface(modifier, RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(top = 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
+    // A sheet rises from the bottom edge with a handle; a floating panel is a card with all corners rounded and no handle.
+    val shape = if (floating) {
+        RoundedCornerShape(PearRadii.sheet)
+    } else {
+        RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)
+    }
+    GlassSurface(modifier, shape) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = if (floating) 20.dp else 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!floating) Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
         }
     }

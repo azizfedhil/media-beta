@@ -299,8 +299,6 @@ internal fun DisplayPanel(
     onAspect: (AspectMode) -> Unit,
     fastFourK: Boolean,
     onFastFourK: (Boolean) -> Unit,
-    fullscreen: Boolean,
-    onFullscreen: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -330,12 +328,6 @@ internal fun DisplayPanel(
                         onClick = { onFastFourK(!fastFourK) },
                     )
                 }
-                PlayerPillButton(
-                    label = if (fullscreen) "Exit full screen" else "Full screen",
-                    selected = fullscreen,
-                    onClick = onFullscreen,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
     }

@@ -46,6 +46,7 @@ import com.mediahub.pear.history.Fmt
 import com.mediahub.pear.history.HistoryEntry
 import com.mediahub.pear.history.UpNextItem
 import com.mediahub.pear.model.MetaPreview
+import com.mediahub.pear.model.upgradeTmdbStill
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
@@ -128,11 +129,13 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, scale: Float 
     val width = (260f * scale).dp
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val scale = if (hovered) 1.02f else 1f
+    val lift = if (hovered) 1.02f else 1f
+    // The text follows the layout, not the hover lift: 20% larger in the wide layout.
+    val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
 
     Column(
         Modifier.width(width)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .graphicsLayer { scaleX = lift; scaleY = lift }
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick),
@@ -143,7 +146,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, scale: Float 
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl, Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
 
             // UP NEXT badge on top-left (from mockup)
             Box(
@@ -166,10 +169,10 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, scale: Float 
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            PearText(entry.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold).scaledBy(scale), maxLines = 1)
+            PearText(entry.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold).scaledBy(text), maxLines = 1)
             val sub = entry.seasonEpisode?.let { "S${it.season} · E${it.episode}" + (entry.episodeTitle?.let { t -> " · $t" } ?: "") }
                 ?: Fmt.remaining(entry.duration - entry.position)
-            PearText(sub, style = PearTheme.type.caption.scaledBy(scale), color = Color.White.copy(alpha = 0.55f), maxLines = 1)
+            PearText(sub, style = PearTheme.type.caption.scaledBy(text), color = Color.White.copy(alpha = 0.55f), maxLines = 1)
         }
     }
 }
@@ -179,11 +182,12 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, scale: Float = 1f)
     val width = (260f * scale).dp
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val scale = if (hovered) 1.02f else 1f
+    val lift = if (hovered) 1.02f else 1f
+    val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
 
     Column(
         Modifier.width(width)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .graphicsLayer { scaleX = lift; scaleY = lift }
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick),
@@ -194,7 +198,7 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, scale: Float = 1f)
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(item.thumb ?: item.item.backdropUrl ?: item.item.posterUrl, Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(item.thumb ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize())
 
             Box(
                 Modifier.align(Alignment.TopStart).padding(8.dp)
@@ -208,8 +212,8 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, scale: Float = 1f)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            PearText(item.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold).scaledBy(scale), maxLines = 1)
-            PearText("S${item.season} · E${item.episode} · ${item.title}", style = PearTheme.type.caption.scaledBy(scale), color = Color.White.copy(alpha = 0.55f), maxLines = 1)
+            PearText(item.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold).scaledBy(text), maxLines = 1)
+            PearText("S${item.season} · E${item.episode} · ${item.title}", style = PearTheme.type.caption.scaledBy(text), color = Color.White.copy(alpha = 0.55f), maxLines = 1)
         }
     }
 }

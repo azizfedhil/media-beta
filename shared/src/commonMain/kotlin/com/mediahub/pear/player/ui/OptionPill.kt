@@ -72,6 +72,8 @@ internal fun OptionPill(
     onDisplay: () -> Unit,
     onNext: () -> Unit,
     nextEnabled: Boolean = true,
+    fullscreen: Boolean = false,
+    onFullscreen: () -> Unit = {},
     onActive: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -115,9 +117,10 @@ internal fun OptionPill(
 
     val folded = layout.folded
     val mode = pillMode(expanded, volumeOpen, folded)
-    // The Display button is always the pill's last slot, except in volume mode, where the slider takes the whole pill.
-    val displaySlots = if (mode == PillMode.Volume) 0 else 1
-    val windowSlots = pillWindowSlots(layout, mode) + displaySlots
+    // Full screen is always the pill's last slot, except in volume mode, where the slider takes the whole pill. It is
+    // not one of the layout's items, so it never counts towards folding.
+    val fullscreenSlots = if (mode == PillMode.Volume) 0 else 1
+    val windowSlots = pillWindowSlots(layout, mode) + fullscreenSlots
     val windowWidth = if (mode == PillMode.Volume) maxOf(span(windowSlots), VOLUME_MIN_DP.dp) else span(windowSlots)
     val animatedWidth by animateDpAsState(windowWidth, PearMotion.snappy<Dp>(PearMotion.BASE))
 
@@ -178,19 +181,23 @@ internal fun OptionPill(
                                             onNext()
                                         },
                                         nextEnabled = nextEnabled,
+                                        displayOpen = displayOpen,
+                                        onDisplay = {
+                                            bumpUnfolded()
+                                            onDisplay()
+                                        },
                                     )
                                 }
                             }
                         }
                         Box(Modifier.size(SLOT_DP.dp), contentAlignment = Alignment.Center) {
                             PlayerPillButton(
-                                symbol = "slider.horizontal.3",
-                                selected = displayOpen,
+                                symbol = if (fullscreen) "arrow.down.right.and.arrow.up.left" else "arrow.up.left.and.arrow.down.right",
                                 onClick = {
                                     bumpUnfolded()
-                                    onDisplay()
+                                    onFullscreen()
                                 },
-                                contentDescription = "Display",
+                                contentDescription = if (fullscreen) "Exit full screen" else "Full screen",
                             )
                         }
                     }
@@ -234,6 +241,8 @@ private fun PillButton(
     onVolume: () -> Unit,
     onNext: () -> Unit,
     nextEnabled: Boolean,
+    displayOpen: Boolean,
+    onDisplay: () -> Unit,
 ) {
     when (item) {
         PillItem.Speed -> PlayerPillButton(
@@ -257,6 +266,12 @@ private fun PillButton(
             symbol = item.symbol,
             onClick = onNext,
             enabled = nextEnabled,
+            contentDescription = item.title,
+        )
+        PillItem.Display -> PlayerPillButton(
+            symbol = item.symbol,
+            selected = displayOpen,
+            onClick = onDisplay,
             contentDescription = item.title,
         )
         else -> Unit

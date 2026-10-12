@@ -80,9 +80,12 @@ fun GlassSurface(
     shape: RoundedCornerShape = RoundedCornerShape(PearRadii.card),
     wash: Color? = null,
     highlight: Boolean = false,
+    /** Scales the border's alpha: 1 is the theme outline, 0.5 is half as strong (the player's surfaces). Frosted and Flat only. */
+    outlineStrength: Float = 1f,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = PearTheme.colors
+    val outline = c.outline.copy(alpha = c.outline.alpha * outlineStrength)
     val state = LocalGlassState.current
     val store = LocalGlassStore.current
     // Glass everywhere, except on low battery, where it falls back to flat (see PowerStatus).
@@ -93,7 +96,7 @@ fun GlassSurface(
         GlassMode.Frosted -> {
             val style = remember(c.isDark, c.surface, wash) { frostedStyle(c, wash) }
             Modifier.clip(shape).hazeBlur(input = HazeInput.Sources(state!!), style = style, performanceMode = perf)
-                .border(1.dp, c.outline, shape)
+                .border(1.dp, outline, shape)
         }
         GlassMode.Glass, GlassMode.Clear -> {
             val style = remember(mode, shape, wash) {
@@ -105,7 +108,7 @@ fun GlassSurface(
             }
             Modifier.hazeGlass(input = HazeInput.Sources(state!!), style = style, performanceMode = perf).clip(shape)
         }
-        GlassMode.Flat -> Modifier.clip(shape).background(flatColor(c, wash)).border(1.dp, c.outline, shape)
+        GlassMode.Flat -> Modifier.clip(shape).background(flatColor(c, wash)).border(1.dp, outline, shape)
     }
     Box(modifier.then(effect).then(if (highlight) Modifier.background(c.fillSubtle) else Modifier), content = content)
 }

@@ -42,7 +42,7 @@ class PillItemsTest {
         assertEquals(
             listOf(
                 PillItem.Sources, PillItem.Speed, PillItem.Episodes, PillItem.Volume,
-                PillItem.Pip, PillItem.Subtitles, PillItem.Audio, PillItem.Next,
+                PillItem.Pip, PillItem.Subtitles, PillItem.Audio, PillItem.Next, PillItem.Display,
             ),
             PillItem.decodeOrder("sources,speed"),
         )
@@ -54,7 +54,7 @@ class PillItemsTest {
         assertEquals(
             listOf(
                 PillItem.Speed, PillItem.Episodes, PillItem.Sources, PillItem.Volume,
-                PillItem.Pip, PillItem.Subtitles, PillItem.Audio, PillItem.Next,
+                PillItem.Pip, PillItem.Subtitles, PillItem.Audio, PillItem.Next, PillItem.Display,
             ),
             PillItem.decodeOrder("speed,speed,bogus"),
         )
@@ -100,7 +100,7 @@ class PillItemsTest {
         val available = all - setOf(PillItem.Episodes, PillItem.Next)
         val pinned = setOf(PillItem.Audio, PillItem.Sources, PillItem.Speed, PillItem.Volume)
         val layout = pillLayout(PillItem.defaultOrder, pinned, available)
-        assertEquals(listOf(PillItem.Pip, PillItem.Subtitles), layout.items.take(layout.folded))
+        assertEquals(listOf(PillItem.Pip, PillItem.Subtitles, PillItem.Display), layout.items.take(layout.folded))
     }
 
     @Test

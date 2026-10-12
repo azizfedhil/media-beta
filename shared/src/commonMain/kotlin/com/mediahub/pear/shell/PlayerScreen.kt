@@ -341,6 +341,8 @@ fun PlayerScreen(
                     onDisplay = { togglePanel(PlayerPanel.Display) },
                     onNext = { playNext() },
                     nextEnabled = !switching,
+                    fullscreen = fullscreen,
+                    onFullscreen = { setFullscreen(!fullscreen) },
                     onActive = onActive,
                 )
             },
@@ -363,8 +365,6 @@ fun PlayerScreen(
                         onAspect = { aspect = it },
                         fastFourK = performance,
                         onFastFourK = { performance = it },
-                        fullscreen = fullscreen,
-                        onFullscreen = { setFullscreen(!fullscreen) },
                         onClose = { panel = null },
                     )
                     null -> Unit

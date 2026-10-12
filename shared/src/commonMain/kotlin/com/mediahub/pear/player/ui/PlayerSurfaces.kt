@@ -54,6 +54,12 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 
+/**
+ * How strong the player's outlines are, against the theme's outline colour: half. Used for the blur border and the tint
+ * edge. The Glass and Clear styles draw their own edge from Haze, which this doesn't reach.
+ */
+private const val PLAYER_OUTLINE = 0.5f
+
 /** The look every overlay surface follows. Set once by [PlayerOverlay]. */
 internal val LocalPlayerLook = compositionLocalOf { PlayerLook.Flat }
 
@@ -76,11 +82,11 @@ internal fun PlayerSurface(
     content: @Composable BoxScope.() -> Unit,
 ) {
     when (LocalPlayerLook.current) {
-        PlayerLook.Blur -> GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), content = content)
+        PlayerLook.Blur -> GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), outlineStrength = PLAYER_OUTLINE, content = content)
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            Box(modifier.clip(shape).background(fill).border(1.dp, Color.White.copy(alpha = 0.14f), shape), content = content)
+            Box(modifier.clip(shape).background(fill).border(1.dp, Color.White.copy(alpha = 0.14f * PLAYER_OUTLINE), shape), content = content)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {
