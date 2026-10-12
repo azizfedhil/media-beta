@@ -5,9 +5,9 @@ import kotlin.test.assertEquals
 
 class GlassSettingsTest {
     @Test
-    fun defaultsToFrostedBlur() {
+    fun defaultsToGlass() {
         val s = GlassStore()
-        assertEquals(GlassMode.Frosted, s.mode)
+        assertEquals(GlassMode.Glass, s.mode)
         assertEquals(GlassPerformance.Balanced, s.performance)
     }
 
