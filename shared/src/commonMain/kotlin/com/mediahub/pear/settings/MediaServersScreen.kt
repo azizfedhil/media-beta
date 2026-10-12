@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
@@ -131,7 +132,6 @@ fun MediaServersScreen(
 
         GlassTopBar(title = "Media servers", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp), onBack = onBack)
 
-        // Modal Dialogs for Add Jellyfin & Add Plex
         if (showAddJellyfin) {
             AddJellyfinDialog(onDismiss = { showAddJellyfin = false })
         }
@@ -190,7 +190,6 @@ private fun AddJellyfinDialog(onDismiss: () -> Unit) {
                     )
                 }
 
-                // Quick Connect button
                 GlassButton(
                     onClick = {
                         scope.launch {
@@ -200,7 +199,6 @@ private fun AddJellyfinDialog(onDismiss: () -> Unit) {
                                 val code = JellyfinAPI.quickConnectStart(env.data.network.http, base)
                                 quickConnect = code
                                 status = "Approve code in Jellyfin on another device."
-                                // Poll check
                                 repeat(150) {
                                     delay(2000)
                                     if (JellyfinAPI.quickConnectCheck(env.data.network.http, base, code.secret)) {
@@ -222,7 +220,6 @@ private fun AddJellyfinDialog(onDismiss: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else {
-                // Show Quick Connect Code
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PearText(quickConnect!!.code, style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 36.sp))
                     PearText("Enter this code in your Jellyfin user menu -> Quick Connect", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)

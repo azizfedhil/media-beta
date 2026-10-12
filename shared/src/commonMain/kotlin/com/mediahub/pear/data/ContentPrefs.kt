@@ -6,8 +6,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.serialization.Serializable
 
 /**
- * A kind of title the user can switch off. The raw names are the Swift `ContentCategory` raw values, so stored
- * settings carry over. Titles, details, icons and TMDB genre ids arrive with Batch 3.4 / Phase 3.
+ * A kind of title the user can switch off.
  */
 enum class ContentCategory(val raw: String) {
     Anime("anime"), Cartoons("cartoons"), Kids("kids"), Documentary("documentary"), Reality("reality"),
@@ -25,18 +24,14 @@ enum class ContentCategory(val raw: String) {
 /** What one profile wants to see (spec: `ContentRules`). */
 data class ContentRules(
     val hiddenCategories: Set<ContentCategory> = emptySet(),
-    /** Rows switched off on Home and Explore. */
     val hiddenRows: Set<String> = emptySet(),
-    /** Add-on catalogues the user put on Home (AIOMetadata-style add-ons start empty). */
     val addedRows: Set<String> = emptySet(),
-    /** Search is an explicit request, so by default it isn't filtered. */
     val filterSearch: Boolean = false,
 ) {
     val hasFilters: Boolean get() = hiddenCategories.isNotEmpty()
     val hidesAnything: Boolean get() = hiddenCategories.isNotEmpty() || hiddenRows.isNotEmpty() || filterSearch
 }
 
-/** The Swift JSON shape: `{"categories":[],"rows":[],"added":[],"filterSearch":false}`, arrays sorted. */
 @Serializable
 private class ContentRulesJson(
     val categories: List<String> = emptyList(),
@@ -46,22 +41,19 @@ private class ContentRulesJson(
 )
 
 /**
- * Content settings of the active profile (spec: `ContentPrefs`). Stored per profile under `content.prefs`
- * (first profile) or `content.prefs.<id>`. Call [load] when the active profile changes.
+ * Content settings of the active profile (spec: `ContentPrefs`).
  */
 class ContentPrefs(private val prefs: PrefStore, initialProfile: String = ProfileKeys.DEFAULT_ID) {
     private var profileID = initialProfile
     var rules: ContentRules by mutableStateOf(read(initialProfile))
         private set
 
-    /** Switches to another profile's settings. Does nothing when already loaded. */
     fun load(profile: String) {
         if (profile == profileID) return
         profileID = profile
         rules = read(profile)
     }
 
-    /** Re-reads from storage (after a settings import). */
     fun reload() { rules = read(profileID) }
 
     fun setHidden(category: ContentCategory, hidden: Boolean) {
@@ -71,12 +63,15 @@ class ContentPrefs(private val prefs: PrefStore, initialProfile: String = Profil
 
     fun setRowHidden(key: String, hidden: Boolean) {
         rules = when {
-            // A catalogue the user added is taken off Home rather than "hidden": it was never on by default.
             hidden && key in rules.addedRows -> rules.copy(addedRows = rules.addedRows - key)
             hidden -> rules.copy(hiddenRows = rules.hiddenRows + key)
             else -> rules.copy(hiddenRows = rules.hiddenRows - key)
         }
         save()
+    }
+
+    fun setRowAdded(key: String, added: Boolean) {
+        setRowsAdded(listOf(key), added)
     }
 
     fun setRowsAdded(keys: List<String>, added: Boolean) {
@@ -91,7 +86,6 @@ class ContentPrefs(private val prefs: PrefStore, initialProfile: String = Profil
         save()
     }
 
-    /** Everything shown again. Catalogues the user added to Home stay. */
     fun reset() {
         rules = ContentRules(addedRows = rules.addedRows)
         save()
@@ -103,7 +97,6 @@ class ContentPrefs(private val prefs: PrefStore, initialProfile: String = Profil
         val dto = prefs.jsonText(key(profile))
             ?.let { runCatching { PearJson.decodeFromString(ContentRulesJson.serializer(), it) }.getOrNull() }
             ?: return ContentRules()
-        // A category written by a newer build is dropped, never fatal (same as the Swift decoder).
         return ContentRules(
             hiddenCategories = dto.categories.mapNotNull { ContentCategory.fromRaw(it) }.toSet(),
             hiddenRows = dto.rows.toSet(),

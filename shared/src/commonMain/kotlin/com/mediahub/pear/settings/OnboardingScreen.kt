@@ -21,7 +21,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,10 +30,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.data.ContentCategory
-import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.Profile
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
+import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.profile.ProfileAvatar
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.TextInput
@@ -43,7 +42,6 @@ import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
-import kotlinx.coroutines.launch
 
 @Composable
 fun OnboardingScreen(
@@ -51,8 +49,7 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     val env = LocalAppEnv.current
-    val scope = rememberCoroutineScope()
-    var step by remember { mutableIntStateOf(0) } // 0: Welcome, 1: Profile, 2: Look, 3: Content, 4: Done
+    var step by remember { mutableIntStateOf(0) }
     var profileName by remember { mutableStateOf(env.data.profiles.active.name) }
 
     Box(modifier.fillMaxSize().background(Color(0xFF09090B))) {
@@ -65,7 +62,6 @@ fun OnboardingScreen(
         ) {
             when (step) {
                 0 -> {
-                    // Welcome
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         PearText("Pear.", style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 44.sp))
                         PearText(
@@ -83,7 +79,6 @@ fun OnboardingScreen(
                     }
                 }
                 1 -> {
-                    // Profile Name
                     GlassCard(Modifier.width(420.dp)) {
                         PearText("Who's watching?", style = PearTheme.type.title2.weight(FontWeight.Bold))
                         ProfileAvatar(Profile("onboard", profileName.ifEmpty { "Me" }, env.theme.accentHex), size = 80.dp)
@@ -101,7 +96,6 @@ fun OnboardingScreen(
                     }
                 }
                 2 -> {
-                    // Accent color
                     GlassCard(Modifier.width(420.dp)) {
                         PearText("Pick your colour", style = PearTheme.type.title2.weight(FontWeight.Bold))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -124,7 +118,6 @@ fun OnboardingScreen(
                     }
                 }
                 3 -> {
-                    // Content preferences
                     GlassCard(Modifier.width(420.dp)) {
                         PearText("What do you want to see?", style = PearTheme.type.title2.weight(FontWeight.Bold))
                         ContentCategory.entries.take(5).forEach { cat ->
@@ -142,7 +135,6 @@ fun OnboardingScreen(
                     }
                 }
                 4 -> {
-                    // Done
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         PearIcon("checkmark.circle.fill", size = 64.dp, tint = Color(0xFF34C759))
                         PearText("You're all set!", style = PearTheme.type.largeTitle.weight(FontWeight.Black))

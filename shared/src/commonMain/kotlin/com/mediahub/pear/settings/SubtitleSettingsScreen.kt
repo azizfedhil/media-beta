@@ -1,7 +1,6 @@
 package com.mediahub.pear.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,7 +31,6 @@ import androidx.compose.ui.unit.sp
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
-import com.mediahub.pear.model.SubLanguages
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
@@ -82,8 +80,8 @@ fun SubtitleSettingsScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     PearText("OpenSubtitles online lookup", style = PearTheme.type.headline)
                     DevChip(if (subsOnline) "ON" else "OFF", subsOnline) {
-                        subsOnline = it
-                        prefs.setBool(PrefKeys.SUBS_ONLINE, it)
+                        subsOnline = !subsOnline
+                        prefs.setBool(PrefKeys.SUBS_ONLINE, subsOnline)
                     }
                 }
                 PearText("Automatically finds subtitles from OpenSubtitles if missing in the video file.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)

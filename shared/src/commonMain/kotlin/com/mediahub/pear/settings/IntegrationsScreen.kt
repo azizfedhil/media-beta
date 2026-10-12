@@ -16,13 +16,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
-import com.mediahub.pear.meta.TmdbEndpoints
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
@@ -115,8 +115,8 @@ fun IntegrationsScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     PearText("TheIntroDB", style = PearTheme.type.headline)
                     DevChip(if (skipEnabled) "ON" else "OFF", skipEnabled) {
-                        skipEnabled = it
-                        prefs.setBool(PrefKeys.SKIP_ENABLED, it)
+                        skipEnabled = !skipEnabled
+                        prefs.setBool(PrefKeys.SKIP_ENABLED, skipEnabled)
                     }
                 }
                 PearText("Community-verified intro and credits timestamps. Matches automatically.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
