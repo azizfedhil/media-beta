@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -26,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +93,57 @@ fun ProfileAvatar(
                 }
             }
         }
+    }
+}
+
+/**
+ * The profile avatar as a button: it opens "Who's watching?" (the sidebar header in the wide layout, the top-right
+ * corner in the phone layout, both as on iOS).
+ */
+@Composable
+fun ProfileAvatarButton(
+    profile: Profile,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 34.dp,
+) {
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    Box(
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .hoverable(source)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
+            .then(if (hovered) Modifier.border(2.dp, PearTheme.colors.accent.copy(alpha = 0.7f), CircleShape) else Modifier),
+    ) {
+        ProfileAvatar(profile, size = size)
+    }
+}
+
+/**
+ * "Who's watching?" over the whole app, opened from the avatar. A tap outside the sheet closes it, as the iOS sheet
+ * does. The sheet itself swallows taps so that touching it doesn't close it.
+ */
+@Composable
+fun ProfileSheetOverlay(
+    onDismiss: () -> Unit,
+    onOpenProfileDetail: () -> Unit,
+    onOpenDownloads: () -> Unit,
+) {
+    val swallow = remember { MutableInteractionSource() }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(onClick = onDismiss),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        ProfileSheet(
+            onDismiss = onDismiss,
+            onOpenProfileDetail = onOpenProfileDetail,
+            onOpenDownloads = onOpenDownloads,
+            modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
+                .clickable(interactionSource = swallow, indication = null) {},
+        )
     }
 }
 

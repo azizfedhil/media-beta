@@ -6,6 +6,7 @@ import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
 import com.sun.jna.ptr.PointerByReference
+import java.io.File
 
 object MpvFormat {
     const val NONE = 0
@@ -91,15 +92,104 @@ interface LibMpv : Library {
     fun mpv_render_context_free(ctx: Pointer)
 }
 
+/**
+ * Finds libmpv and says where it looked when it can't. Searched in this order:
+ *
+ * 1. `PEAR_LIBMPV`: the full path of the library file.
+ * 2. `PEAR_LIBMPV_DIR`: a folder that holds it.
+ * 3. The folder of an installed app (`compose.application.resources.dir`).
+ * 4. `native/<platform>` in the project, from the project root or from `desktopApp/` (see `desktopApp/native/README.md`).
+ * 5. The system's own search: PATH on Windows, the dynamic loader's search path on Linux.
+ *
+ * The last error from the first attempt that failed is kept, because it's the useful one: a 32-bit DLL, or a
+ * dependency missing next to it, shows up there and not as "not found".
+ */
 object MpvNativeLoader {
-    private val CANDIDATES = listOf("mpv-2", "libmpv-2", "mpv-1", "libmpv-1", "mpv", "libmpv")
+    private val SYSTEM_NAMES = listOf("mpv-2", "libmpv-2", "mpv-1", "libmpv-1", "mpv", "libmpv")
 
-    fun load(): LibMpv? {
-        for (name in CANDIDATES) {
-            try {
-                return Native.load(name, LibMpv::class.java)
-            } catch (_: Throwable) {}
+    /** The outcome of a load: the library, or the folders searched and the last error when it isn't there. */
+    class Result(val lib: LibMpv?, val searched: List<String>, val lastError: String?) {
+        /** The message the player shows when [lib] is null. */
+        fun describeFailure(): String = buildString {
+            append("libmpv not found. ").append(Platform.current.hint)
+            if (searched.isNotEmpty()) append("\nLooked in: ").append(searched.joinToString("; "))
+            if (lastError != null) append("\nLast error: ").append(lastError)
         }
-        return null
+    }
+
+    /** Operating system, with the library file names and the folder name `native/` uses for it. */
+    internal enum class Platform(val fileNames: List<String>, val folder: String, val hint: String) {
+        Windows(
+            listOf("libmpv-2.dll", "mpv-2.dll", "libmpv.dll"),
+            "windows-x64",
+            "Copy libmpv-2.dll (a 64-bit build, such as the mpv-dev package) into desktopApp/native/windows-x64/, " +
+                "or set PEAR_LIBMPV to its full path.",
+        ),
+        Linux(
+            listOf("libmpv.so.2", "libmpv.so.1", "libmpv.so"),
+            "linux-x64",
+            "Install libmpv (for example: sudo apt install libmpv2), or copy libmpv.so.2 into " +
+                "desktopApp/native/linux-x64/.",
+        ),
+        Other(
+            listOf("libmpv.2.dylib", "libmpv.dylib", "libmpv.so.2", "libmpv.so"),
+            "other",
+            "Set PEAR_LIBMPV to the full path of the libmpv library.",
+        );
+
+        companion object {
+            val current: Platform
+                get() {
+                    val os = System.getProperty("os.name").orEmpty().lowercase()
+                    return when {
+                        "win" in os -> Windows
+                        "linux" in os -> Linux
+                        else -> Other
+                    }
+                }
+        }
+    }
+
+    fun load(): LibMpv? = loadWithReport().lib
+
+    fun loadWithReport(): Result {
+        val platform = Platform.current
+        val dirs = searchDirectories(platform)
+        val searched = dirs.map { it.path }
+        var lastError: String? = null
+
+        fun tryLoad(target: String): LibMpv? = try {
+            Native.load(target, LibMpv::class.java)
+        } catch (e: Throwable) {
+            lastError = e.message?.lineSequence()?.firstOrNull()?.take(300) ?: e.javaClass.simpleName
+            null
+        }
+
+        System.getenv("PEAR_LIBMPV")?.takeIf { it.isNotBlank() }?.let { path ->
+            tryLoad(path)?.let { return Result(it, searched, null) }
+        }
+        for (dir in dirs) {
+            for (name in platform.fileNames) {
+                val file = File(dir, name)
+                if (!file.isFile) continue
+                tryLoad(file.absolutePath)?.let { return Result(it, searched, null) }
+            }
+        }
+        for (name in SYSTEM_NAMES) {
+            tryLoad(name)?.let { return Result(it, searched, null) }
+        }
+        return Result(null, searched, lastError)
+    }
+
+    private fun searchDirectories(platform: Platform): List<File> {
+        val dirs = ArrayList<File>()
+        System.getenv("PEAR_LIBMPV_DIR")?.takeIf { it.isNotBlank() }?.let { dirs.add(File(it)) }
+        System.getProperty("compose.application.resources.dir")?.let { dirs.add(File(it)) }
+        val user = File(System.getProperty("user.dir").orEmpty().ifEmpty { "." })
+        for (base in listOfNotNull(user, user.parentFile)) {
+            dirs.add(File(base, "native/${platform.folder}"))
+            dirs.add(File(base, "desktopApp/native/${platform.folder}"))
+        }
+        return dirs.distinctBy { it.absolutePath }
     }
 }

@@ -1,6 +1,8 @@
 package com.mediahub.pear.shell
 
 import androidx.compose.foundation.background
+import com.mediahub.pear.data.Profile
+import com.mediahub.pear.profile.ProfileAvatarButton
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -53,7 +55,8 @@ internal fun Sidebar(
     width: Dp,
     shell: ShellState,
     catalogues: List<CatalogueItem>,
-    profileName: String,
+    profile: Profile,
+    onProfileClick: () -> Unit,
     modifier: Modifier = Modifier,
     forceIcons: Boolean = false,
 ) {
@@ -70,7 +73,7 @@ internal fun Sidebar(
                 .padding(horizontal = if (iconsOnly) 8.dp else 16.dp)
                 .padding(top = 18.dp, bottom = 14.dp),
         ) {
-            SidebarHeader(profileName, iconsOnly)
+            SidebarHeader(profile, onProfileClick, iconsOnly)
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AppTab.sidebarOrder.forEach { tab ->
@@ -89,7 +92,7 @@ internal fun Sidebar(
 }
 
 @Composable
-private fun SidebarHeader(name: String, iconsOnly: Boolean) {
+private fun SidebarHeader(profile: Profile, onProfileClick: () -> Unit, iconsOnly: Boolean) {
     val t = PearTheme.type
     var time by remember { mutableStateOf(currentTimeLabel()) }
     LaunchedEffect(Unit) {
@@ -103,15 +106,10 @@ private fun SidebarHeader(name: String, iconsOnly: Boolean) {
         horizontalArrangement = if (iconsOnly) Arrangement.Center else Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // User Avatar Circle
-        Box(
-            Modifier.size(34.dp).clip(CircleShape).background(Color(0xFFE2D6CB)),
-            contentAlignment = Alignment.Center,
-        ) {
-            PearText(name.take(1).uppercase(), style = t.subheadline.weight(FontWeight.Bold), color = Color(0xFF2C241E))
-        }
+        // The active profile's avatar (its colour, icon or Simkl photo); it opens "Who's watching?".
+        ProfileAvatarButton(profile, onClick = onProfileClick, size = 34.dp)
         if (!iconsOnly) {
-            PearText(name, style = t.body.weight(FontWeight.SemiBold), maxLines = 1, modifier = Modifier.weight(1f))
+            PearText(profile.name, style = t.body.weight(FontWeight.SemiBold), maxLines = 1, modifier = Modifier.weight(1f))
             PearText(time, style = t.footnote.monospacedDigits(), color = Color.White.copy(alpha = 0.5f), maxLines = 1)
         }
     }

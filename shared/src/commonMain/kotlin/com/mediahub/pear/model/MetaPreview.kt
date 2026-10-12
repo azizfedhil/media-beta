@@ -76,6 +76,20 @@ data class MetaPreview(
         }
     }
 
+    /**
+     * The poster at the largest size the source offers, for the big posters on screen: the wide home hero column and
+     * the detail page's poster column. TMDB's list sizes (w342) are for cards and look soft at those widths; the
+     * original file is the one to use there.
+     */
+    fun largePosterUrl(): String? {
+        val s = posterUrl ?: return null
+        return when {
+            "/t/p/" in s -> s.replace(TMDB_SIZE, "/t/p/original/")
+            "metahub.space/" in s -> s.replace("/medium/", "/large/")
+            else -> s
+        }
+    }
+
     companion object {
         /**
          * The `metas` array of an add-on answer or of a saved list. An item that can't be read (no id, name or type)
@@ -90,6 +104,8 @@ data class MetaPreview(
 }
 
 private fun String?.usable(): String? = this?.takeIf { it.isNotBlank() }
+
+private val TMDB_SIZE = Regex("/t/p/w\\d+/")
 
 /**
  * Hand-written so one odd field (rating as a string, year as a number...) never drops a whole catalogue.

@@ -31,22 +31,34 @@ import kotlinx.coroutines.withContext
 /** Decodes raw image bytes into Compose [ImageBitmap] via platform image decoders. */
 expect fun decodeImageBitmap(bytes: ByteArray): ImageBitmap?
 
-/** Simple memory cache for decoded image bitmaps. */
+/**
+ * Memory cache for decoded image bitmaps, least recently used first out. It is capped by count and by decoded size:
+ * a full-resolution poster is about 24 MB as pixels, so a count alone would let a few dozen of them use gigabytes.
+ */
 object ImageMemoryCache {
     private val cache = LinkedHashMap<String, ImageBitmap>(100, 0.75f, true)
+    private var bytes = 0L
     private const val MAX_ENTRIES = 250
+
+    /** Decoded pixels kept at most (4 bytes a pixel). */
+    private const val MAX_BYTES = 256L * 1024 * 1024
 
     @Synchronized
     fun get(url: String): ImageBitmap? = cache[url]
 
     @Synchronized
     fun put(url: String, bitmap: ImageBitmap) {
-        if (cache.size >= MAX_ENTRIES) {
-            val oldest = cache.keys.firstOrNull()
-            if (oldest != null) cache.remove(oldest)
-        }
+        cache.remove(url)?.let { bytes -= sizeOf(it) }
         cache[url] = bitmap
+        bytes += sizeOf(bitmap)
+        while (cache.size > 1 && (cache.size > MAX_ENTRIES || bytes > MAX_BYTES)) {
+            val oldest = cache.keys.first()
+            val removed = cache.remove(oldest) ?: break
+            bytes -= sizeOf(removed)
+        }
     }
+
+    private fun sizeOf(bitmap: ImageBitmap): Long = bitmap.width.toLong() * bitmap.height * 4L
 }
 
 /**

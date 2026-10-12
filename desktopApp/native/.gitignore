@@ -1,0 +1,5 @@
+# Library binaries are not committed (licence and size). See README.md.
+*.dll
+*.so
+*.so.*
+*.dylib

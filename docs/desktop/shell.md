@@ -39,3 +39,20 @@ is shared between the two passes a scale of 1x when the layout is compact.
 - Episodes on two rows (wide detail page): `DragLazyGrid` in `shell/DragScroll.kt` (a `LazyHorizontalGrid` with the same
   drag-to-scroll as `DragLazyRow`). The Seasons header has a One row / Two rows switch, shown only in the wide layout.
   The choice is the desktop-only pref `desktop.episodesTwoRows` (default: two rows). It is not in settings backups.
+
+## Profiles: the avatar and "Who's watching?"
+
+- The sidebar header (wide layout) and a button in the top-right corner (phone layout) show the active profile's avatar:
+  its colour, icon, or Simkl photo (`ProfileAvatarButton`, the same `ProfileAvatar` as the sheet and the editor). Tapping it
+  opens "Who's watching?" over the app (`ProfileSheetOverlay`, hosted by `AdaptiveShell`). A tap outside the sheet closes it.
+- From the sheet: switch profile, "View ... profile" (opens `Route.ProfileDetail`), Downloads, and Manage Profiles (add, edit,
+  delete). The shell's `showProfiles` state owns it.
+- Home reloads when the active profile changes (`HomeScreen` keys its refresh on `profiles.activeID`), because the rows are
+  filtered by the profile's content rules.
+
+## Artwork sizes
+
+- Wide hero column and the detail page's poster column use `MetaPreview.largePosterUrl()`: TMDB's original poster file, or
+  metahub's large size. The list cards keep the small sizes.
+- `ImageMemoryCache` is capped by decoded bytes (256 MB) as well as by entry count, because a full-size poster is about 24 MB
+  as pixels.

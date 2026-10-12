@@ -47,7 +47,8 @@ fun HomeScreen(
     val model = remember(env.data) { HomeModel(env.data) }
     val bottomInset = LocalBottomInset.current
 
-    LaunchedEffect(Unit) {
+    // Rows are filtered by the active profile's content rules, so Home reloads when the profile changes.
+    LaunchedEffect(env.data.profiles.activeID) {
         model.refresh(force = false)
     }
 

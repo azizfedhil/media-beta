@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +40,10 @@ import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.nav.LocalPageActive
 import com.mediahub.pear.nav.NavHost
+import com.mediahub.pear.profile.ProfileAvatarButton
+import com.mediahub.pear.profile.ProfileSheetOverlay
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.mediahub.pear.theme.PearTheme
 
 @Composable
@@ -59,7 +64,8 @@ fun AdaptiveShell(
     ) {
         val windowWidth = maxWidth
         val mode = layoutModeFor(windowWidth, shell.layoutOverride)
-        val activeProfileName = env.data.profiles.active.name
+        // "Who's watching?" is opened from the avatar (sidebar in the wide layout, top corner in the phone layout).
+        var showProfiles by remember { mutableStateOf(false) }
         // The player takes the whole window: no sidebar or tab bar over the picture.
         val playerOnTop = shell.currentNav().top is Route.Player
 
@@ -107,7 +113,8 @@ fun AdaptiveShell(
                             forceIcons = fold > 0.45f,
                             shell = shell,
                             catalogues = catalogues,
-                            profileName = activeProfileName,
+                            profile = env.data.profiles.active,
+                            onProfileClick = { showProfiles = true },
                         )
                         ShellPages(shell, Modifier.weight(1f).fillMaxHeight())
                     }
@@ -116,9 +123,28 @@ fun AdaptiveShell(
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
                     GlassScene(glass, Modifier.fillMaxSize(), background = { ShellPages(shell, Modifier.fillMaxSize()) }) {
                         if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
+                        if (!playerOnTop) ProfileAvatarButton(
+                            profile = env.data.profiles.active,
+                            onClick = { showProfiles = true },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                            size = 34.dp,
+                        )
                     }
                 }
             }
+        }
+        if (showProfiles) {
+            ProfileSheetOverlay(
+                onDismiss = { showProfiles = false },
+                onOpenProfileDetail = {
+                    showProfiles = false
+                    shell.currentNav().push(Route.ProfileDetail)
+                },
+                onOpenDownloads = {
+                    showProfiles = false
+                    shell.currentNav().push(Route.Downloads)
+                },
+            )
         }
     }
 }

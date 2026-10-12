@@ -141,7 +141,7 @@ fun DetailScreen(
                 Box(
                     Modifier.width(440.dp).fillMaxHeight(),
                 ) {
-                    FadedPoster(item.posterUrl ?: item.backdropUrl, Modifier.fillMaxSize())
+                    FadedPoster(item.largePosterUrl() ?: item.backdropUrl, Modifier.fillMaxSize())
 
                     Column(
                         Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 60.dp, bottom = 40.dp),

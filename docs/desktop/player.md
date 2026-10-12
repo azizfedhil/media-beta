@@ -103,3 +103,10 @@ Settings -> Playback -> Player controls: a live preview of the folded pill; "Alw
 
 ### Not compiled
 As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest --tests "*PillItems*" --tests "*PlayerPanelRules*" --tests "*PlayerInfo*"` first, then `gradle :desktopApp:run` for the list above.
+
+## Finding libmpv (follow-up)
+
+The loader (`MpvNativeLoader` in `LibMpv.kt`) looks in this order: `PEAR_LIBMPV` (full path of the file), `PEAR_LIBMPV_DIR` (a folder),
+the folder of an installed app, `desktopApp/native/<platform>/` (from the project root or from `desktopApp/`), then the system's own search
+(PATH on Windows). The player's error card lists the folders it searched and the last error from the first failed load, so a 32-bit DLL or a
+missing dependency is visible. The library is not in the repository; see `desktopApp/native/README.md`.

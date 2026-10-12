@@ -337,8 +337,8 @@ class MpvPlayerEngine private constructor(
         private const val END_REASON_ERROR = 4
 
         fun create(): PlayerEngine {
-            val mpv = MpvNativeLoader.load()
-                ?: return DummyPlayerEngine("libmpv library not found on system path.")
+            val found = MpvNativeLoader.loadWithReport()
+            val mpv = found.lib ?: return DummyPlayerEngine(found.describeFailure())
 
             val handle = mpv.mpv_create()
                 ?: return DummyPlayerEngine("Could not allocate mpv client handle.")

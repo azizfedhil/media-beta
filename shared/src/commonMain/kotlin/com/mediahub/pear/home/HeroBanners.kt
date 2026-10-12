@@ -174,7 +174,7 @@ fun WideHeroPanel(
                 transitionSpec = { fadeIn(tween(900)) togetherWith fadeOut(tween(900)) },
                 modifier = Modifier.fillMaxSize(),
             ) { currentItem ->
-                FadedPoster(currentItem.posterUrl ?: currentItem.backdropUrl, Modifier.fillMaxSize())
+                FadedPoster(currentItem.largePosterUrl() ?: currentItem.backdropUrl, Modifier.fillMaxSize())
             }
 
             Column(
