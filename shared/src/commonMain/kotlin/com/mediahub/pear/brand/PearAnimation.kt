@@ -75,7 +75,7 @@ fun PearAnimation(
     Canvas(modifier.aspectRatio((PearGeometry.CANVAS_WIDTH / PearGeometry.CANVAS_HEIGHT).toFloat())) {
         val frame = PearGeometry.frame(elapsed, mode)
         // Fit the 380 x 240 canvas inside the box and centre it.
-        val s = min(size.width / PearGeometry.CANVAS_WIDTH, size.height / PearGeometry.CANVAS_HEIGHT).toDouble()
+        val s = min(size.width / PearGeometry.CANVAS_WIDTH, size.height / PearGeometry.CANVAS_HEIGHT)
         val dx = (size.width - PearGeometry.CANVAS_WIDTH * s) / 2
         val dy = (size.height - PearGeometry.CANVAS_HEIGHT * s) / 2
         val map: (Pt) -> Pt = { p -> Pt(dx + p.x * s, dy + p.y * s) }
