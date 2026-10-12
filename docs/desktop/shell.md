@@ -56,3 +56,13 @@ is shared between the two passes a scale of 1x when the layout is compact.
   metahub's large size. The list cards keep the small sizes.
 - `ImageMemoryCache` is capped by decoded bytes (256 MB) as well as by entry count, because a full-size poster is about 24 MB
   as pixels.
+
+## Wide home hero: logo, ratings and layout
+
+- The title is the title's logo when there is one (add-on logo, else TMDB's, as on the detail page); the title in caps is the fallback.
+- The ratings row is MDBList's (IMDb, Rotten Tomatoes and the rest, as `RatingBadge` on the detail page). It is hidden without an
+  MDBList key. The old hard-coded "83%" is gone.
+- Loading: `rememberTitleExtras` resolves the IMDb id for TMDB items, then fetches the logo and the ratings. The result is kept only for
+  the title it was loaded for, so one title never shows another's logo while the carousel moves on.
+- Layout follows the mockup: type pill, logo, ratings, synopsis and Details stack from a fixed distance above the bottom edge (Details
+  136 dp up), and the dots sit below them, centred. The phone carousel is unchanged.

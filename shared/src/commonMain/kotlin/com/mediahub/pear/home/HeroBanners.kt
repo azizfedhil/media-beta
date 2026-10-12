@@ -28,8 +28,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +45,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediahub.pear.meta.MdbRating
+import com.mediahub.pear.detail.RatingBadge
+import com.mediahub.pear.net.attempt
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.net.rememberDominantColor
@@ -177,26 +185,132 @@ fun WideHeroPanel(
                 FadedPoster(currentItem.largePosterUrl() ?: currentItem.backdropUrl, Modifier.fillMaxSize())
             }
 
+            // Mockup layout: type pill, title logo, MDBList ratings, synopsis and Details, stacked above the bottom
+            // edge; the carousel dots sit below them, centred.
+            val extras = rememberTitleExtras(item)
             Column(
-                Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 70.dp, bottom = 44.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 70.dp, bottom = 136.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                HeroMetaContent(item, onDetailsClick = { onSelectTitle(item) })
+                WideHeroText(item, extras, onDetailsClick = { onSelectTitle(item) })
+            }
 
-                Spacer(Modifier.height(2.dp))
-
-                // Carousel dots
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items.forEachIndexed { idx, _ ->
-                        val isCurrent = idx == currentIndex
-                        Box(
-                            Modifier.height(5.dp).width(if (isCurrent) 20.dp else 5.dp)
-                                .clip(RoundedCornerShape(PearRadii.pill))
-                                .background(if (isCurrent) Color.White else Color.White.copy(alpha = 0.40f)),
-                        )
-                    }
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 86.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items.forEachIndexed { idx, _ ->
+                    val isCurrent = idx == currentIndex
+                    Box(
+                        Modifier.height(5.dp).width(if (isCurrent) 20.dp else 5.dp)
+                            .clip(RoundedCornerShape(PearRadii.pill))
+                            .background(if (isCurrent) Color.White else Color.White.copy(alpha = 0.40f)),
+                    )
                 }
             }
+        }
+    }
+}
+
+/** A title's logo and MDBList ratings, as the detail page loads them. Either can be missing. */
+private class TitleExtras(val logo: String?, val ratings: List<MdbRating>)
+
+/**
+ * Loads the logo and the MDBList ratings for [item]. Returns null until they are known for this title, so a title never
+ * shows the previous one's logo while the next one loads. Calls are cached by the clients, so going round the carousel again
+ * costs nothing.
+ */
+@Composable
+private fun rememberTitleExtras(item: MetaPreview): TitleExtras? {
+    val env = LocalAppEnv.current
+    var loaded by remember { mutableStateOf<Pair<String, TitleExtras>?>(null) }
+    LaunchedEffect(item.id) {
+        val tmdb = env.data.meta.tmdb
+        val mdb = env.data.meta.mdblist
+        // MDBList is keyed by IMDb id. A TMDB item's id is resolved through TMDB, as the detail page does.
+        val imdb = if (item.id.startsWith("tt")) item.id
+        else item.id.removePrefix("tmdb:").toIntOrNull()?.let { attempt { tmdb.imdbId(it, item.type) } }
+        val logo = item.logo ?: attempt { tmdb.logo(item.id, item.type) }
+        val ratings = if (imdb != null && mdb.hasKey) attempt { mdb.ratings(imdb, item.type) } ?: emptyList() else emptyList()
+        loaded = item.id to TitleExtras(logo, ratings)
+    }
+    return loaded?.takeIf { it.first == item.id }?.second
+}
+
+/** The text over the wide hero's poster (`HeroMetaContent` for the phone carousel stays as it is). */
+@Composable
+private fun WideHeroText(item: MetaPreview, extras: TitleExtras?, onDetailsClick: () -> Unit) {
+    WideTypePill(item)
+
+    val logo = extras?.logo
+    if (logo != null) {
+        Box(Modifier.widthIn(max = 340.dp).height(84.dp)) {
+            RemoteImage(logo, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        }
+    } else {
+        // No logo: the title in the same heavy caps the logo would have had.
+        PearText(
+            text = item.name.uppercase(),
+            style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 40.sp, letterSpacing = 2.sp),
+            color = Color.White,
+            maxLines = 2,
+            modifier = Modifier.widthIn(max = 340.dp),
+        )
+    }
+
+    // MDBList ratings: IMDb, Rotten Tomatoes and the rest, as on the detail page. Nothing is shown without them.
+    val ratings = extras?.ratings.orEmpty()
+    if (ratings.isNotEmpty()) {
+        Row(
+            Modifier.widthIn(max = 340.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ratings.forEach { RatingBadge(it) }
+        }
+    }
+
+    item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+        PearText(
+            text = desc,
+            style = PearTheme.type.subheadline.copy(fontSize = 15.sp, lineHeight = 20.sp),
+            color = Color.White.copy(alpha = 0.85f),
+            maxLines = 3,
+            modifier = Modifier.widthIn(max = 340.dp),
+        )
+    }
+
+    // (i) Details
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(PearRadii.pill))
+            .background(Color.White.copy(alpha = 0.14f))
+            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(PearRadii.pill))
+            .clickable(onClick = onDetailsClick)
+            .padding(horizontal = 18.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        PearIcon("info.circle", size = 16.dp, tint = Color.White)
+        PearText("Details", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White)
+    }
+}
+
+/** "SERIES 2026" over the title, larger than the phone carousel's. */
+@Composable
+private fun WideTypePill(item: MetaPreview) {
+    Row(
+        Modifier.clip(RoundedCornerShape(PearRadii.pill))
+            .background(Color.White.copy(alpha = 0.16f))
+            .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(PearRadii.pill))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        PearIcon(if (item.type == "series") "tv" else "film", size = 13.dp, tint = Color.White)
+        PearText(item.typeLabel.uppercase(), style = PearTheme.type.caption.weight(FontWeight.Bold).copy(fontSize = 12.sp), color = Color.White)
+        item.year?.let { y ->
+            PearText(y.toString(), style = PearTheme.type.caption.weight(FontWeight.SemiBold).copy(fontSize = 13.sp), color = Color.White.copy(alpha = 0.9f))
         }
     }
 }
