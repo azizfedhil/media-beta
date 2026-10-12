@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,6 +50,34 @@ fun DragLazyRow(
         state = state,
         contentPadding = contentPadding,
         horizontalArrangement = horizontalArrangement,
+        content = content,
+    )
+}
+
+/**
+ * A [LazyHorizontalGrid] with the same drag-to-scroll as [DragLazyRow]: [rows] stacked, the items fill down each
+ * column and then across. The caller must give it a height (a horizontal grid can't size itself across a vertical
+ * scroll).
+ */
+@Composable
+fun DragLazyGrid(
+    rows: Int,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    content: LazyGridScope.() -> Unit,
+) {
+    val state = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
+    val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
+    LazyHorizontalGrid(
+        rows = GridCells.Fixed(rows),
+        modifier = modifier.draggable(drag, Orientation.Horizontal),
+        state = state,
+        contentPadding = contentPadding,
+        horizontalArrangement = horizontalArrangement,
+        verticalArrangement = verticalArrangement,
         content = content,
     )
 }

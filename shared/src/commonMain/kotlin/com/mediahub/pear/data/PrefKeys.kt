@@ -48,6 +48,9 @@ object PrefKeys {
     /** Desktop only: keep the blur on the player controls while video plays (off = tint only, blur when paused). */
     const val DESKTOP_PLAYER_BLUR_PLAYING = "desktop.playerBlurWhilePlaying"
     const val DESKTOP_APPEARANCE = "desktop.appearance"
+
+    /** Desktop only: episode cards on two rows in the wide layout (the phone layout is always one row). */
+    const val DESKTOP_EPISODES_TWO_ROWS = "desktop.episodesTwoRows"
 }
 
 /** Secret names, kept outside [PrefStore] (iOS keeps them in the keychain). */

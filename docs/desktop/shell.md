@@ -25,3 +25,17 @@ previous size). These are the component gallery for screenshot comparison. Pass 
 ## Placeholders
 Every page is a placeholder (`shell/Pages.kt`) that names the Swift file and batch that will replace it. The page structure (scroll area under a floating
 `GlassTopBar`, bottom padding for the tab bar) is the one the real pages should use.
+
+## Wide-layout sizes (episode cards, theme cards, hero)
+
+Only the wide layout (`LocalWideLayout`, the sidebar shell) changes. The phone layout keeps its sizes: every call site that
+is shared between the two passes a scale of 1x when the layout is compact.
+
+- `shell/LayoutMode.kt` `WideScale`: `CARD` = 1.33 (episode cards and theme carousel cards, a third bigger) and
+  `HERO_WIDTH` = 1.10 (the wide home hero, 460 dp -> 506 dp). Change the numbers there.
+- `EpisodeCard(scale)` scales the whole card (frame, padding, icons, type), not only its frame. At 1.0 the values are the
+  ones the card always had.
+- `ThemeCarousel` scales its cards when the wide layout is on. Explore uses the same carousel, so it gets the change too.
+- Episodes on two rows (wide detail page): `DragLazyGrid` in `shell/DragScroll.kt` (a `LazyHorizontalGrid` with the same
+  drag-to-scroll as `DragLazyRow`). The Seasons header has a One row / Two rows switch, shown only in the wide layout.
+  The choice is the desktop-only pref `desktop.episodesTwoRows` (default: two rows). It is not in settings backups.

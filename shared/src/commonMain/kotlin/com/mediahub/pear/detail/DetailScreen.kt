@@ -15,8 +15,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import com.mediahub.pear.shell.DragLazyGrid
 import com.mediahub.pear.shell.DragLazyRow
+import com.mediahub.pear.shell.WideScale
+import com.mediahub.pear.shell.rememberPref
+import com.mediahub.pear.data.PrefKeys
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -426,10 +431,28 @@ private fun SeasonsAndEpisodesSection(
     onSelectEpisode: (EpisodeItem) -> Unit,
     isEpisodeWatched: (Int) -> Boolean,
 ) {
+    val env = LocalAppEnv.current
     val seasons = details?.seasons?.filter { (it.episodeCount ?: 1) > 0 } ?: (1..1).map { SeasonInfo(it, "Season 1", it) }
 
+    // Wide layout only: episode cards are a third bigger and can sit on two rows. The phone layout is always one row
+    // at the normal size.
+    val isWide = LocalWideLayout.current
+    val scale = if (isWide) WideScale.CARD else 1f
+    val twoRows = rememberPref(env.data.prefs, PrefKeys.DESKTOP_EPISODES_TWO_ROWS) {
+        it.bool(PrefKeys.DESKTOP_EPISODES_TWO_ROWS, true)
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PearText("Seasons", style = PearTheme.type.title3.weight(FontWeight.Bold), modifier = Modifier.padding(horizontal = 20.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PearText("Seasons", style = PearTheme.type.title3.weight(FontWeight.Bold), modifier = Modifier.weight(1f))
+            if (isWide && episodes.isNotEmpty()) {
+                DevChip("One row", !twoRows) { env.data.prefs.setBool(PrefKeys.DESKTOP_EPISODES_TWO_ROWS, false) }
+                DevChip("Two rows", twoRows) { env.data.prefs.setBool(PrefKeys.DESKTOP_EPISODES_TWO_ROWS, true) }
+            }
+        }
 
         // Season pills
         DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -441,14 +464,36 @@ private fun SeasonsAndEpisodesSection(
 
         // Episode carousel
         if (episodes.isNotEmpty()) {
-            DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                items(episodes) { ep ->
-                    EpisodeCard(
-                        ep = ep,
-                        isWatched = isEpisodeWatched(ep.id),
-                        isSelected = ep.id == selectedEpisode,
-                        onClick = { onSelectEpisode(ep) },
-                    )
+            if (isWide && twoRows) {
+                // Two rows: the grid is given the height of two cards and the gap between them.
+                DragLazyGrid(
+                    rows = 2,
+                    modifier = Modifier.fillMaxWidth().height((292f * scale).dp * 2f + 16.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    gridItems(episodes) { ep ->
+                        EpisodeCard(
+                            ep = ep,
+                            isWatched = isEpisodeWatched(ep.id),
+                            isSelected = ep.id == selectedEpisode,
+                            onClick = { onSelectEpisode(ep) },
+                            scale = scale,
+                        )
+                    }
+                }
+            } else {
+                DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    items(episodes) { ep ->
+                        EpisodeCard(
+                            ep = ep,
+                            isWatched = isEpisodeWatched(ep.id),
+                            isSelected = ep.id == selectedEpisode,
+                            onClick = { onSelectEpisode(ep) },
+                            scale = scale,
+                        )
+                    }
                 }
             }
         }

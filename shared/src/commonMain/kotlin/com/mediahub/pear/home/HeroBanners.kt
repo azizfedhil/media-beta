@@ -45,6 +45,7 @@ import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.net.rememberDominantColor
 import com.mediahub.pear.shell.FadedPoster
 import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.WideScale
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
@@ -127,6 +128,9 @@ fun HeroCarousel(
     }
 }
 
+/** The wide hero column: 460 dp, 10% wider (Batch: wide-layout sizing). Phone layout doesn't use it. */
+private val WideHeroWidth = 460.dp * WideScale.HERO_WIDTH
+
 /**
  * Wide hero (the *Silo* column in the mock-up). No frame: the poster dissolves into the page's colour wash.
  * [collapse] 0..1 folds it away to nothing as the feed scrolls.
@@ -158,11 +162,11 @@ fun WideHeroPanel(
         env.shell.heroAmbientColor = dominant ?: fallbackHeroAmbientColor(item.name)
     }
 
-    val panelWidth = 460.dp * (1f - collapse).coerceIn(0f, 1f)
+    val panelWidth = WideHeroWidth * (1f - collapse).coerceIn(0f, 1f)
     Box(modifier.fillMaxHeight().width(panelWidth).clipToBounds()) {
         // Fixed-size content so text doesn't re-wrap while the panel folds away.
         Box(
-            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(460.dp).fillMaxHeight()
+            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(WideHeroWidth).fillMaxHeight()
                 .graphicsLayer { alpha = (1f - collapse * 1.3f).coerceIn(0f, 1f) },
         ) {
             AnimatedContent(

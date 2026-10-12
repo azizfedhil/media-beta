@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import com.mediahub.pear.shell.DragLazyRow
+import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.WideScale
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -28,7 +30,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.meta.ThemeRow
 import com.mediahub.pear.model.MetaPreview
@@ -47,6 +52,8 @@ fun ThemeCarousel(
     modifier: Modifier = Modifier,
 ) {
     if (row.items.isEmpty()) return
+    // Wide layout only: the cards are a third bigger. The phone layout keeps 1x.
+    val scale = if (LocalWideLayout.current) WideScale.CARD else 1f
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PearText(
@@ -60,7 +67,7 @@ fun ThemeCarousel(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             items(row.items) { item ->
-                ThemeCard(item = item, onClick = { onSelectTitle(item.item) })
+                ThemeCard(item = item, onClick = { onSelectTitle(item.item) }, scale = scale)
             }
         }
     }
@@ -68,15 +75,15 @@ fun ThemeCarousel(
 
 /** 4:5 editorial card. */
 @Composable
-private fun ThemeCard(item: ThemedTitle, onClick: () -> Unit) {
-    val width = 240.dp
+private fun ThemeCard(item: ThemedTitle, onClick: () -> Unit, scale: Float = 1f) {
+    val width = 240.dp * scale
     val source = remember { MutableInteractionSource() }
     val hovered = source.collectIsHoveredAsState().value
-    val scale = if (hovered) 1.02f else 1f
+    val hoverScale = if (hovered) 1.02f else 1f
 
     Box(
         Modifier.width(width).aspectRatio(4f / 5f)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .graphicsLayer { scaleX = hoverScale; scaleY = hoverScale }
             .clip(RoundedCornerShape(PearRadii.card))
             .background(PearTheme.colors.fill)
             .hoverable(source)
@@ -96,19 +103,27 @@ private fun ThemeCard(item: ThemedTitle, onClick: () -> Unit) {
         )
 
         Column(
-            Modifier.align(Alignment.BottomStart).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier.align(Alignment.BottomStart).padding(16.dp * scale),
+            verticalArrangement = Arrangement.spacedBy(6.dp * scale),
         ) {
             item.item.year?.let { y ->
-                PearText(y.toString(), style = PearTheme.type.caption2.weight(FontWeight.SemiBold), color = Color.White.copy(alpha = 0.8f))
+                PearText(y.toString(), style = PearTheme.type.caption2.weight(FontWeight.SemiBold).scaledBy(scale), color = Color.White.copy(alpha = 0.8f))
             }
-            PearText(item.item.name, style = PearTheme.type.title3.weight(FontWeight.Bold), color = Color.White, maxLines = 2)
+            PearText(item.item.name, style = PearTheme.type.title3.weight(FontWeight.Bold).scaledBy(scale), color = Color.White, maxLines = 2)
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                PearIcon(if (item.item.type == "series") "tv" else "film", size = 12.dp, tint = Color.White)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp * scale)) {
+                PearIcon(if (item.item.type == "series") "tv" else "film", size = 12.dp * scale, tint = Color.White)
                 val caption = (listOf(item.item.typeLabel) + item.genres).joinToString(" · ")
-                PearText(caption, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.75f), maxLines = 1)
+                PearText(caption, style = PearTheme.type.caption.scaledBy(scale), color = Color.White.copy(alpha = 0.75f), maxLines = 1)
             }
         }
     }
 }
+
+/** The same style with its type sizes multiplied by [k] (the wide layout's card scale). Returns the style as is at 1x. */
+internal fun TextStyle.scaledBy(k: Float): TextStyle {
+    if (k == 1f) return this
+    return copy(fontSize = fontSize.scaledBy(k), lineHeight = lineHeight.scaledBy(k))
+}
+
+private fun TextUnit.scaledBy(k: Float): TextUnit = if (isSpecified) (value * k).sp else this

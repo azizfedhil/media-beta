@@ -41,5 +41,17 @@ fun sidebarWidthFor(windowWidth: Dp): Dp = when {
     else -> Breakpoints.sidebarIconsOnly
 }
 
+/**
+ * How much bigger the wide layout draws things. Phone layout is always 1x. Used by episode cards, theme cards and the
+ * home hero; keep them here so the three stay in step.
+ */
+object WideScale {
+    /** Episode cards and theme carousel cards: 33% larger. */
+    const val CARD = 1.33f
+
+    /** The home hero (wide): 10% wider. */
+    const val HERO_WIDTH = 1.10f
+}
+
 /** The icon-only sidebar has no titles, no clock and no catalogue list. */
 fun isIconOnlySidebar(sidebarWidth: Dp): Boolean = sidebarWidth < 100.dp

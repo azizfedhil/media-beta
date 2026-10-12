@@ -109,6 +109,9 @@ fun episodeAirsOn(airDate: String?): String? {
 /**
  * Apple TV-style episode card: the still fades into a dark, softly tinted panel with
  * "EPISODE 1", the title, a short description, the runtime, and a "..." menu.
+ *
+ * [scale] grows the whole card in proportion (frame, padding, icons, type), so a 1.33 card looks 33% bigger rather
+ * than being stretched. The phone layout uses 1.0.
  */
 @Composable
 fun EpisodeCard(
@@ -119,11 +122,15 @@ fun EpisodeCard(
     isWatched: Boolean = false,
     isUpNext: Boolean = false,
     onActionsClick: (() -> Unit)? = null,
+    scale: Float = 1f,
 ) {
-    val cardWidth = 250.dp
-    val cardHeight = 292.dp
-    val stillHeight = cardHeight * 0.62f // ~181 dp
-    val radius = PearRadii.card // 22 dp
+    fun d(v: Float): Dp = (v * scale).dp
+    fun t(v: Float): TextUnit = (v * scale).sp
+
+    val cardWidth = d(250f)
+    val cardHeight = d(292f)
+    val stillHeight = cardHeight * 0.62f // ~181 dp at scale 1
+    val radius = PearRadii.card * scale // 22 dp at scale 1
 
     val upcoming = ep.isUpcoming()
     val airsOn = if (upcoming) episodeAirsOn(ep.airDate) else null
@@ -139,7 +146,7 @@ fun EpisodeCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val scale = if (isHovered) 1.02f else 1.0f
+    val hoverScale = if (isHovered) 1.02f else 1.0f
 
     val accent = PearTheme.colors.accent
 
@@ -147,7 +154,7 @@ fun EpisodeCard(
         modifier = modifier
             .width(cardWidth)
             .height(cardHeight)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .graphicsLayer { scaleX = hoverScale; scaleY = hoverScale }
             .hoverable(interactionSource)
             .pointerHoverIcon(PointerIcon.Hand)
             .clip(RoundedCornerShape(radius))
@@ -212,7 +219,7 @@ fun EpisodeCard(
         Box(
             Modifier
                 .align(Alignment.TopStart)
-                .padding(10.dp),
+                .padding(d(10f)),
         ) {
             when {
                 isWatched -> {
@@ -220,14 +227,14 @@ fun EpisodeCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(PearRadii.pill))
                             .background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = d(8f), vertical = d(4f)),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(d(4f)),
                     ) {
-                        PearIcon("checkmark.circle.fill", size = 12.dp, tint = PearTheme.colors.accent)
+                        PearIcon("checkmark.circle.fill", size = d(12f), tint = PearTheme.colors.accent)
                         PearText(
                             text = "Watched",
-                            style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 11.sp),
+                            style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = t(11f)),
                             color = Color.White,
                         )
                     }
@@ -237,11 +244,11 @@ fun EpisodeCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(PearRadii.pill))
                             .background(PearTheme.colors.accent)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = d(8f), vertical = d(4f)),
                     ) {
                         PearText(
                             text = "UP NEXT",
-                            style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 10.sp, letterSpacing = 0.8.sp),
+                            style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = t(10f), letterSpacing = t(0.8f)),
                             color = PearTheme.colors.onAccent,
                         )
                     }
@@ -254,21 +261,21 @@ fun EpisodeCard(
             Box(
                 Modifier
                     .align(Alignment.TopEnd)
-                    .padding(10.dp),
+                    .padding(d(10f)),
             ) {
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(PearRadii.pill))
                         .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = d(8f), vertical = d(4f)),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(d(5f)),
                 ) {
                     RatingLogo("TMDB")
                     val scoreText = (kotlin.math.round(r * 10) / 10).toString()
                     PearText(
                         text = scoreText,
-                        style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 11.sp),
+                        style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = t(11f)),
                         color = Color.White,
                     )
                 }
@@ -280,19 +287,19 @@ fun EpisodeCard(
             Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = d(16f), vertical = d(14f)),
+            verticalArrangement = Arrangement.spacedBy(d(4f)),
         ) {
             // Header: "EPISODE X" + optional TOP RATED shimmer
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(d(6f)),
             ) {
                 PearText(
                     text = "EPISODE ${ep.id}",
                     style = PearTheme.type.caption2.weight(FontWeight.SemiBold).copy(
-                        fontSize = 12.sp,
-                        letterSpacing = 0.8.sp,
+                        fontSize = t(12f),
+                        letterSpacing = t(0.8f),
                     ),
                     color = Color.White.copy(alpha = 0.65f),
                     maxLines = 1,
@@ -308,8 +315,8 @@ fun EpisodeCard(
                         text = "TOP RATED",
                         symbol = "star.fill",
                         color = Color(0xFFFFC733),
-                        fontSize = 12.sp,
-                        tracking = 0.8.sp,
+                        fontSize = t(12f),
+                        tracking = t(0.8f),
                     )
                 }
             }
@@ -317,7 +324,7 @@ fun EpisodeCard(
             // Episode title
             PearText(
                 text = ep.name,
-                style = PearTheme.type.title3.weight(FontWeight.Bold).copy(fontSize = 18.sp),
+                style = PearTheme.type.title3.weight(FontWeight.Bold).copy(fontSize = t(18f)),
                 color = if (upcoming) Color.White.copy(alpha = 0.70f) else Color.White,
                 maxLines = 1,
             )
@@ -326,38 +333,38 @@ fun EpisodeCard(
             ep.overview?.takeIf { it.isNotBlank() }?.let { overview ->
                 PearText(
                     text = overview,
-                    style = PearTheme.type.caption.copy(fontSize = 13.sp, lineHeight = 17.sp),
+                    style = PearTheme.type.caption.copy(fontSize = t(13f), lineHeight = t(17f)),
                     color = if (upcoming) Color.White.copy(alpha = 0.50f) else Color.White.copy(alpha = 0.70f),
                     maxLines = 3,
                 )
             }
 
             // Footer info line: "Airs on <Date>" or Freshness + Runtime
-            Box(Modifier.padding(top = 4.dp)) {
+            Box(Modifier.padding(top = d(4f))) {
                 if (airsOn != null) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(d(5f)),
                     ) {
-                        PearIcon("calendar", size = 14.dp, tint = Color.White.copy(alpha = 0.90f))
+                        PearIcon("calendar", size = d(14f), tint = Color.White.copy(alpha = 0.90f))
                         PearText(
                             text = "Airs on $airsOn",
-                            style = PearTheme.type.footnote.weight(FontWeight.SemiBold).copy(fontSize = 14.sp),
+                            style = PearTheme.type.footnote.weight(FontWeight.SemiBold).copy(fontSize = t(14f)),
                             color = Color.White.copy(alpha = 0.90f),
                         )
                     }
                 } else {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(d(6f)),
                     ) {
                         if (freshness != null) {
                             ShimmerText(
                                 text = freshness.text,
                                 symbol = "sparkles",
                                 color = Color(0xFFFF8C80),
-                                fontSize = 14.sp,
-                                tracking = 0.sp,
+                                fontSize = t(14f),
+                                tracking = t(0f),
                             )
                             if (runtimeText != null) {
                                 PearText(
@@ -370,7 +377,7 @@ fun EpisodeCard(
                         runtimeText?.let { rt ->
                             PearText(
                                 text = rt,
-                                style = PearTheme.type.subheadline.weight(FontWeight.Medium).copy(fontSize = 14.sp),
+                                style = PearTheme.type.subheadline.weight(FontWeight.Medium).copy(fontSize = t(14f)),
                                 color = Color.White.copy(alpha = 0.85f),
                             )
                         }
@@ -384,14 +391,14 @@ fun EpisodeCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 6.dp, bottom = 6.dp)
-                    .size(width = 44.dp, height = 40.dp)
+                    .padding(end = d(6f), bottom = d(6f))
+                    .size(width = d(44f), height = d(40f))
                     .clickable(onClick = onActionsClick),
                 contentAlignment = Alignment.Center,
             ) {
                 PearIcon(
                     symbol = "ellipsis",
-                    size = 18.dp,
+                    size = d(18f),
                     tint = Color.White.copy(alpha = 0.85f),
                 )
             }
