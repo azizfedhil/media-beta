@@ -6,12 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
+import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.nav.NavController
 
 sealed interface Route {
     data class Root(val tab: AppTab) : Route
-    data class Catalogue(val id: String, val title: String) : Route
+    data class Catalogue(val row: CatalogRow) : Route
     data class Demo(val depth: Int) : Route
     data class Detail(val item: MetaPreview, val startSeason: Int? = null, val startEpisode: Int? = null) : Route
     data object ThemePreview : Route
@@ -36,8 +37,7 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
     var savedWindowSize: DpSize? by mutableStateOf(null)
     val visited = mutableStateListOf(initialTab)
 
-    /** The ambient color extracted from the hero poster, bleeding behind the sidebar and page. */
-    var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36)) // Default deep Silo emerald
+    var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36))
 
     private val tabNavs = HashMap<AppTab, NavController<Route>>()
 
@@ -55,7 +55,7 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
 
     fun selectCatalogue(item: CatalogueItem) {
         catalogue = item
-        catalogueNav = NavController(Route.Catalogue(item.id, item.title))
+        catalogueNav = NavController(Route.Catalogue(CatalogRow(item.id, item.title, emptyList())))
     }
 
     fun currentNav(): NavController<Route> = catalogueNav ?: navFor(tab)

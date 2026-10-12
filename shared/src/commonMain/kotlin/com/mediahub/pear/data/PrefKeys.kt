@@ -5,6 +5,7 @@ object PrefKeys {
     const val ADDON_MANIFEST_URLS = "addon.manifestURLs"
     const val ADDON_DISABLED = "addon.disabled"
     const val ADDON_CATALOG_PICKER = "addon.catalogPicker"
+    const val MEDIASERVERS_LIST = "mediaservers.list"
     const val TMDB_KEY = "tmdb.key"
     const val TVDB_KEY = "tvdb.key"
     const val TVDB_PIN = "tvdb.pin"
@@ -58,6 +59,8 @@ object SecretKeys {
 
     /** When the TVDB token was issued (epoch milliseconds as text). Kept with the token, so no setting is written off the UI thread. */
     const val TVDB_TOKEN_DATE = "tvdb.tokenDate"
+
+    fun mediaServerToken(id: String): String = "mediaserver.token.$id"
 }
 
 /** Mirrors `ProfileKeys` in Profiles.swift. */

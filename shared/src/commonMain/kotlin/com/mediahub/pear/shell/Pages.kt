@@ -21,27 +21,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mediahub.pear.detail.DetailScreen
+import com.mediahub.pear.explore.ExploreScreen
 import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassTopBar
+import com.mediahub.pear.home.CatalogGridScreen
+import com.mediahub.pear.home.HomeScreen
+import com.mediahub.pear.model.CatalogRow
+import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.nav.NavController
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.preview.GlassGalleryScreen
 import com.mediahub.pear.preview.ThemePreviewScreen
+import com.mediahub.pear.search.SearchScreen
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
-import com.mediahub.pear.home.HomeScreen
-import com.mediahub.pear.model.CatalogRow
-import com.mediahub.pear.model.MetaPreview
-import com.mediahub.pear.detail.DetailScreen
 
 private val PageMaxWidth = 900.dp
 
-/**
- * Placeholder content for every route until the real screens arrive (Phase 3). The structure is the one the
- * real pages will use: a page scroll area under a floating glass top bar, bottom padding for the phone tab bar.
- */
 @Composable
 internal fun RouteContent(route: Route, nav: NavController<Route>) {
     val env = LocalAppEnv.current
@@ -49,15 +48,22 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         is Route.Root -> when (route.tab) {
             AppTab.Home -> HomeScreen(
                 onSelectTitle = { item: MetaPreview, s: Int?, ep: Int? -> nav.push(Route.Detail(item, s, ep)) },
-                onSeeAll = { row: CatalogRow -> nav.push(Route.Catalogue(row.id, row.title)) },
+                onSeeAll = { row: CatalogRow -> nav.push(Route.Catalogue(row)) },
             )
-            AppTab.Settings -> SettingsPlaceholder(nav)
-            AppTab.Settings -> SettingsPlaceholder(nav)
-            AppTab.Explore -> Placeholder("Explore", "ExploreView.swift", "Batch 3.3", nav)
+            AppTab.Explore -> ExploreScreen(
+                onSelectTitle = { item -> nav.push(Route.Detail(item)) },
+            )
+            AppTab.Search -> SearchScreen(
+                onSelectTitle = { item -> nav.push(Route.Detail(item)) },
+            )
             AppTab.Library -> Placeholder("Library", "LibraryView.swift", "Batch 3.4", nav)
-            AppTab.Search -> Placeholder("Search", "SearchView.swift", "Batch 3.3", nav)
+            AppTab.Settings -> SettingsPlaceholder(nav)
         }
-        is Route.Catalogue -> Placeholder(route.title, "CatalogGridView.swift", "Batch 3.1", nav, onBack = null)
+        is Route.Catalogue -> CatalogGridScreen(
+            row = route.row,
+            onBack = { nav.pop() },
+            onSelectTitle = { item -> nav.push(Route.Detail(item)) },
+        )
         is Route.Demo -> DemoPage(route, nav)
         is Route.Detail -> DetailScreen(
             item = route.item,
@@ -65,9 +71,8 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
             startEpisode = route.startEpisode,
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
-            onPlay = { playRequest -> /* Entry point to Phase 4 playback */ },
-            )
-            Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
+            onPlay = { _ -> /* Entry point to Phase 4 playback */ },
+        )
         Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })
         Route.StorageCheck -> StorageCheckScreen(env.data, onBack = { nav.pop() })
@@ -78,7 +83,6 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
     }
 }
 
-/** A page: [content] scrolls under a floating glass top bar. [onBack] null means this is a root page. */
 @Composable
 internal fun PageScaffold(title: String, onBack: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
     val env = LocalAppEnv.current
@@ -94,7 +98,6 @@ internal fun PageScaffold(title: String, onBack: (() -> Unit)?, content: @Compos
     }
 }
 
-/** Flat card for placeholder content (glass cards come with the real screens). */
 @Composable
 internal fun PageCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val c = PearTheme.colors
@@ -109,29 +112,6 @@ internal fun PageCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
 
 @Composable
 private fun layoutSummary(): String = if (LocalWideLayout.current) "Wide layout (sidebar)" else "Phone layout (tab bar)"
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun HomePlaceholder(nav: NavController<Route>) {
-    val c = PearTheme.colors
-    PageScaffold("Home", onBack = null) {
-        PageCard {
-            PearText("Home", style = PearTheme.type.title3.weight(FontWeight.Bold))
-            PearText("Placeholder. HomeView.swift is ported in Batch 3.1.", color = c.textSecondary)
-            PearText(layoutSummary(), style = PearTheme.type.footnote, color = c.textSecondary)
-        }
-        PageCard {
-            PearText("Navigation stack", style = PearTheme.type.headline)
-            PearText("Push a page to see the slide-in. Go back with the button, Alt+Left or Esc.", style = PearTheme.type.footnote, color = c.textSecondary)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DevChip("Push a page", false) { nav.push(Route.Demo(1)) }
-            }
-        }
-        repeat(8) { i ->
-            PageCard { PearText("Filler card ${i + 1}: scroll to see content pass under the glass bar.", color = c.textSecondary) }
-        }
-    }
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -155,7 +135,7 @@ private fun SettingsPlaceholder(nav: NavController<Route>) {
                     DevChip("Metadata check", false) { nav.push(Route.MetadataCheck) }
                     DevChip("Add-ons check", false) { nav.push(Route.AddonsCheck) }
                     DevChip("History & Simkl check", false) { nav.push(Route.HistoryCheck) }
-                     DevChip("Backup check", false) { nav.push(Route.BackupCheck) }
+                    DevChip("Backup check", false) { nav.push(Route.BackupCheck) }
                     DevChip("Push a page", false) { nav.push(Route.Demo(1)) }
                 }
             }
