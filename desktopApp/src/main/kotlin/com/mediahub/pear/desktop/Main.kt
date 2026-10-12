@@ -17,6 +17,9 @@ import java.awt.Dimension
 import java.awt.Toolkit
 
 fun main(args: Array<String>) = application {
+    // Enable subpixel / LCD font smoothing for AWT
+    System.setProperty("awt.useSystemAAFontSettings", "lcd")
+    System.setProperty("swing.aatext", "true")
     // CI smoke test: open the window, stay for 3 s, exit 0.
     val smoke = "--smoke" in args
     if (smoke) LaunchedEffect(Unit) { delay(3000); exitApplication() }
