@@ -22,18 +22,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.detail.DetailScreen
+import com.mediahub.pear.downloads.DownloadsScreen
 import com.mediahub.pear.explore.ExploreScreen
 import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.home.CatalogGridScreen
 import com.mediahub.pear.home.HomeScreen
+import com.mediahub.pear.library.LibraryScreen
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.nav.NavController
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.preview.GlassGalleryScreen
 import com.mediahub.pear.preview.ThemePreviewScreen
+import com.mediahub.pear.profile.ProfileDetailScreen
 import com.mediahub.pear.search.SearchScreen
+import com.mediahub.pear.settings.ContentSettingsScreen
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
@@ -67,6 +71,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
         )
+        is Route.Demo -> DemoPage(route, nav)
         is Route.Detail -> DetailScreen(
             item = route.item,
             startSeason = route.startSeason,
@@ -77,12 +82,12 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         )
         Route.ProfileDetail -> ProfileDetailScreen(
             onBack = { nav.pop() },
-            onNavigateIntegrations = { /* Batch 3.5 integrations */ },
+            onNavigateIntegrations = { /* Handled in Batch 3.5 */ },
             onNavigateDownloads = { nav.push(Route.Downloads) },
         )
         Route.ContentSettings -> ContentSettingsScreen(
             onBack = { nav.pop() },
-            onNavigateAIOMetadata = { /* Batch 3.5 AIOMetadata */ },
+            onNavigateAIOMetadata = { /* Handled in Batch 3.5 */ },
         )
         Route.Downloads -> DownloadsScreen(
             onBack = { nav.pop() },
@@ -94,6 +99,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.AddonsCheck -> AddonsCheckScreen(env.data, onBack = { nav.pop() })
         Route.HistoryCheck -> HistoryCheckScreen(env.data, onBack = { nav.pop() })
         Route.BackupCheck -> BackupCheckScreen(env.data, onBack = { nav.pop() })
+        else -> {}
     }
 }
 
