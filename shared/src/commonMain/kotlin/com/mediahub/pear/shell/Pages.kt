@@ -106,8 +106,9 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
             startEpisode = route.startEpisode,
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
-            onPlay = { _ -> },
+            onPlay = { request -> nav.push(Route.Player(request)) },
         )
+        is Route.Player -> PlayerScreen(request = route.request, onBack = { nav.pop() })
         Route.ProfileDetail -> ProfileDetailScreen(
             onBack = { nav.pop() },
             onNavigateIntegrations = { nav.push(Route.Integrations) },

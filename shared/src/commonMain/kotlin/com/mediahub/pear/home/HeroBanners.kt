@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -32,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.net.RemoteImage
+import com.mediahub.pear.net.rememberDominantColor
+import com.mediahub.pear.shell.FadedPoster
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
@@ -123,13 +128,15 @@ fun HeroCarousel(
 }
 
 /**
- * Wide hero panel matching the mock-up (*Silo* poster column).
+ * Wide hero (the *Silo* column in the mock-up). No frame: the poster dissolves into the page's colour wash.
+ * [collapse] 0..1 folds it away to nothing as the feed scrolls.
  */
 @Composable
 fun WideHeroPanel(
     items: List<MetaPreview>,
     onSelectTitle: (MetaPreview) -> Unit,
     modifier: Modifier = Modifier,
+    collapse: Float = 0f,
 ) {
     if (items.isEmpty()) return
     val env = LocalAppEnv.current
@@ -145,57 +152,45 @@ fun WideHeroPanel(
     }
 
     val item = items.getOrElse(currentIndex) { items.first() }
+    val dominant = rememberDominantColor(item.posterUrl ?: item.backdropUrl)
 
-    LaunchedEffect(item.name) {
-        env.shell.heroAmbientColor = fallbackHeroAmbientColor(item.name)
+    LaunchedEffect(item.name, dominant) {
+        env.shell.heroAmbientColor = dominant ?: fallbackHeroAmbientColor(item.name)
     }
 
-    Box(
-        modifier
-            .fillMaxHeight()
-            .width(410.dp)
-            .padding(top = 16.dp, start = 12.dp, bottom = 16.dp)
-            .clip(RoundedCornerShape(PearRadii.card))
-            .background(Color.Black),
-    ) {
-        AnimatedContent(
-            targetState = item,
-            transitionSpec = { fadeIn(tween(700)) togetherWith fadeOut(tween(700)) },
-            modifier = Modifier.fillMaxSize(),
-        ) { currentItem ->
-            Box(Modifier.fillMaxSize()) {
-                RemoteImage(currentItem.posterUrl ?: currentItem.backdropUrl, Modifier.fillMaxSize())
-
-                // Cinematic darkening gradient
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(
-                            0.25f to Color.Transparent,
-                            0.60f to Color.Black.copy(alpha = 0.70f),
-                            1.0f to Color.Black.copy(alpha = 0.98f),
-                        ),
-                    ),
-                )
-            }
-        }
-
-        Column(
-            Modifier.align(Alignment.BottomStart).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+    val panelWidth = 460.dp * (1f - collapse).coerceIn(0f, 1f)
+    Box(modifier.fillMaxHeight().width(panelWidth).clipToBounds()) {
+        // Fixed-size content so text doesn't re-wrap while the panel folds away.
+        Box(
+            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(460.dp).fillMaxHeight()
+                .graphicsLayer { alpha = (1f - collapse * 1.3f).coerceIn(0f, 1f) },
         ) {
-            HeroMetaContent(item, onDetailsClick = { onSelectTitle(item) })
+            AnimatedContent(
+                targetState = item,
+                transitionSpec = { fadeIn(tween(900)) togetherWith fadeOut(tween(900)) },
+                modifier = Modifier.fillMaxSize(),
+            ) { currentItem ->
+                FadedPoster(currentItem.posterUrl ?: currentItem.backdropUrl, Modifier.fillMaxSize())
+            }
 
-            Spacer(Modifier.height(2.dp))
+            Column(
+                Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 70.dp, bottom = 44.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HeroMetaContent(item, onDetailsClick = { onSelectTitle(item) })
 
-            // Carousel dots
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items.forEachIndexed { idx, _ ->
-                    val isCurrent = idx == currentIndex
-                    Box(
-                        Modifier.height(5.dp).width(if (isCurrent) 20.dp else 5.dp)
-                            .clip(RoundedCornerShape(PearRadii.pill))
-                            .background(if (isCurrent) Color.White else Color.White.copy(alpha = 0.40f)),
-                    )
+                Spacer(Modifier.height(2.dp))
+
+                // Carousel dots
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items.forEachIndexed { idx, _ ->
+                        val isCurrent = idx == currentIndex
+                        Box(
+                            Modifier.height(5.dp).width(if (isCurrent) 20.dp else 5.dp)
+                                .clip(RoundedCornerShape(PearRadii.pill))
+                                .background(if (isCurrent) Color.White else Color.White.copy(alpha = 0.40f)),
+                        )
+                    }
                 }
             }
         }

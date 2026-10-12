@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
+import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.nav.NavController
 
 sealed interface Route {
@@ -19,6 +20,7 @@ sealed interface Route {
     }
     data class Demo(val depth: Int) : Route
     data class Detail(val item: MetaPreview, val startSeason: Int? = null, val startEpisode: Int? = null) : Route
+    data class Player(val request: PlayRequest) : Route
     data object ProfileDetail : Route
     data object ContentSettings : Route
     data object Downloads : Route
@@ -52,6 +54,8 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
     var layoutOverride: LayoutOverride by mutableStateOf(LayoutOverride.Auto)
     var savedWindowSize: DpSize? by mutableStateOf(null)
     val visited = mutableStateListOf(initialTab)
+
+    val feedCollapse = FeedCollapse()
 
     var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36))
 

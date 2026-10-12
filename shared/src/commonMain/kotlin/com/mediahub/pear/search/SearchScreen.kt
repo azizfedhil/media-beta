@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import com.mediahub.pear.shell.DragLazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -160,7 +160,7 @@ fun SearchScreen(
                                     PearIcon("film", size = 18.dp, tint = PearTheme.colors.accent)
                                     PearText("Movies (${movies.size})", style = PearTheme.type.title3.weight(FontWeight.Bold))
                                 }
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                DragLazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     items(movies) { m ->
                                         PosterCard(item = m, showsTitle = true, onClick = { onSelectTitle(m) })
                                     }
@@ -176,7 +176,7 @@ fun SearchScreen(
                                     PearIcon("tv", size = 18.dp, tint = PearTheme.colors.accent)
                                     PearText("Shows (${shows.size})", style = PearTheme.type.title3.weight(FontWeight.Bold))
                                 }
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                DragLazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     items(shows) { s ->
                                         PosterCard(item = s, showsTitle = true, onClick = { onSelectTitle(s) })
                                     }

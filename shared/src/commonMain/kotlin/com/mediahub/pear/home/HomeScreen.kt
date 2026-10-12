@@ -1,5 +1,11 @@
 package com.mediahub.pear.home
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +18,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -22,7 +32,9 @@ import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.shell.LocalFeedCollapse
 import com.mediahub.pear.shell.LocalWideLayout
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -40,22 +52,36 @@ fun HomeScreen(
     }
 
     if (isWide) {
-        // Desktop / iPad wide split layout (matches mockup)
-        Row(modifier.fillMaxSize()) {
-            if (model.hero.isNotEmpty()) {
-                WideHeroPanel(
-                    items = model.hero,
-                    onSelectTitle = { onSelectTitle(it, null, null) },
-                )
-            }
-            Box(Modifier.weight(1f).fillMaxHeight()) {
-                Column(
-                    Modifier.fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(top = 18.dp, bottom = bottomInset + 40.dp),
-                    verticalArrangement = Arrangement.spacedBy(28.dp),
-                ) {
-                    FeedRows(model, onSelectTitle, onSeeAll)
+        // Desktop / iPad wide split layout (matches mockup). Scrolling or dragging the feed folds the hero and sidebar away.
+        val fc = env.shell.feedCollapse
+        val scroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
+        LaunchedEffect(scroll) {
+            snapshotFlow { scroll.value }.collect { fc.vertical = (it / 260f).coerceIn(0f, 1f) }
+        }
+        val fold by animateFloatAsState(fc.progress, tween(140))
+        CompositionLocalProvider(LocalFeedCollapse provides fc) {
+            Row(modifier.fillMaxSize()) {
+                if (model.hero.isNotEmpty()) {
+                    WideHeroPanel(
+                        items = model.hero,
+                        collapse = fold,
+                        onSelectTitle = { onSelectTitle(it, null, null) },
+                    )
+                }
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    Column(
+                        Modifier.fillMaxSize()
+                            .draggable(
+                                rememberDraggableState { delta -> scope.launch { scroll.scrollBy(-delta) } },
+                                Orientation.Vertical,
+                            )
+                            .verticalScroll(scroll)
+                            .padding(top = 18.dp, bottom = bottomInset + 40.dp),
+                        verticalArrangement = Arrangement.spacedBy(28.dp),
+                    ) {
+                        FeedRows(model, onSelectTitle, onSeeAll)
+                    }
                 }
             }
         }

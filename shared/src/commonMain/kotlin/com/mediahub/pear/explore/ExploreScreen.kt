@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
+import com.mediahub.pear.shell.DragLazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -41,6 +41,7 @@ import com.mediahub.pear.home.PosterCard
 import com.mediahub.pear.home.ThemeCarousel
 import com.mediahub.pear.meta.ThemeCatalog
 import com.mediahub.pear.meta.ThemeRow
+import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.model.DiscoverSort
 import com.mediahub.pear.model.Genre
 import com.mediahub.pear.model.MetaPreview
@@ -155,7 +156,7 @@ fun ExploreScreen(
 
     Box(modifier.fillMaxSize()) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 110.dp),
+            columns = GridCells.Adaptive(minSize = if (LocalWideLayout.current) 165.dp else 110.dp),
             state = gridState,
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 92.dp, bottom = bottomInset + 32.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -176,7 +177,7 @@ fun ExploreScreen(
                     }
 
                     // Genre chips row
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DragLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         item {
                             DevChip("All genres", selectedGenre == null) {
                                 selectedGenre = null

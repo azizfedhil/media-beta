@@ -1,6 +1,7 @@
 package com.mediahub.pear.shell
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -31,7 +32,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.nav.LocalPageActive
@@ -59,7 +62,7 @@ fun AdaptiveShell(
         val activeProfileName = env.data.profiles.active.name
 
         // Ambient glow background derived from the hero poster
-        val animatedAmbient by animateColorAsState(shell.heroAmbientColor, tween(900))
+        val animatedAmbient by animateColorAsState(shell.heroAmbientColor, tween(1800))
 
         CompositionLocalProvider(LocalWideLayout provides (mode == LayoutMode.Expanded)) {
             if (mode == LayoutMode.Expanded) {
@@ -68,41 +71,38 @@ fun AdaptiveShell(
                     store = glass,
                     modifier = Modifier.fillMaxSize(),
                     background = {
-                        Box(Modifier.fillMaxSize()) {
-                            // Radial glow centered near the hero poster
-                            Box(
-                                Modifier.fillMaxSize().background(
+                        // One soft colour wash over the whole page: strongest behind the hero, dissolving to near-black.
+                        Box(
+                            Modifier.fillMaxSize().drawBehind {
+                                val c = animatedAmbient
+                                drawRect(
                                     Brush.radialGradient(
-                                        colors = listOf(
-                                            animatedAmbient.copy(alpha = 0.55f),
-                                            animatedAmbient.copy(alpha = 0.20f),
-                                            Color.Transparent,
-                                        ),
-                                        center = Offset(450f, 320f),
-                                        radius = 1100f,
+                                        0f to c.copy(alpha = 0.75f),
+                                        0.40f to c.copy(alpha = 0.38f),
+                                        0.75f to c.copy(alpha = 0.12f),
+                                        1f to Color.Transparent,
+                                        center = Offset(size.width * 0.30f, size.height * 0.38f),
+                                        radius = maxOf(size.width, size.height) * 1.0f,
                                     ),
-                                ),
-                            )
-                            // Soft vertical fade into deep black
-                            Box(
-                                Modifier.fillMaxSize().background(
+                                )
+                                drawRect(
                                     Brush.verticalGradient(
-                                        colors = listOf(
-                                            animatedAmbient.copy(alpha = 0.30f),
-                                            Color.Transparent,
-                                            Color.Black.copy(alpha = 0.85f),
-                                        ),
-                                        startY = 0f,
-                                        endY = 1200f,
+                                        0f to c.copy(alpha = 0.20f),
+                                        0.55f to Color.Transparent,
+                                        1f to Color.Black.copy(alpha = 0.55f),
                                     ),
-                                ),
-                            )
-                        }
+                                )
+                            },
+                        )
                     },
                 ) {
                     Row(Modifier.fillMaxSize()) {
+                        // Home's feed folds the sidebar down to icons as it is scrolled or dragged.
+                        val homeShown = shell.tab == AppTab.Home && shell.catalogue == null
+                        val fold by animateFloatAsState(if (homeShown) shell.feedCollapse.progress else 0f, tween(140))
                         Sidebar(
-                            width = sidebarWidthFor(windowWidth),
+                            width = lerp(sidebarWidthFor(windowWidth), Breakpoints.sidebarIconsOnly, fold),
+                            forceIcons = fold > 0.45f,
                             shell = shell,
                             catalogues = catalogues,
                             profileName = activeProfileName,

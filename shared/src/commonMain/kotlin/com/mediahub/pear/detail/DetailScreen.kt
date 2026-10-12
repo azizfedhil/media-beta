@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
+import com.mediahub.pear.shell.DragLazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -58,6 +58,9 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import com.mediahub.pear.home.fallbackHeroAmbientColor
+import com.mediahub.pear.net.rememberDominantColor
+import com.mediahub.pear.shell.FadedPoster
 
 @Composable
 fun DetailScreen(
@@ -125,23 +128,18 @@ fun DetailScreen(
         if (isWide) {
             // Split layout for wide screens
             Row(Modifier.fillMaxSize()) {
-                // Left fixed column: Poster, Logo, Title, Metadata, Actions
+                // Left column: the poster, frameless, dissolving into the page's colour wash.
+                val dominant = rememberDominantColor(item.posterUrl ?: item.backdropUrl)
+                LaunchedEffect(item.id, dominant) {
+                    env.shell.heroAmbientColor = dominant ?: fallbackHeroAmbientColor(item.name)
+                }
                 Box(
-                    Modifier.width(360.dp).fillMaxHeight().background(Color.Black),
+                    Modifier.width(440.dp).fillMaxHeight(),
                 ) {
-                    RemoteImage(item.posterUrl ?: item.backdropUrl, Modifier.fillMaxSize())
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(
-                                0.2f to Color.Transparent,
-                                0.6f to Color.Black.copy(alpha = 0.75f),
-                                1f to Color.Black.copy(alpha = 0.95f),
-                            ),
-                        ),
-                    )
+                    FadedPoster(item.posterUrl ?: item.backdropUrl, Modifier.fillMaxSize())
 
                     Column(
-                        Modifier.align(Alignment.BottomStart).padding(24.dp),
+                        Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 60.dp, bottom = 40.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         DetailHeaderInfo(item, details, ratings, logoUrl)
@@ -366,7 +364,7 @@ private fun DetailHeaderInfo(
     }
 
     if (ratings.isNotEmpty()) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DragLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(ratings) { RatingBadge(it) }
         }
     }
@@ -432,7 +430,7 @@ private fun SeasonsAndEpisodesSection(
         PearText("Seasons", style = PearTheme.type.title3.weight(FontWeight.Bold), modifier = Modifier.padding(horizontal = 20.dp))
 
         // Season pills
-        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(seasons) { s ->
                 val num = s.seasonNumber
                 DevChip(s.title, selectedSeason == num) { onSelectSeason(num) }
@@ -441,7 +439,7 @@ private fun SeasonsAndEpisodesSection(
 
         // Episode carousel
         if (episodes.isNotEmpty()) {
-            LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 items(episodes) { ep ->
                     EpisodeCard(
                         ep = ep,
@@ -461,7 +459,7 @@ private fun SeasonsAndEpisodesSection(
 private fun TrailersSection(trailers: List<Video>) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PearText("Trailers & Extras", style = PearTheme.type.title3.weight(FontWeight.Bold), modifier = Modifier.padding(horizontal = 20.dp))
-        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             items(trailers) { trailer ->
                 TrailerCard(trailer)
             }

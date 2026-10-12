@@ -38,6 +38,7 @@ import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.NetworkBadge
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearRadii
@@ -69,7 +70,9 @@ fun PosterCard(
     val pressed by source.collectIsPressedAsState()
     val scale = if (pressed) 0.95f else if (hovered) 1.03f else 1f
 
-    val sizingModifier = if (width != null) modifier.width(width) else modifier.fillMaxWidth()
+    // Desktop (wide) layout shows posters 50% bigger; grids get the same through their cell size.
+    val wide = LocalWideLayout.current
+    val sizingModifier = if (width != null) modifier.width(if (wide) width * 1.5f else width) else modifier.fillMaxWidth()
 
     Column(
         modifier = sizingModifier
@@ -95,22 +98,6 @@ fun PosterCard(
                     Modifier.align(Alignment.TopStart).padding(6.dp),
                 ) {
                     PearIcon("checkmark.circle.fill", size = 18.dp, tint = PearTheme.colors.accent)
-                }
-            }
-
-            // Rating chip
-            item.rating?.let { r ->
-                Box(
-                    Modifier.align(Alignment.TopEnd).padding(6.dp)
-                        .clip(RoundedCornerShape(PearRadii.xs))
-                        .background(Color.Black.copy(alpha = 0.65f))
-                        .padding(horizontal = 5.dp, vertical = 2.dp),
-                ) {
-                    PearText(
-                        text = "★ " + (kotlin.math.round(r * 10) / 10).toString(),
-                        style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 10.sp),
-                        color = Color.White,
-                    )
                 }
             }
 

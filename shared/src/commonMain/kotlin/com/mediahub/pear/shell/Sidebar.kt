@@ -55,8 +55,9 @@ internal fun Sidebar(
     catalogues: List<CatalogueItem>,
     profileName: String,
     modifier: Modifier = Modifier,
+    forceIcons: Boolean = false,
 ) {
-    val iconsOnly = isIconOnlySidebar(width)
+    val iconsOnly = forceIcons || isIconOnlySidebar(width)
 
     // Translucent Haze glass surface for the sidebar
     GlassSurface(

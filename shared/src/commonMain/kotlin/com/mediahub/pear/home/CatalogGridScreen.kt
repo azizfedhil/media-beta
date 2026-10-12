@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.glass.GlassTopBar
+import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.model.MetaPreview
@@ -118,7 +119,7 @@ fun CatalogGridScreen(
 
     Box(modifier.fillMaxSize()) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 110.dp),
+            columns = GridCells.Adaptive(minSize = if (LocalWideLayout.current) 165.dp else 110.dp),
             state = gridState,
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 92.dp, bottom = bottomInset + 32.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),

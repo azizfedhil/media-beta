@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
+import com.mediahub.pear.shell.DragLazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.home.PosterCard
+import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
@@ -81,7 +82,7 @@ fun LibraryScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 110.dp),
+                columns = GridCells.Adaptive(minSize = if (LocalWideLayout.current) 165.dp else 110.dp),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 92.dp, bottom = bottomInset + 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -89,7 +90,7 @@ fun LibraryScreen(
             ) {
                 // Section Filter Chips Row
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DragLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val total = rows.sumOf { it.items.size }
                         item {
                             DevChip("All ($total)", selectedFilter == "all") { selectedFilter = "all" }

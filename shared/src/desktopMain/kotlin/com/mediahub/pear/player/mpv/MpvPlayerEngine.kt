@@ -25,6 +25,11 @@ class MpvPlayerEngine private constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val isReleased = AtomicBoolean(false)
+    private val lock = Any()
+    private var destroyed = false
+
+    /** Runs a native call only while the handle is alive; destroy takes the same lock, so no use-after-free. */
+    private inline fun <T> native(default: T, block: () -> T): T = synchronized(lock) { if (destroyed) default else block() }
 
     private val _state = MutableStateFlow(PlaybackState.Idle)
     override val state: StateFlow<PlaybackState> = _state.asStateFlow()
@@ -63,6 +68,7 @@ class MpvPlayerEngine private constructor(
         mpv.mpv_observe_property(handle, 6L, "speed", MpvFormat.DOUBLE)
         mpv.mpv_observe_property(handle, 7L, "volume", MpvFormat.DOUBLE)
         mpv.mpv_observe_property(handle, 8L, "track-list/count", MpvFormat.INT64)
+        mpv.mpv_observe_property(handle, 9L, "eof-reached", MpvFormat.FLAG)
 
         // Event loop thread
         val eventThread = Thread({
@@ -79,7 +85,18 @@ class MpvPlayerEngine private constructor(
                         _state.value = PlaybackState.Playing
                     }
                     MpvEventId.END_FILE -> {
-                        _state.value = PlaybackState.Ended
+                        // struct mpv_event_end_file { int reason; int error; ... }
+                        val d = event.data
+                        val reason = d?.getInt(0) ?: 0
+                        val err = d?.getInt(4) ?: 0
+                        when (reason) {
+                            END_REASON_ERROR -> {
+                                _errorMessage.value = native<String?>(null) { mpv.mpv_error_string(err) } ?: "Could not play this source."
+                                _state.value = PlaybackState.Error
+                            }
+                            END_REASON_EOF -> _state.value = PlaybackState.Ended
+                            else -> {} // stop/redirect: a new file is replacing this one
+                        }
                     }
                     MpvEventId.PROPERTY_CHANGE -> {
                         if (event.data != null) {
@@ -88,6 +105,10 @@ class MpvPlayerEngine private constructor(
                         }
                     }
                 }
+            }
+            synchronized(lock) {
+                destroyed = true
+                mpv.mpv_terminate_destroy(handle)
             }
         }, "mpv-event-loop")
         eventThread.isDaemon = true
@@ -130,6 +151,12 @@ class MpvPlayerEngine private constructor(
                     } else if (!buffering && _state.value == PlaybackState.Buffering) {
                         _state.value = PlaybackState.Playing
                     }
+                }
+            }
+            "eof-reached" -> {
+                // keep-open=always: end of file is reported here, not via END_FILE
+                if (prop.format == MpvFormat.FLAG && data.getInt(0) != 0 && _state.value != PlaybackState.Error) {
+                    _state.value = PlaybackState.Ended
                 }
             }
             "speed" -> {
@@ -179,11 +206,13 @@ class MpvPlayerEngine private constructor(
     }
 
     private fun getPropertyString(name: String): String? {
-        val ptr = mpv.mpv_get_property_string(handle, name) ?: return null
-        return try {
-            ptr.getString(0)
-        } finally {
-            mpv.mpv_free(ptr)
+        return native<String?>(null) {
+            val ptr = mpv.mpv_get_property_string(handle, name)
+            if (ptr == null) null else try {
+                ptr.getString(0)
+            } finally {
+                mpv.mpv_free(ptr)
+            }
         }
     }
 
@@ -197,52 +226,48 @@ class MpvPlayerEngine private constructor(
         _state.value = PlaybackState.Loading
         _errorMessage.value = null
 
-        // Pass HTTP Headers
-        if (headers.isNotEmpty()) {
-            val headerFormatted = headers.entries.joinToString(",") { "${it.key}: ${it.value}" }
-            mpv.mpv_set_property_string(handle, "http-header-fields", headerFormatted)
+        val err = native(0) {
+            // Headers via change-list: no comma escaping, and clearing stops the last source's headers leaking.
+            mpv.mpv_command(handle, arrayOf("change-list", "http-header-fields", "clr", "", null))
+            headers.forEach { (k, v) ->
+                mpv.mpv_command(handle, arrayOf("change-list", "http-header-fields", "append", "$k: $v", null))
+            }
+            mpv.mpv_set_property_string(handle, "hwdec", if (hardwareDecoding) "auto-safe" else "no")
+            // Always set, so a previous resume point never sticks to the next file.
+            mpv.mpv_set_property_string(handle, "start", if (startPositionSeconds > 0) startPositionSeconds.toString() else "none")
+            mpv.mpv_set_property_string(handle, "pause", "no")
+            mpv.mpv_command(handle, arrayOf("loadfile", url, "replace", null))
         }
-
-        // Hardware decoding configuration
-        mpv.mpv_set_property_string(handle, "hwdec", if (hardwareDecoding) "auto-safe" else "no")
-
-        // Start position
-        if (startPositionSeconds > 0) {
-            mpv.mpv_set_property_string(handle, "start", startPositionSeconds.toString())
-        }
-
-        // Load file
-        val err = mpv.mpv_command(handle, arrayOf("loadfile", url, "replace", null))
         if (err < 0) {
-            val msg = mpv.mpv_error_string(err) ?: "Could not load media."
+            val msg = native<String?>(null) { mpv.mpv_error_string(err) } ?: "Could not load media."
             _errorMessage.value = msg
             _state.value = PlaybackState.Error
         }
     }
 
     override fun play() {
-        mpv.mpv_set_property_string(handle, "pause", "no")
+        native(0) { mpv.mpv_set_property_string(handle, "pause", "no") }
     }
 
     override fun pause() {
-        mpv.mpv_set_property_string(handle, "pause", "yes")
+        native(0) { mpv.mpv_set_property_string(handle, "pause", "yes") }
     }
 
     override fun togglePlay() {
-        mpv.mpv_command(handle, arrayOf("cycle", "pause", null))
+        native(0) { mpv.mpv_command(handle, arrayOf("cycle", "pause", null)) }
     }
 
     override fun seek(positionSeconds: Double) {
-        mpv.mpv_command(handle, arrayOf("seek", positionSeconds.toString(), "absolute+exact", null))
+        native(0) { mpv.mpv_command(handle, arrayOf("seek", positionSeconds.toString(), "absolute+exact", null)) }
     }
 
     override fun setRate(rate: Double) {
-        mpv.mpv_set_property_string(handle, "speed", rate.toString())
+        native(0) { mpv.mpv_set_property_string(handle, "speed", rate.toString()) }
     }
 
     override fun setVolume(volume: Float) {
         val clamped = (volume.coerceIn(0f, 1f) * 100).toInt()
-        mpv.mpv_set_property_string(handle, "volume", clamped.toString())
+        native(0) { mpv.mpv_set_property_string(handle, "volume", clamped.toString()) }
     }
 
     override fun selectTrack(kind: TrackKind, trackId: Int?) {
@@ -252,17 +277,19 @@ class MpvPlayerEngine private constructor(
             TrackKind.Video -> "vid"
         }
         val value = trackId?.toString() ?: "no"
-        mpv.mpv_set_property_string(handle, prop, value)
+        native(0) { mpv.mpv_set_property_string(handle, prop, value) }
         refreshTrackList()
     }
 
     override fun release() {
-        if (isReleased.compareAndSet(false, true)) {
-            mpv.mpv_terminate_destroy(handle)
-        }
+        // The event thread sees the flag within 100 ms and destroys the handle itself, never from under itself.
+        isReleased.set(true)
     }
 
     companion object {
+        private const val END_REASON_EOF = 0
+        private const val END_REASON_ERROR = 4
+
         fun create(): PlayerEngine {
             val mpv = MpvNativeLoader.load()
                 ?: return DummyPlayerEngine("libmpv library not found on system path.")
