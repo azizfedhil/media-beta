@@ -15,9 +15,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.mediahub.pear.addons.AddonClient
+import com.mediahub.pear.addons.OpenSubtitlesClient
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.history.EpisodeItem
 import com.mediahub.pear.meta.SkipSegment
+import com.mediahub.pear.model.OnlineSubtitle
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.model.StreamItem
@@ -58,7 +60,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Hosts the player: creates the engine, loads the stream and shows the video under [PlayerOverlay] (Batch 4.3a),
@@ -230,11 +234,32 @@ fun PlayerScreen(
         }
     }
 
-    val layout = remember(pinnedRaw, orderRaw, nextEp, subtitleTracks.isNotEmpty(), audioTracks.size) {
+    // Online subtitles (4.4b): OpenSubtitles and the add-ons that offer them, looked up once per episode. A file added
+    // from the list is a track of the file playing, so the map of added files starts again with each file.
+    val lookupKey = "${current.imdb}:${current.key}"
+    var onlineSubs by remember(request) { mutableStateOf<List<OnlineSubtitle>>(emptyList()) }
+    var onlineLoading by remember(request) { mutableStateOf(false) }
+    var onlineFor by remember(request) { mutableStateOf<String?>(null) }
+    var addedOnline by remember(current.url) { mutableStateOf(emptyMap<String, Int>()) }
+    var autoOnlineFor by remember(request) { mutableStateOf<String?>(null) }
+    LaunchedEffect(lookupKey) {
+        if (onlineFor == lookupKey) return@LaunchedEffect
+        onlineSubs = emptyList()
+        onlineLoading = true
+        val r = current
+        val found = data.subtitleSources.search(r.imdb, r.season, r.episode)
+        onlineSubs = found
+        onlineLoading = false
+        onlineFor = lookupKey
+    }
+
+    // The subtitle button shows whenever online lookup is on, as on iOS (`pillHas` for subtitles).
+    val hasSubtitleChoice = subtitleTracks.isNotEmpty() || data.subtitles.isEnabled
+    val layout = remember(pinnedRaw, orderRaw, nextEp, hasSubtitleChoice, audioTracks.size) {
         pillLayout(
             PillItem.decodeOrder(orderRaw),
             PillItem.decodePinned(pinnedRaw),
-            pillItemsAvailable(nextEp != null, hasSubtitles = subtitleTracks.isNotEmpty(), hasAudio = audioTracks.size > 1),
+            pillItemsAvailable(nextEp != null, hasSubtitles = hasSubtitleChoice, hasAudio = audioTracks.size > 1),
         )
     }
 
@@ -345,6 +370,40 @@ fun PlayerScreen(
         scope.launch { switchEpisode(season, episode) }
     }
 
+    // Adds an online file to this file and plays it (`useOnline` in PlayerView.swift). The engine reads it into the track
+    // list; the new track is the one whose title is the source name and that wasn't there before.
+    fun addOnline(s: OnlineSubtitle) {
+        scope.launch {
+            addedOnline[s.id]?.let { track ->
+                engine.selectTrack(TrackKind.Subtitle, track)
+                preferredSubLang = s.lang
+                return@launch
+            }
+            val before = engine.subtitleTracks.value.map { it.id }.toSet()
+            engine.addExternalSubtitle(s.url, s.source, s.lang)
+            val added = withTimeoutOrNull(ONLINE_LOAD_MILLIS) {
+                engine.subtitleTracks.first { list -> list.any { it.id !in before && it.title == s.source } }
+            }?.lastOrNull { it.id !in before && it.title == s.source }
+            if (added == null) {
+                flash("Couldn't load that subtitle")
+                return@launch
+            }
+            addedOnline = addedOnline + (s.id to added.id)
+            engine.selectTrack(TrackKind.Subtitle, added.id)
+            preferredSubLang = s.lang
+        }
+    }
+
+    // Once per file, when it is playing or has its tracks: the first online file in the preferred language, if the file
+    // has nothing in that language and no subtitle is on already (`loadOnlineSubtitles` with auto).
+    LaunchedEffect(lookupKey, onlineFor, subtitleTracks, state, current.url) {
+        val ready = onlineFor == lookupKey && (state == PlaybackState.Playing || subtitleTracks.isNotEmpty())
+        if (!ready || autoOnlineFor == current.url) return@LaunchedEffect
+        autoOnlineFor = current.url
+        val pick = TrackPicker.autoOnline(onlineSubs, preferredSubLang, subtitleTracks, subtitleTracks.any { it.isSelected })
+        if (pick != null) addOnline(pick)
+    }
+
     LaunchedEffect(state) {
         if (state == PlaybackState.Ended && autoplay) playNext()
     }
@@ -420,6 +479,9 @@ fun PlayerScreen(
                             subDelay = it
                             engine.setSubtitleDelay(it)
                         },
+                        online = OpenSubtitlesClient.choices(onlineSubs, preferredSubLang).filter { it.id !in addedOnline },
+                        loadingOnline = onlineLoading,
+                        onPickOnline = { addOnline(it) },
                         onClose = { panel = null },
                     )
                     PlayerPanel.Audio -> AudioPanel(
@@ -466,3 +528,6 @@ fun PlayerScreen(
         )
     }
 }
+
+/** How long a file has to show up in the track list after it is added (online subtitles). */
+private const val ONLINE_LOAD_MILLIS = 10_000L

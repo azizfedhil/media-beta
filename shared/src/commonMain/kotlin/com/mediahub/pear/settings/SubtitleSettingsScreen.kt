@@ -79,13 +79,13 @@ fun SubtitleSettingsScreen(
             // Online Subtitles Toggle
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    PearText("OpenSubtitles online lookup", style = PearTheme.type.headline)
+                    PearText("Online subtitle lookup", style = PearTheme.type.headline)
                     DevChip(if (subsOnline) "ON" else "OFF", subsOnline) {
                         subsOnline = !subsOnline
                         prefs.setBool(PrefKeys.SUBS_ONLINE, subsOnline)
                     }
                 }
-                PearText("Automatically finds subtitles from OpenSubtitles if missing in the video file.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
+                PearText("Finds subtitles online when the file has none in your language: OpenSubtitles, and the add-ons that offer subtitles.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
             }
 
             // Default Language

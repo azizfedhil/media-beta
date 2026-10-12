@@ -328,6 +328,15 @@ class MpvPlayerEngine private constructor(
         native(0) { mpv.mpv_set_property_string(handle, "sub-delay", seconds.toString()) }
     }
 
+    override suspend fun addExternalSubtitle(url: String, title: String, language: String?) {
+        native(0) {
+            val args = arrayListOf<String?>("sub-add", url, "select", title)
+            if (language != null) args.add(language)
+            args.add(null)
+            mpv.mpv_command(handle, args.toTypedArray())
+        }
+    }
+
     /** Software rendering has no GPU tone mapper, so HDR goes through ffmpeg's zscale + tonemap before the copy. Call under [lock]. */
     private fun applyHdrFilter(on: Boolean) {
         if (on == hdrFilterOn) return

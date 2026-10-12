@@ -6,6 +6,8 @@ data class OnlineSubtitle(
     val url: String,
     /** As the service reports it, for example `eng`. */
     val lang: String,
+    /** Where it came from, for the menu: "OpenSubtitles" or the name of the add-on that offered it. */
+    val source: String = "OpenSubtitles",
 ) {
     /** "English"; the upper-case code when the language isn't in [SubLanguages] (Swift asks the system's locale tables). */
     val languageName: String

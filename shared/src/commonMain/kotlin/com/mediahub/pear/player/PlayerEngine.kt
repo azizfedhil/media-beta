@@ -72,6 +72,12 @@ interface PlayerEngine {
     /** Subtitle delay in seconds: positive shows the text later (mpv `sub-delay`). Kept across loads by the caller. */
     fun setSubtitleDelay(seconds: Double) {}
 
+    /**
+     * Adds a subtitle file from a link to the current file and selects it (mpv `sub-add`). It shows up in
+     * [subtitleTracks] once the engine has read it; the caller waits for that.
+     */
+    suspend fun addExternalSubtitle(url: String, title: String, language: String?) {}
+
     fun release()
 }
 

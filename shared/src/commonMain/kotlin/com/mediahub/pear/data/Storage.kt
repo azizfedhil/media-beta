@@ -4,6 +4,7 @@ import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.addons.AddonStore
 import com.mediahub.pear.addons.OpenSubtitlesClient
 import com.mediahub.pear.addons.PinnedSources
+import com.mediahub.pear.addons.SubtitleSources
 import com.mediahub.pear.history.EpisodeLoader
 import com.mediahub.pear.history.LibraryPrefs
 import com.mediahub.pear.history.LocalLibrary
@@ -56,6 +57,9 @@ class AppData(
         enabled = { storage.prefs.bool(PrefKeys.SUBS_ONLINE, true) },
         baseUrl = { storage.prefs.string(PrefKeys.SUBS_BASE_URL) },
     )
+
+    /** Online subtitles for the player: OpenSubtitles plus the add-ons that offer them (4.4b). */
+    val subtitleSources = SubtitleSources(network.http, subtitles, { addons.enabledAddons })
 
     val history = WatchHistory(storage.prefs, profiles.activeID)
     val watchLog = WatchLog(storage.prefs, profiles.activeID)

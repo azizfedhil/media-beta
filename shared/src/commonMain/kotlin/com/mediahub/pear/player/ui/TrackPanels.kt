@@ -30,6 +30,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.mediahub.pear.model.OnlineSubtitle
 import com.mediahub.pear.player.DelayMath
 import com.mediahub.pear.player.PlayerTrack
 import com.mediahub.pear.player.TrackLabels
@@ -54,6 +55,10 @@ internal fun SubtitlesPanel(
     onDelay: (Double) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Online files not added yet, after the file's own tracks in one list (4.4b). */
+    online: List<OnlineSubtitle> = emptyList(),
+    loadingOnline: Boolean = false,
+    onPickOnline: (OnlineSubtitle) -> Unit = {},
 ) {
     BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
         // Read here, where the constraints are in scope, and passed down to the list.
@@ -69,11 +74,38 @@ internal fun SubtitlesPanel(
                     tracks.forEach { t ->
                         TrackRow(TrackLabels.of(t), selected = t.isSelected) { onPick(t) }
                     }
+                    if (loadingOnline || online.isNotEmpty()) {
+                        Row(
+                            Modifier.padding(top = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            PearText(
+                                "ONLINE",
+                                style = PearTheme.type.caption2.weight(FontWeight.Bold),
+                                color = Color.White.copy(alpha = 0.6f),
+                            )
+                            if (loadingOnline) PlayerSpinner(diameter = 14.dp)
+                        }
+                    }
+                    online.forEach { s ->
+                        TrackRow(onlineLabel(s, online), selected = false) { onPickOnline(s) }
+                    }
                 }
                 DelayControl("Subtitle delay", delaySeconds, onDelay)
             }
         }
     }
+}
+
+/**
+ * The name of an online file in the menu: its language, numbered when the same language has more than one, and where it
+ * came from ("English 2 · OpenSubtitles").
+ */
+private fun onlineLabel(s: OnlineSubtitle, all: List<OnlineSubtitle>): String {
+    val same = all.filter { it.languageName == s.languageName }
+    val name = if (same.size > 1) "${s.languageName} ${same.indexOf(s) + 1}" else s.languageName
+    return "$name · ${s.source}"
 }
 
 /**

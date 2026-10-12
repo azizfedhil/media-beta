@@ -1,5 +1,6 @@
 package com.mediahub.pear.player
 
+import com.mediahub.pear.model.OnlineSubtitle
 import com.mediahub.pear.model.SubLanguages
 import kotlin.math.abs
 import kotlin.math.roundToLong
@@ -25,6 +26,22 @@ object TrackPicker {
     fun bestAudio(tracks: List<PlayerTrack>, lang: String): PlayerTrack? {
         val hits = tracks.filter { inLanguage(it, lang) }
         return hits.firstOrNull { it.isDefault } ?: hits.firstOrNull()
+    }
+
+    /**
+     * The online subtitle to add by itself when a file starts (`loadOnlineSubtitles` with `auto` in PlayerView.swift): the
+     * first file in the preferred language, when a language is preferred, the file has no track in it, and no subtitle is
+     * playing already. Null otherwise.
+     */
+    fun autoOnline(
+        online: List<OnlineSubtitle>,
+        preferred: String?,
+        embedded: List<PlayerTrack>,
+        anySelected: Boolean,
+    ): OnlineSubtitle? {
+        if (preferred == null || anySelected) return null
+        if (bestSubtitle(embedded, preferred) != null) return null
+        return online.firstOrNull { SubLanguages.matches(it.lang, preferred) }
     }
 
     /** The language a track is known by: its language tag, or the first word of its title ("English (SDH)"). */

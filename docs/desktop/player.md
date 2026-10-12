@@ -222,3 +222,32 @@ Online subtitles (OpenSubtitles and add-on sources, 4.4b). Subtitle appearance a
 
 ### Not compiled
 As before, run `gradle :shared:desktopTest --tests "*TrackRules*" --tests "*TrackPill*" --tests "*PillItems*" --tests "*DesktopPill*"` first, then `gradle :desktopApp:run`.
+
+## Online subtitles (Batch 4.4b)
+
+Code: `addons/SubtitleSources.kt` (OpenSubtitles plus the add-ons' subtitle sources, merged and cached), `addons/OpenSubtitlesClient.kt` (unchanged, the same Stremio v3 endpoint as iOS), `player/TrackRules.kt` (`TrackPicker.autoOnline`), `player/ui/TrackPanels.kt` (the ONLINE section), `shell/PlayerScreen.kt` (lookup, adding, auto-add), `PlayerEngine.addExternalSubtitle` and its mpv `sub-add`. Spec: `OpenSubtitlesClient`, `loadOnlineSubtitles`, `useOnline` and the OPENSUBTITLES section in PlayerView.swift.
+
+- **Where the files come from.** For each episode or movie, OpenSubtitles (`/subtitles/{movie|series}/{imdb}[:{season}:{episode}].json`) and each enabled add-on that declares a `subtitles` resource (`{base}/subtitles/{type}/{id}.json`, the same shape). OpenSubtitles is listed first, then the add-ons in the user's add-on order. A file with the same link is listed once. The lookup runs once per episode, and the answers are kept for the run, empty ones too.
+- **One list.** The subtitle menu shows the file's own tracks, then an ONLINE section with the files not added yet (spinner while the lookup runs). Each file reads as its language and source ("English · OpenSubtitles"), with a number when a language has more than one ("English 2 · OpenSubtitles"). When a file is added, it moves up into the track list, labelled with its source ("English (OpenSubtitles)"), and is selected.
+- **Adding.** `addExternalSubtitle` runs mpv `sub-add <url> select <source> <language>`. The menu waits up to 10 s for the new track to appear, then selects it. If it doesn't appear, the player says "Couldn't load that subtitle". Picking the same file again only selects it.
+- **Auto-add, once per file** (`loadOnlineSubtitles` with auto): when the file is playing or has its tracks, and a language is preferred, the file has no track in that language, and no subtitle is on, the first online file in that language is added and selected.
+- **The subtitle button** shows whenever online lookup is on, even for a file with no tracks of its own (iOS does the same).
+- **The switch** is Settings → Subtitles → Online subtitle lookup. It turns off both OpenSubtitles and the add-on sources.
+
+### Where this differs from iOS
+1. iOS asks only OpenSubtitles. The add-on sources are a desktop addition, as the plan asked for them.
+2. The added file's source name is its title in the track list, so the title and the menu agree.
+
+### Not in 4.4b
+Subtitle appearance and the libass question (4.4c). The episode carousel is still not built.
+
+### Check it
+1. A film with no embedded subtitles, and English as the default language: the subtitles button is on the pill, the menu shows an ONLINE section, and English starts playing by itself. Its track reads "English (OpenSubtitles)".
+2. Open the subtitles menu on a film with several online languages: the preferred language is listed first, each language once, and the spinner shows until the lookup has finished.
+3. Pick a French file: it plays at once, the menu marks it, and it is gone from the ONLINE section (it is in the track list now). Switch to another episode and back, then pick it again: the list is the one already fetched for that episode, and the file is added again to the new file.
+4. An add-on with a `subtitles` resource: its files appear with its name as the source.
+5. Turn the online lookup off in Settings: the subtitles button stays only while the file has subtitle tracks, and there is no ONLINE section.
+6. A file that doesn't load (a broken link): the toast says "Couldn't load that subtitle", and the current subtitle stays on.
+
+### Not compiled
+As before, run `gradle :shared:desktopTest --tests "*SubtitleSources*" --tests "*OnlinePick*" --tests "*TrackRules*"` first, then `gradle :desktopApp:run`.
