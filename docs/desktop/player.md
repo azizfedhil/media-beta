@@ -110,3 +110,14 @@ The loader (`MpvNativeLoader` in `LibMpv.kt`) looks in this order: `PEAR_LIBMPV`
 the folder of an installed app, `desktopApp/native/<platform>/` (from the project root or from `desktopApp/`), then the system's own search
 (PATH on Windows). The player's error card lists the folders it searched and the last error from the first failed load, so a 32-bit DLL or a
 missing dependency is visible. The library is not in the repository; see `desktopApp/native/README.md`.
+
+## Bundled libmpv (replaces the "copy it yourself" steps)
+
+- The Windows and Linux packages carry libmpv. Its files sit in `desktopApp/packaging/resources/<platform>/` and `appResourcesRootDir`
+  copies them into the app's resources folder, which the loader checks first.
+- `checkLibmpv` (in `desktopApp/build.gradle.kts`) runs before any `createDistributable` or `package*` task. It fails with the path of the
+  missing file, so a release can't go out without the library.
+- Source runs find the same folder (`desktopApp/packaging/resources/`), so `gradle :desktopApp:run` plays video without an installed app.
+- Users never copy a file. A missing library means an incomplete install: the message says to reinstall.
+- Build check: after `createDistributable`, `app/resources/` in the output should contain `libmpv-2.dll`. If it doesn't, the Compose
+  version doesn't copy platform folders the way this assumes; the fix is in `appResourcesRootDir`.
