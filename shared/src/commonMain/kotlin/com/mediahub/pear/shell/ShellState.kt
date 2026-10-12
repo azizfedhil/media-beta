@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.DpSize
+import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.nav.NavController
 
 /** Where a page stack can go. Real screens replace the placeholders in Phase 3. */

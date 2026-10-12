@@ -35,7 +35,6 @@ import com.mediahub.pear.home.HomeScreen
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.detail.DetailScreen
-import com.mediahub.pear.model.MetaPreview
 
 private val PageMaxWidth = 900.dp
 

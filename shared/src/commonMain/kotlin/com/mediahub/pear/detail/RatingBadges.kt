@@ -30,7 +30,11 @@ fun RatingLogo(label: String, modifier: Modifier = Modifier) {
                 modifier.clip(shape).background(Color(0xFFF5C518)).padding(horizontal = 5.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                PearText("IMDb", style = PearTheme.type.caption2.weight(FontWeight.Black), color = Color.Black, fontSize = 11.sp)
+                PearText(
+                    text = "IMDb",
+                    style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 11.sp),
+                    color = Color.Black,
+                )
             }
         }
         "TMDB" -> {
@@ -39,7 +43,11 @@ fun RatingLogo(label: String, modifier: Modifier = Modifier) {
                 modifier.clip(shape).background(tmdbGrad).padding(horizontal = 5.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                PearText("TMDB", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color(0xFF0D253F), fontSize = 10.sp)
+                PearText(
+                    text = "TMDB",
+                    style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 10.sp),
+                    color = Color(0xFF0D253F),
+                )
             }
         }
         "Rotten Tomatoes" -> {
@@ -47,7 +55,11 @@ fun RatingLogo(label: String, modifier: Modifier = Modifier) {
                 modifier.clip(shape).background(Color(0xFFFA320A)).padding(horizontal = 5.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                PearText("RT", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color.White, fontSize = 10.sp)
+                PearText(
+                    text = "RT",
+                    style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 10.sp),
+                    color = Color.White,
+                )
             }
         }
         "Metacritic" -> {
@@ -55,7 +67,11 @@ fun RatingLogo(label: String, modifier: Modifier = Modifier) {
                 modifier.clip(shape).background(Color(0xFF333333)).padding(horizontal = 5.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                PearText("M", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color(0xFFFFCC33), fontSize = 11.sp)
+                PearText(
+                    text = "M",
+                    style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 11.sp),
+                    color = Color(0xFFFFCC33),
+                )
             }
         }
         else -> {
@@ -63,7 +79,11 @@ fun RatingLogo(label: String, modifier: Modifier = Modifier) {
                 modifier.clip(shape).background(PearTheme.colors.fill).padding(horizontal = 5.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                PearText(label, style = PearTheme.type.caption2.weight(FontWeight.SemiBold), color = PearTheme.colors.textSecondary, fontSize = 10.sp)
+                PearText(
+                    text = label,
+                    style = PearTheme.type.caption2.weight(FontWeight.SemiBold).copy(fontSize = 10.sp),
+                    color = PearTheme.colors.textSecondary,
+                )
             }
         }
     }
