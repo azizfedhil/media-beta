@@ -56,12 +56,14 @@ import kotlin.math.roundToInt
  * rounded to 0.2 s first: mpv reports every frame, and nothing on this bar can show less than that.
  *
  * @param onScrubbing true while the bar is being dragged (the controls must not hide then).
+ * @param openedAt resume point the source is opening at: shown until the engine reports its first position.
  */
 @Composable
 internal fun PlayerSeekBar(
     engine: PlayerEngine,
     onScrubbing: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    openedAt: Double? = null,
 ) {
     val position by remember(engine) {
         engine.positionSeconds.map { floor(it * 5.0) / 5.0 }.distinctUntilChanged()
@@ -89,7 +91,7 @@ internal fun PlayerSeekBar(
 
     val canSeek = duration > 0.0
     val scrubTime = scrub?.let { SeekMath.timeAt(it, duration) }
-    val shownTime = scrubTime ?: settleAt ?: position
+    val shownTime = scrubTime ?: settleAt ?: openedAt?.takeIf { position <= 0.0 } ?: position
     val frac = SeekMath.fraction(shownTime, duration)
     val playedFrac = SeekMath.fraction(position, duration)
     val bufferedFrac = SeekMath.bufferedFraction(position, buffered, duration)

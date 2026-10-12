@@ -327,6 +327,8 @@ fun DetailScreen(
                     season = if (isSeries) selectedSeason else null,
                     episode = if (isSeries) selectedEpisode else null,
                     episodeTitle = episodes.firstOrNull { it.id == selectedEpisode }?.name,
+                    thumb = (if (isSeries) episodes.firstOrNull { it.id == selectedEpisode }?.image else null) ?: item.backdropUrl,
+                    logo = logoUrl,
                     onSelectSource = { request ->
                         showSourcesSheet = false
                         onPlay(request)

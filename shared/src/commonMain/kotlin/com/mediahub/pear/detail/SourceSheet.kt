@@ -53,6 +53,10 @@ fun SourceSheet(
     onSelectSource: (PlayRequest) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Episode still (or the movie backdrop): shown on the Continue Watching card. */
+    thumb: String? = null,
+    /** Title logo, for the player's paused state. */
+    logo: String? = null,
 ) {
     val env = LocalAppEnv.current
     val streams = remember { mutableStateListOf<Pair<Addon, List<StreamItem>>>() }
@@ -143,6 +147,8 @@ fun SourceSheet(
                                             season = season,
                                             episode = episode,
                                             episodeTitle = episodeTitle,
+                                            logo = logo,
+                                            thumb = thumb,
                                             sourceAddonID = addon.id,
                                             sourceSignature = stream.signature,
                                         ),

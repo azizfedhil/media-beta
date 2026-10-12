@@ -12,6 +12,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.mediahub.pear.App
 import com.mediahub.pear.data.desktopStorage
 import com.mediahub.pear.net.desktopNetwork
+import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.WindowControl
 import kotlinx.coroutines.delay
 import java.awt.Dimension
@@ -51,7 +52,8 @@ fun main(args: Array<String>) = application {
     }
 
     Window(
-        onCloseRequest = { storage.flush(); exitApplication() },
+        // Hooks first (the player banks its resume point), then the settings are written to disk.
+        onCloseRequest = { AppExit.runAll(); storage.flush(); exitApplication() },
         title = "Pear.",
         state = windowState,
     ) {

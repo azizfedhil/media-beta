@@ -72,7 +72,8 @@ import kotlinx.coroutines.flow.onStart
  *
  * The video goes in [video]: it is the blur source for the glass surfaces, so blur works over live frames.
  * [look] decides how surfaces are drawn (see [playerLook]). [actions] fills the right end of the pill; 4.3c
- * replaces it with the pinned/ordered options.
+ * replaces it with the pinned/ordered options. [openedAt] is the resume point the source is opening at: the
+ * seek bar shows it until the engine reports a position (iOS `holdPosition`).
  *
  * Only the seek bar and the volume slider read the engine's clock and volume, so the rest of the overlay
  * does not recompose while a video plays.
@@ -88,6 +89,7 @@ fun PlayerOverlay(
     onClose: () -> Unit,
     onToggleFullscreen: () -> Unit,
     modifier: Modifier = Modifier,
+    openedAt: Double? = null,
     actions: @Composable RowScope.() -> Unit = {},
     video: @Composable BoxScope.() -> Unit,
 ) {
@@ -192,6 +194,7 @@ fun PlayerOverlay(
                     overBottom = overBottom,
                     onScrubbing = { scrubbing = it },
                     onVolumeActive = { volumeActive = it },
+                    openedAt = openedAt,
                 )
             }
         }
@@ -213,6 +216,7 @@ private fun Controls(
     overBottom: MutableState<Boolean>,
     onScrubbing: (Boolean) -> Unit,
     onVolumeActive: (Boolean) -> Unit,
+    openedAt: Double?,
 ) {
     Box(Modifier.fillMaxSize()) {
         // Scrims behind the controls; they take no input.
@@ -237,6 +241,7 @@ private fun Controls(
                 actions = actions,
                 onScrubbing = onScrubbing,
                 onVolumeActive = onVolumeActive,
+                openedAt = openedAt,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp).padding(bottom = 14.dp).hoverFlag(overBottom),
             )
         }
@@ -281,6 +286,7 @@ private fun BottomBar(
     actions: @Composable RowScope.() -> Unit,
     onScrubbing: (Boolean) -> Unit,
     onVolumeActive: (Boolean) -> Unit,
+    openedAt: Double?,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -297,7 +303,7 @@ private fun BottomBar(
                 }
             }
         }
-        PlayerSeekBar(engine, onScrubbing)
+        PlayerSeekBar(engine, onScrubbing, openedAt = openedAt)
     }
 }
 

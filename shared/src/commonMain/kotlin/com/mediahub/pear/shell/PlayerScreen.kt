@@ -8,12 +8,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.PrefStore
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.player.AspectMode
+import com.mediahub.pear.player.PlaybackProgress
+import com.mediahub.pear.player.PlaybackSnapshot
+import com.mediahub.pear.player.PlaybackState
+import com.mediahub.pear.player.ProgressRules
 import com.mediahub.pear.player.VideoSurface
 import com.mediahub.pear.player.createDefaultPlayerEngine
 import com.mediahub.pear.player.ui.PlayerOverlay
@@ -25,7 +30,9 @@ import com.mediahub.pear.theme.PearDark
 
 /**
  * Hosts the player: creates the engine, loads the stream and shows the video under [PlayerOverlay]
- * (Batch 4.3a). Resume and progress (4.3b), the option pill (4.3c) and skip intro / up next (4.3d) come later.
+ * (Batch 4.3a), and keeps the viewing history (Batch 4.3b): opens at the saved position, banks progress on
+ * pause, every 15 s, on close and on window close, and scrobbles to Simkl when it is the profile's library.
+ * The option pill (4.3c) and skip intro / up next (4.3d) come later.
  */
 @Composable
 fun PlayerScreen(
@@ -35,7 +42,59 @@ fun PlayerScreen(
 ) {
     val env = LocalAppEnv.current
     val engine = remember(request) { createDefaultPlayerEngine() }
-    DisposableEffect(engine) { onDispose { engine.release() } }
+
+    // Resume, progress and history (4.3b). The resume point is read once, before the first save can replace it.
+    val data = env.data
+    val resumeAt = remember(request) {
+        ProgressRules.startAt(ProgressRules.resumePoint(data.history.entry(request.item.id), request.key))
+    }
+    val progress = remember(request, data) {
+        PlaybackProgress(
+            history = data.history,
+            watchLog = data.watchLog,
+            library = data.library,
+            scrobbler = PlaybackProgress.Scrobbler { action, target, percent ->
+                // Only when the profile's library is Simkl and it is connected (iOS: libraryPrefs.usesSimkl).
+                if (data.libraryPrefs.usesSimkl(data.simkl.isConnected)) data.simkl.scrobble(action, target, percent)
+            },
+        ).also { it.begin(resumeAt) }
+    }
+    val snapshot = remember(engine) {
+        {
+            PlaybackSnapshot(
+                position = engine.positionSeconds.value,
+                duration = engine.durationSeconds.value,
+                playing = engine.state.value == PlaybackState.Playing,
+            )
+        }
+    }
+    // Save and scrobble `stop` once. Safe to call from every way out: the close button, back, a window close, dispose.
+    val leave = remember(request, progress, snapshot) { { progress.finish(request, snapshot()) } }
+
+    DisposableEffect(engine, leave) {
+        val unregister = AppExit.register(leave) // the window's close button exits the process without disposing
+        onDispose {
+            unregister()
+            leave() // before release: the engine's clock is still readable, and the screen may go away without onClose
+            engine.release()
+        }
+    }
+    LaunchedEffect(engine, progress) {
+        engine.state.collect { s ->
+            when (s) {
+                PlaybackState.Playing -> progress.started(request)
+                // Pausing banks the resume point; so does reaching the end, so a finished episode counts at once.
+                PlaybackState.Paused, PlaybackState.Ended -> progress.pausedOrBackgrounded(request, snapshot())
+                else -> {}
+            }
+        }
+    }
+    LaunchedEffect(engine, progress) {
+        while (true) {
+            delay(ProgressRules.CHECKPOINT_MILLIS)
+            progress.tick(request, snapshot())
+        }
+    }
 
     val window = LocalWindowControl.current
     var fullscreen by remember { mutableStateOf(false) }
@@ -51,7 +110,7 @@ fun PlayerScreen(
 
     val isP2P = request.url.startsWith("p2p://")
     LaunchedEffect(engine) {
-        if (!isP2P) engine.load(request.url, request.headers, startPositionSeconds = 0.0)
+        if (!isP2P) engine.load(request.url, request.headers, startPositionSeconds = resumeAt)
     }
 
     val state by engine.state.collectAsState()
@@ -71,9 +130,10 @@ fun PlayerScreen(
             look = look,
             glass = env.glass,
             errorMessage = error,
-            onClose = onBack,
+            onClose = { leave(); onBack() },
             onToggleFullscreen = { setFullscreen(!fullscreen) },
             modifier = modifier,
+            openedAt = resumeAt.takeIf { it > 0.0 },
             // Stand-ins until the pill arrives in 4.3c: aspect, 4K mode and fullscreen stay reachable.
             actions = {
                 PlayerPillButton(
