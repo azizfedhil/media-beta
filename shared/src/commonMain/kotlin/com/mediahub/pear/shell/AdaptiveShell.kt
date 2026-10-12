@@ -1,5 +1,7 @@
 package com.mediahub.pear.shell
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -10,12 +12,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -32,10 +38,6 @@ import com.mediahub.pear.nav.LocalPageActive
 import com.mediahub.pear.nav.NavHost
 import com.mediahub.pear.theme.PearTheme
 
-/**
- * The app frame. Expanded windows get the sidebar layout, narrow ones the phone tab bar; both show the same
- * pages. Resize the window across 640 dp (or use the dev override in Settings) to see it switch.
- */
 @Composable
 fun AdaptiveShell(
     shell: ShellState,
@@ -43,23 +45,70 @@ fun AdaptiveShell(
     catalogues: List<CatalogueItem>,
     modifier: Modifier = Modifier,
 ) {
-    val c = PearTheme.colors
+    val env = LocalAppEnv.current
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     BoxWithConstraints(
-        modifier.fillMaxSize().background(c.background)
+        modifier.fillMaxSize().background(Color(0xFF09090B))
             .focusRequester(focus).focusable()
             .onPreviewKeyEvent { handleShellKey(it, shell) },
     ) {
-        // Read here: inside the nested Row { } the BoxWithConstraints scope is not implicitly reachable.
         val windowWidth = maxWidth
         val mode = layoutModeFor(windowWidth, shell.layoutOverride)
+        val activeProfileName = env.data.profiles.active.name
+
+        // Ambient glow background derived from the hero poster
+        val animatedAmbient by animateColorAsState(shell.heroAmbientColor, tween(900))
+
         CompositionLocalProvider(LocalWideLayout provides (mode == LayoutMode.Expanded)) {
             if (mode == LayoutMode.Expanded) {
-                Row(Modifier.fillMaxSize()) {
-                    Sidebar(sidebarWidthFor(windowWidth), shell, catalogues, profileName = "Pear")
-                    ShellPages(shell, Modifier.weight(1f).fillMaxHeight())
+                // Entire expanded window shares one GlassScene so the ambient glow bleeds through the sidebar
+                GlassScene(
+                    store = glass,
+                    modifier = Modifier.fillMaxSize(),
+                    background = {
+                        Box(Modifier.fillMaxSize()) {
+                            // Radial glow centered near the hero poster
+                            Box(
+                                Modifier.fillMaxSize().background(
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            animatedAmbient.copy(alpha = 0.55f),
+                                            animatedAmbient.copy(alpha = 0.20f),
+                                            Color.Transparent,
+                                        ),
+                                        center = Offset(450f, 320f),
+                                        radius = 1100f,
+                                    ),
+                                ),
+                            )
+                            // Soft vertical fade into deep black
+                            Box(
+                                Modifier.fillMaxSize().background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            animatedAmbient.copy(alpha = 0.30f),
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.85f),
+                                        ),
+                                        startY = 0f,
+                                        endY = 1200f,
+                                    ),
+                                ),
+                            )
+                        }
+                    },
+                ) {
+                    Row(Modifier.fillMaxSize()) {
+                        Sidebar(
+                            width = sidebarWidthFor(windowWidth),
+                            shell = shell,
+                            catalogues = catalogues,
+                            profileName = activeProfileName,
+                        )
+                        ShellPages(shell, Modifier.weight(1f).fillMaxHeight())
+                    }
                 }
             } else {
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
@@ -72,10 +121,6 @@ fun AdaptiveShell(
     }
 }
 
-/**
- * Keyboard: Alt+Left or Esc goes back, Ctrl+1..4 switch tabs, Ctrl+F opens Search.
- * (Media keys and the player's shortcuts come in Batch 4.6.)
- */
 internal fun handleShellKey(event: KeyEvent, shell: ShellState): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     if (event.isAltPressed && event.key == Key.DirectionLeft) return shell.back()
@@ -97,7 +142,6 @@ internal fun handleShellKey(event: KeyEvent, shell: ShellState): Boolean {
     return false
 }
 
-/** All visited pages, stacked. Only the selected one is measured, drawn and clickable; the rest keep their state. */
 @Composable
 internal fun ShellPages(shell: ShellState, modifier: Modifier = Modifier) {
     val catalogue = shell.catalogue
@@ -124,7 +168,6 @@ internal fun ShellPages(shell: ShellState, modifier: Modifier = Modifier) {
     }
 }
 
-/** Composed always, but laid out (and so drawn and hit-tested) only while [shown]. */
 @Composable
 private fun KeepAlive(shown: Boolean, content: @Composable () -> Unit) {
     Box(

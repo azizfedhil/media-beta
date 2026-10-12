@@ -1,6 +1,7 @@
 package com.mediahub.pear.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +35,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mediahub.pear.history.Fmt
 import com.mediahub.pear.history.HistoryEntry
 import com.mediahub.pear.history.UpNextItem
@@ -48,10 +52,6 @@ private sealed class ContinueCardItem(val updated: Long) {
     class Next(val item: UpNextItem) : ContinueCardItem(item.updated)
 }
 
-/**
- * Continue Watching carousel (spec: `ContinueRow`).
- * Shows in-progress playback cards and Up Next cards sorted by recency. Cards do NOT have a play button.
- */
 @Composable
 fun ContinueRow(
     entries: List<HistoryEntry>,
@@ -71,13 +71,16 @@ fun ContinueRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            PearIcon("play.circle.fill", size = 18.dp, tint = PearTheme.colors.accent2)
+            // Purple play icon from mockup
+            Box(Modifier.size(20.dp).clip(CircleShape).background(Color(0xFF9D63E8)), contentAlignment = Alignment.Center) {
+                PearIcon("play.fill", size = 11.dp, tint = Color.White)
+            }
             PearText("Continue Watching", style = PearTheme.type.title3.weight(FontWeight.Bold))
         }
 
         LazyRow(
             contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             items(items) { card ->
                 when (card) {
@@ -101,10 +104,9 @@ fun ContinueRow(
     }
 }
 
-/** 16:9 continue card without play button. */
 @Composable
 private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit) {
-    val width = 270.dp
+    val width = 260.dp
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val scale = if (hovered) 1.02f else 1f
@@ -115,7 +117,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit) {
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
@@ -124,37 +126,49 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit) {
         ) {
             RemoteImage(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl, Modifier.fillMaxSize())
 
-            // Clock pill at top-trailing
+            // UP NEXT badge on top-left (from mockup)
             Box(
-                Modifier.align(Alignment.TopEnd).padding(8.dp)
-                    .clip(RoundedCornerShape(PearRadii.xs))
-                    .background(Color.Black.copy(alpha = 0.65f))
+                Modifier.align(Alignment.TopStart).padding(8.dp)
+                    .clip(RoundedCornerShape(PearRadii.pill))
+                    .background(Color(0xFF8B6EF5).copy(alpha = 0.85f))
                     .padding(horizontal = 7.dp, vertical = 3.dp),
             ) {
-                PearText(Fmt.clock(entry.position), style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color.White)
+                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black), color = Color.White, fontSize = 8.sp)
+            }
+
+            // Center play icon overlay (from mockup)
+            Box(
+                Modifier.align(Alignment.Center)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                PearIcon("play.fill", size = 15.dp, tint = Color.White)
             }
 
             // Bottom progress bar
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.3f))) {
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.25f))) {
                 Box(
-                    Modifier.fillMaxHeight().fillMaxWidth(entry.progress.toFloat())
-                        .background(PearTheme.colors.accent),
+                    Modifier.fillMaxHeight().fillMaxWidth(entry.progress.toFloat().coerceAtLeast(0.05f))
+                        .background(Color(0xFF8B6EF5)),
                 )
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
             PearText(entry.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), maxLines = 1)
-            val left = Fmt.remaining(entry.duration - entry.position)
-            val subtitle = entry.seasonEpisode?.let { "S${it.season} · E${it.episode} · $left" } ?: left
-            PearText(subtitle, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 1)
+            val sub = entry.seasonEpisode?.let { "S${it.season} · E${it.episode}" + (entry.episodeTitle?.let { t -> " · $t" } ?: "") }
+                ?: Fmt.remaining(entry.duration - entry.position)
+            PearText(sub, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.55f), maxLines = 1)
         }
     }
 }
 
 @Composable
 private fun UpNextCard(item: UpNextItem, onClick: () -> Unit) {
-    val width = 270.dp
+    val width = 260.dp
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val scale = if (hovered) 1.02f else 1f
@@ -165,7 +179,7 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit) {
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
@@ -174,20 +188,30 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit) {
         ) {
             RemoteImage(item.thumb ?: item.item.backdropUrl ?: item.item.posterUrl, Modifier.fillMaxSize())
 
-            // UP NEXT pill at top-leading
             Box(
                 Modifier.align(Alignment.TopStart).padding(8.dp)
                     .clip(RoundedCornerShape(PearRadii.pill))
-                    .background(PearTheme.colors.accent)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .background(Color(0xFF8B6EF5).copy(alpha = 0.85f))
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
             ) {
-                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.onAccent)
+                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black), color = Color.White, fontSize = 8.sp)
+            }
+
+            Box(
+                Modifier.align(Alignment.Center)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                PearIcon("play.fill", size = 15.dp, tint = Color.White)
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
             PearText(item.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), maxLines = 1)
-            PearText("S${item.season} · E${item.episode} · ${item.title}", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 1)
+            PearText("S${item.season} · E${item.episode} · ${item.title}", style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.55f), maxLines = 1)
         }
     }
 }

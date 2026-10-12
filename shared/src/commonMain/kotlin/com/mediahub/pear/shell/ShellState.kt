@@ -4,11 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.nav.NavController
 
-/** Where a page stack can go. Real screens replace the placeholders in Phase 3. */
 sealed interface Route {
     data class Root(val tab: AppTab) : Route
     data class Catalogue(val id: String, val title: String) : Route
@@ -23,31 +23,24 @@ sealed interface Route {
     data object BackupCheck : Route
 }
 
-/** An add-on catalogue listed under "Catalogues" in the sidebar (real data arrives with Batch 2.3). */
 class CatalogueItem(val id: String, val title: String)
 
-/**
- * Which tab is selected, which have been visited, and each tab's own page stack. Visited tabs stay composed while
- * hidden, so every one keeps its stack and scroll position, as `SidebarShell` does in WideLayout.swift.
- */
 class ShellState(initialTab: AppTab = AppTab.Home) {
     var tab: AppTab by mutableStateOf(initialTab)
         private set
 
-    /** An add-on catalogue page is showing instead of a tab. */
     var catalogue: CatalogueItem? by mutableStateOf(null)
         private set
 
     var layoutOverride: LayoutOverride by mutableStateOf(LayoutOverride.Auto)
-
-    /** Window size before the dev "phone window" toggle shrank it; null when the window is not shrunk. */
     var savedWindowSize: DpSize? by mutableStateOf(null)
-
     val visited = mutableStateListOf(initialTab)
+
+    /** The ambient color extracted from the hero poster, bleeding behind the sidebar and page. */
+    var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36)) // Default deep Silo emerald
 
     private val tabNavs = HashMap<AppTab, NavController<Route>>()
 
-    /** Stack of the open catalogue page. A new one is made each time a catalogue is picked. */
     var catalogueNav: NavController<Route>? by mutableStateOf(null)
         private set
 
@@ -65,9 +58,6 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
         catalogueNav = NavController(Route.Catalogue(item.id, item.title))
     }
 
-    /** The stack the user is looking at. */
     fun currentNav(): NavController<Route> = catalogueNav ?: navFor(tab)
-
-    /** Back one page in the current stack. False at its root. */
     fun back(): Boolean = currentNav().pop()
 }

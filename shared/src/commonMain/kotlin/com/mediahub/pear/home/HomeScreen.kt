@@ -1,6 +1,5 @@
 package com.mediahub.pear.home
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -16,11 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.BuiltinRows
 import com.mediahub.pear.data.isRowHidden
@@ -29,13 +23,7 @@ import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalWideLayout
-import com.mediahub.pear.theme.PearText
-import com.mediahub.pear.theme.PearTheme
-import kotlinx.coroutines.launch
 
-/**
- * Main Home feed supporting both compact phone layout and wide desktop/iPad split layout.
- */
 @Composable
 fun HomeScreen(
     onSelectTitle: (MetaPreview, Int?, Int?) -> Unit,
@@ -46,14 +34,13 @@ fun HomeScreen(
     val isWide = LocalWideLayout.current
     val model = remember(env.data) { HomeModel(env.data) }
     val bottomInset = LocalBottomInset.current
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         model.refresh(force = false)
     }
 
     if (isWide) {
-        // Desktop / iPad split layout
+        // Desktop / iPad wide split layout (matches mockup)
         Row(modifier.fillMaxSize()) {
             if (model.hero.isNotEmpty()) {
                 WideHeroPanel(
@@ -65,7 +52,7 @@ fun HomeScreen(
                 Column(
                     Modifier.fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(top = 24.dp, bottom = bottomInset + 40.dp),
+                        .padding(top = 18.dp, bottom = bottomInset + 40.dp),
                     verticalArrangement = Arrangement.spacedBy(28.dp),
                 ) {
                     FeedRows(model, onSelectTitle, onSeeAll)
@@ -73,7 +60,7 @@ fun HomeScreen(
             }
         }
     } else {
-        // Phone / compact layout with top hero and ambient gradient
+        // Compact phone layout
         Box(modifier.fillMaxSize()) {
             Column(
                 Modifier.fillMaxSize()
@@ -104,7 +91,7 @@ private fun FeedRows(
     val env = LocalAppEnv.current
     val rules = env.data.content.rules
 
-    // Continue Watching Row (no play buttons)
+    // 1. Continue Watching
     if (env.data.history.continueEntries.isNotEmpty() || model.upNext.isNotEmpty()) {
         ContinueRow(
             entries = env.data.history.continueEntries,
@@ -113,12 +100,12 @@ private fun FeedRows(
         )
     }
 
-    // Theme Row 0
+    // 2. Theme Row 0 (e.g. "Undead Obsessions")
     if (model.themes.isNotEmpty()) {
         ThemeCarousel(model.themes[0], { onSelectTitle(it, null, null) })
     }
 
-    // Suggested Rows (Trending Movies, Series, Because you watched)
+    // 3. Suggestions ("Because you watched...", "Trending Movies")
     val visibleSuggested = model.suggested.filter { !rules.isRowHidden(it.prefKey) }
     visibleSuggested.forEach { row ->
         CatalogRowView(
@@ -128,12 +115,7 @@ private fun FeedRows(
         )
     }
 
-    // Theme Row 1
-    if (model.themes.size > 1) {
-        ThemeCarousel(model.themes[1], { onSelectTitle(it, null, null) })
-    }
-
-    // Addon Rows
+    // 4. Remaining Theme rows & Addon catalogues
     val visibleAddonRows = model.rows.filter { !rules.isRowHidden(it.prefKey) }
     visibleAddonRows.forEachIndexed { index, row ->
         CatalogRowView(
@@ -141,8 +123,7 @@ private fun FeedRows(
             onSelectTitle = { onSelectTitle(it, null, null) },
             onSeeAll = { onSeeAll(row) },
         )
-        // Interleave remaining theme rows after every 2nd addon row
-        val themeIdx = 2 + index / 2
+        val themeIdx = 1 + index / 2
         if (index % 2 == 1 && themeIdx < model.themes.size) {
             ThemeCarousel(model.themes[themeIdx], { onSelectTitle(it, null, null) })
         }

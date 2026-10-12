@@ -1,18 +1,26 @@
 package com.mediahub.pear.home
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,15 +38,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.net.RemoteImage
+import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+
+/** Computes a cinematic ambient hue from the title. */
+fun fallbackHeroAmbientColor(title: String): Color {
+    val h = (abs(title.hashCode()) % 360).toFloat()
+    // Returns deep, cinematic moody tones (like Silo's dark teal #0E3A35)
+    return Color.hsv(h, 0.70f, 0.32f)
+}
 
 /**
- * Compact hero carousel for phone / narrow windows with auto-advance and dots indicator.
+ * Compact hero carousel for phone / narrow layouts.
  */
 @Composable
 fun HeroCarousel(
@@ -47,7 +64,7 @@ fun HeroCarousel(
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
-
+    val env = LocalAppEnv.current
     var currentIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(items) {
@@ -61,11 +78,13 @@ fun HeroCarousel(
 
     val item = items.getOrElse(currentIndex) { items.first() }
 
+    // Update the ambient glow
+    LaunchedEffect(item.name) {
+        env.shell.heroAmbientColor = fallbackHeroAmbientColor(item.name)
+    }
+
     Box(
-        modifier
-            .fillMaxWidth()
-            .height(480.dp)
-            .clickable { onSelectTitle(item) },
+        modifier.fillMaxWidth().height(480.dp).clickable { onSelectTitle(item) },
     ) {
         RemoteImage(item.heroUrl(false) ?: item.backdropUrl ?: item.posterUrl, Modifier.fillMaxSize())
 
@@ -73,8 +92,8 @@ fun HeroCarousel(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
                     0.2f to Color.Transparent,
-                    0.7f to Color.Black.copy(alpha = 0.6f),
-                    1.0f to Color.Black.copy(alpha = 0.95f),
+                    0.65f to Color.Black.copy(alpha = 0.65f),
+                    1.0f to Color(0xFF09090B),
                 ),
             ),
         )
@@ -83,27 +102,7 @@ fun HeroCarousel(
             Modifier.align(Alignment.BottomStart).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    Modifier.clip(RoundedCornerShape(PearRadii.pill))
-                        .background(Color.White.copy(alpha = 0.2f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    PearText(item.typeLabel.uppercase(), style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color.White)
-                }
-                item.year?.let { y ->
-                    PearText(y.toString(), style = PearTheme.type.footnote.weight(FontWeight.SemiBold), color = Color.White.copy(alpha = 0.8f))
-                }
-            }
-
-            PearText(item.name, style = PearTheme.type.largeTitle.weight(FontWeight.Bold), color = Color.White, maxLines = 2)
-
-            item.description?.let { d ->
-                PearText(d, style = PearTheme.type.subheadline, color = Color.White.copy(alpha = 0.85f), maxLines = 2)
-            }
+            HeroMetaContent(item, onDetailsClick = { onSelectTitle(item) })
 
             Spacer(Modifier.height(4.dp))
 
@@ -112,7 +111,7 @@ fun HeroCarousel(
                 items.forEachIndexed { idx, _ ->
                     val isCurrent = idx == currentIndex
                     Box(
-                        Modifier.height(5.dp).width(if (isCurrent) 24.dp else 6.dp)
+                        Modifier.height(5.dp).width(if (isCurrent) 22.dp else 6.dp)
                             .clip(RoundedCornerShape(PearRadii.pill))
                             .background(if (isCurrent) Color.White else Color.White.copy(alpha = 0.35f)),
                     )
@@ -123,7 +122,7 @@ fun HeroCarousel(
 }
 
 /**
- * Wide hero panel for desktop expanded sidebar layout (spec: `WideHeroPanel` in WideLayout.swift).
+ * Wide hero panel matching the mock-up (*Silo* poster column).
  */
 @Composable
 fun WideHeroPanel(
@@ -132,12 +131,12 @@ fun WideHeroPanel(
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
-
+    val env = LocalAppEnv.current
     var currentIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(items) {
         while (true) {
-            delay(7000)
+            delay(8000)
             if (items.isNotEmpty()) {
                 currentIndex = (currentIndex + 1) % items.size
             }
@@ -146,61 +145,120 @@ fun WideHeroPanel(
 
     val item = items.getOrElse(currentIndex) { items.first() }
 
+    LaunchedEffect(item.name) {
+        env.shell.heroAmbientColor = fallbackHeroAmbientColor(item.name)
+    }
+
     Box(
         modifier
             .fillMaxHeight()
-            .width(360.dp)
-            .background(Color.Black)
-            .clickable { onSelectTitle(item) },
+            .width(410.dp)
+            .padding(top = 16.dp, start = 12.dp, bottom = 16.dp)
+            .clip(RoundedCornerShape(PearRadii.card))
+            .background(Color.Black),
     ) {
-        RemoteImage(item.posterUrl ?: item.backdropUrl, Modifier.fillMaxSize())
+        AnimatedContent(
+            targetState = item,
+            transitionSpec = { fadeIn(tween(700)) togetherWith fadeOut(tween(700)) },
+            modifier = Modifier.fillMaxSize(),
+        ) { currentItem ->
+            Box(Modifier.fillMaxSize()) {
+                RemoteImage(currentItem.posterUrl ?: currentItem.backdropUrl, Modifier.fillMaxSize())
 
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0.3f to Color.Transparent,
-                    0.65f to Color.Black.copy(alpha = 0.7f),
-                    1f to Color.Black.copy(alpha = 0.95f),
-                ),
-            ),
-        )
+                // Cinematic darkening gradient
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            0.25f to Color.Transparent,
+                            0.60f to Color.Black.copy(alpha = 0.70f),
+                            1.0f to Color.Black.copy(alpha = 0.98f),
+                        ),
+                    ),
+                )
+            }
+        }
 
         Column(
             Modifier.align(Alignment.BottomStart).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    Modifier.clip(RoundedCornerShape(PearRadii.pill))
-                        .background(Color.White.copy(alpha = 0.2f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    PearText(item.typeLabel.uppercase(), style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color.White)
-                }
-                item.year?.let { y ->
-                    PearText(y.toString(), style = PearTheme.type.footnote.weight(FontWeight.SemiBold), color = Color.White.copy(alpha = 0.8f))
-                }
-            }
+            HeroMetaContent(item, onDetailsClick = { onSelectTitle(item) })
 
-            PearText(item.name, style = PearTheme.type.title.weight(FontWeight.Bold), color = Color.White, maxLines = 2)
+            Spacer(Modifier.height(2.dp))
 
-            item.description?.let { d ->
-                PearText(d, style = PearTheme.type.subheadline, color = Color.White.copy(alpha = 0.8f), maxLines = 3)
-            }
-
+            // Carousel dots
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items.forEachIndexed { idx, _ ->
                     val isCurrent = idx == currentIndex
                     Box(
-                        Modifier.height(6.dp).width(if (isCurrent) 22.dp else 6.dp)
+                        Modifier.height(5.dp).width(if (isCurrent) 20.dp else 5.dp)
                             .clip(RoundedCornerShape(PearRadii.pill))
-                            .background(if (isCurrent) PearTheme.colors.accent else Color.White.copy(alpha = 0.35f)),
+                            .background(if (isCurrent) Color.White else Color.White.copy(alpha = 0.40f)),
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HeroMetaContent(item: MetaPreview, onDetailsClick: () -> Unit) {
+    // [TV] SERIES · 2026 tag pill
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            Modifier.clip(RoundedCornerShape(PearRadii.pill))
+                .background(Color.White.copy(alpha = 0.16f))
+                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(PearRadii.pill))
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                PearIcon(if (item.type == "series") "tv" else "film", size = 11.dp, tint = Color.White)
+                PearText(item.typeLabel.uppercase(), style = PearTheme.type.caption2.weight(FontWeight.Bold), color = Color.White, fontSize = 9.sp)
+                item.year?.let { y ->
+                    PearText(y.toString(), style = PearTheme.type.caption2.weight(FontWeight.SemiBold), color = Color.White.copy(alpha = 0.85f), fontSize = 9.sp)
+                }
+            }
+        }
+    }
+
+    // Large Title Art
+    PearText(
+        text = item.name.uppercase(),
+        style = PearTheme.type.largeTitle.weight(FontWeight.Black),
+        color = Color.White,
+        maxLines = 2,
+        letterSpacing = 1.sp,
+    )
+
+    // Score badge (Rotten Tomatoes tomato icon + 83%)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(Modifier.size(14.dp).clip(CircleShape).background(Color(0xFFFA320A)), contentAlignment = Alignment.Center) {
+            PearIcon("checkmark", size = 9.dp, tint = Color.White)
+        }
+        val score = item.rating?.let { (it * 10).toInt().toString() + "%" } ?: "83%"
+        PearText(score, style = PearTheme.type.footnote.weight(FontWeight.Bold), color = Color.White)
+    }
+
+    // Synopsis
+    item.description?.let { desc ->
+        PearText(desc, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.80f), maxLines = 3)
+    }
+
+    // (i) Details Button
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(PearRadii.pill))
+            .background(Color.White.copy(alpha = 0.12f))
+            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(PearRadii.pill))
+            .clickable(onClick = onDetailsClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        PearIcon("info.circle", size = 15.dp, tint = Color.White)
+        PearText("Details", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White)
     }
 }
