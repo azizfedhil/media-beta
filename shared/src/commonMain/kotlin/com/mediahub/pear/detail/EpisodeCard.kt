@@ -18,11 +18,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.epochMillis
 import com.mediahub.pear.history.EpisodeItem
-import com.mediahub.pear.history.daysFromCivil
 import com.mediahub.pear.localParts
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.theme.PearIcon
@@ -72,6 +69,15 @@ fun formatEpisodeRuntime(runtimeMinutes: Int?): String? {
     } else {
         "${m}m"
     }
+}
+
+private fun daysFromCivil(year: Int, month: Int, day: Int): Long {
+    val y = if (month <= 2) year - 1 else year
+    val era = (if (y >= 0) y else y - 399) / 400
+    val yoe = y - era * 400
+    val doy = (153 * (month + (if (month > 2) -3 else 9)) + 2) / 5 + day - 1
+    val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    return era * 146_097L + doe - 719_468
 }
 
 /** Determines if an episode recently aired (within 0–1 days for "Just aired", within 7 days for "New"). */
@@ -181,7 +187,6 @@ fun EpisodeCard(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        // Greyscale and dimmed when not yet aired
                         if (upcoming) {
                             alpha = 0.50f
                         }
@@ -259,7 +264,7 @@ fun EpisodeCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    RatingLogo("TMDB", height = 11.dp)
+                    RatingLogo("TMDB")
                     val scoreText = (kotlin.math.round(r * 10) / 10).toString()
                     PearText(
                         text = scoreText,
@@ -302,7 +307,7 @@ fun EpisodeCard(
                     ShimmerText(
                         text = "TOP RATED",
                         symbol = "star.fill",
-                        color = Color(0xFFFFC733), // Gold shimmer
+                        color = Color(0xFFFFC733),
                         fontSize = 12.sp,
                         tracking = 0.8.sp,
                     )
@@ -350,7 +355,7 @@ fun EpisodeCard(
                             ShimmerText(
                                 text = freshness.text,
                                 symbol = "sparkles",
-                                color = Color(0xFFFF8C80), // Salmon pink shimmer
+                                color = Color(0xFFFF8C80),
                                 fontSize = 14.sp,
                                 tracking = 0.sp,
                             )
@@ -416,7 +421,6 @@ fun ShimmerText(
     )
 
     Box(modifier) {
-        // Base label
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -434,7 +438,6 @@ fun ShimmerText(
             )
         }
 
-        // Masked linear highlight sweep
         Row(
             modifier = Modifier
                 .matchParentSize()
@@ -478,7 +481,7 @@ private fun Modifier.selectionGlow(selected: Boolean, radius: Dp, accent: Color)
         drawContent()
         val corner = CornerRadius(radius.toPx())
         val stroke = 1.25.dp.toPx()
-        val k = 0.35f // Whispering selection intensity from iOS
+        val k = 0.35f
 
         drawRoundRect(
             color = accent.copy(alpha = 0.06f * k),
