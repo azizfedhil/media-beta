@@ -36,3 +36,13 @@ fun PearTheme(store: ThemeStore, content: @Composable () -> Unit) {
         content()
     }
 }
+
+/**
+ * Re-provides the dark palette (same accent) for [content]. The player is always dark, like
+ * `.preferredColorScheme(.dark)` in PlayerView.swift, whatever the app appearance is.
+ */
+@Composable
+fun PearDark(store: ThemeStore, content: @Composable () -> Unit) {
+    val colors = remember(store.accentHex) { pearColors(store.accentHex, dark = true) }
+    CompositionLocalProvider(LocalPearColors provides colors, content = content)
+}

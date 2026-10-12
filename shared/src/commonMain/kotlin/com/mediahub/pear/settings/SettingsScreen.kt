@@ -69,6 +69,7 @@ fun SettingsScreen(
     var networkBadges by remember { mutableStateOf(prefs.bool(PrefKeys.UI_NETWORK_BADGES, true)) }
     var titleLogos by remember { mutableStateOf(prefs.bool(PrefKeys.UI_TITLE_LOGOS, true)) }
     var playerGlass by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_GLASS, true)) }
+    var playerBlurPlaying by remember { mutableStateOf(prefs.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, false)) }
     var autoplayNext by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_AUTOPLAY_NEXT, true)) }
     var pipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_PIP, true)) }
     var skipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.SKIP_ENABLED, true)) }
@@ -160,6 +161,12 @@ fun SettingsScreen(
                 SettingToggleRow("Liquid Glass controls", playerGlass) {
                     playerGlass = it
                     prefs.setBool(PrefKeys.PLAYER_GLASS, it)
+                }
+                if (playerGlass) {
+                    SettingToggleRow("Blur controls while playing", playerBlurPlaying) {
+                        playerBlurPlaying = it
+                        prefs.setBool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, it)
+                    }
                 }
                 SettingToggleRow("Autoplay next episode", autoplayNext) {
                     autoplayNext = it

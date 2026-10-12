@@ -16,7 +16,7 @@ class IconMapTest {
         "ellipsis", "square.and.arrow.up", "film", "film.stack", "tv", "star.fill", "flame.fill", "sparkles",
         "puzzlepiece.extension.fill", "wifi.slash", "info.circle", "exclamationmark.triangle.fill", "pin", "pin.fill",
         "bookmark", "bookmark.fill", "eye.slash", "clock", "calendar", "link", "pencil", "person.fill", "lock.fill",
-        "hare.fill", "tortoise.fill", "speaker.wave.3.fill", "speaker.slash.fill", "goforward", "gobackward",
+        "hare.fill", "tortoise.fill", "speaker.wave.3.fill", "speaker.slash.fill", "goforward", "gobackward", "goforward.10", "gobackward.10",
     )
 
     @Test

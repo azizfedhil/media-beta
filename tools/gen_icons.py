@@ -53,6 +53,8 @@ SF_TO_MDI = {
     "backward.fill": "rewind",
     "goforward": "rotate-right",
     "gobackward": "rotate-left",
+    "gobackward.10": "rewind-10",
+    "goforward.10": "fast-forward-10",
     "hare.fill": "rabbit",
     "tortoise.fill": "turtle",
     "waveform": "waveform",
