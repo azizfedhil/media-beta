@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,11 +56,13 @@ internal fun SubtitlesPanel(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
+        // Read here, where the constraints are in scope, and passed down to the list.
+        val listMax = maxHeight / 2
         PlayerSurface(Modifier.width(340.dp).heightIn(max = maxHeight), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 PanelHeader("Subtitles", onClose)
                 Column(
-                    Modifier.heightIn(max = maxHeight / 2).verticalScroll(rememberScrollState()),
+                    Modifier.heightIn(max = listMax).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     TrackRow("Off", selected = tracks.none { it.isSelected }) { onPick(null) }
