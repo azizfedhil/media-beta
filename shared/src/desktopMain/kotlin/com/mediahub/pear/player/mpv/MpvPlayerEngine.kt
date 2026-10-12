@@ -84,6 +84,10 @@ class MpvPlayerEngine private constructor(
                 when (event.event_id) {
                     MpvEventId.SHUTDOWN -> break
                     MpvEventId.START_FILE -> {
+                        // The lists belong to the file being left until the new one reports its own: clear them now, so
+                        // the language preference never picks from the previous file's tracks.
+                        _audioTracks.value = emptyList()
+                        _subtitleTracks.value = emptyList()
                         _state.value = PlaybackState.Loading
                     }
                     MpvEventId.FILE_LOADED -> {
@@ -314,6 +318,14 @@ class MpvPlayerEngine private constructor(
     override fun setHdrToneMapping(enabled: Boolean) {
         hdrToneMap = enabled
         if (!enabled) native(Unit) { applyHdrFilter(false) }
+    }
+
+    override fun setAudioDelay(seconds: Double) {
+        native(0) { mpv.mpv_set_property_string(handle, "audio-delay", seconds.toString()) }
+    }
+
+    override fun setSubtitleDelay(seconds: Double) {
+        native(0) { mpv.mpv_set_property_string(handle, "sub-delay", seconds.toString()) }
     }
 
     /** Software rendering has no GPU tone mapper, so HDR goes through ffmpeg's zscale + tonemap before the copy. Call under [lock]. */

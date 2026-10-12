@@ -50,6 +50,7 @@ fun SubtitleSettingsScreen(
 
     var subsOnline by remember { mutableStateOf(prefs.bool(PrefKeys.SUBS_ONLINE, true)) }
     var selectedLang by remember { mutableStateOf(prefs.string(PrefKeys.SUB_LANG, "off")) }
+    var selectedAudioLang by remember { mutableStateOf(prefs.string(PrefKeys.AUDIO_LANG, "off")) }
     var fontSize by remember { mutableFloatStateOf(26f) }
     var fontColor by remember { mutableStateOf(Color.White) }
 
@@ -95,6 +96,24 @@ fun SubtitleSettingsScreen(
                         DevChip(label, selectedLang == code) {
                             selectedLang = code
                             prefs.setString(PrefKeys.SUB_LANG, code)
+                        }
+                    }
+                }
+            }
+
+            // Default audio language: the track it picks on load, when a file has one in that language.
+            GlassCard(Modifier.fillMaxWidth()) {
+                PearText("Default audio language", style = PearTheme.type.headline)
+                PearText(
+                    "Picks the audio track in this language when a file has one. Off keeps the file's own default.",
+                    style = PearTheme.type.footnote,
+                    color = PearTheme.colors.textSecondary,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("off" to "Off", "en" to "English", "es" to "Spanish", "fr" to "French", "de" to "German").forEach { (code, label) ->
+                        DevChip(label, selectedAudioLang == code) {
+                            selectedAudioLang = code
+                            prefs.setString(PrefKeys.AUDIO_LANG, code)
                         }
                     }
                 }

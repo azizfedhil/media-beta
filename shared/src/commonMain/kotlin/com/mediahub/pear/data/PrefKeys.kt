@@ -25,6 +25,9 @@ object PrefKeys {
     const val SKIP_FALLBACK_SECONDS = "skip.fallbackSeconds"
     const val SUB_LANG = "sub.lang"
     const val SUB_STYLE = "sub.style"
+
+    /** Default audio language (desktop only). "off" leaves the file's own default track. */
+    const val AUDIO_LANG = "audio.lang"
     const val SUBS_ONLINE = "subs.online"
     const val SUBS_BASE_URL = "subs.baseURL"
     const val LIBRARY_COLLAPSED = "library.collapsed"
@@ -94,7 +97,7 @@ object BackupRules {
         PrefKeys.UI_ACCENT, PrefKeys.UI_NETWORK_BADGES, PrefKeys.UI_TITLE_LOGOS, PrefKeys.UI_LANDSCAPE_LAYOUT,
         PrefKeys.PLAYER_GLASS, PrefKeys.PLAYER_AUTOPLAY_NEXT, PrefKeys.PLAYER_PIP, PrefKeys.PLAYER_PILL_PINNED,
         PrefKeys.PLAYER_PILL_ORDER, PrefKeys.SKIP_ENABLED, PrefKeys.SKIP_FALLBACK_SECONDS, PrefKeys.SUB_LANG,
-        PrefKeys.SUB_STYLE, PrefKeys.SUBS_ONLINE, PrefKeys.SUBS_BASE_URL, PrefKeys.LIBRARY_COLLAPSED,
+        PrefKeys.SUB_STYLE, PrefKeys.AUDIO_LANG, PrefKeys.SUBS_ONLINE, PrefKeys.SUBS_BASE_URL, PrefKeys.LIBRARY_COLLAPSED,
         PrefKeys.PROFILES_LIST, PrefKeys.PROFILES_ACTIVE, PrefKeys.PINNED_SOURCES, PrefKeys.ARTWORK_PINNED,
     )
 

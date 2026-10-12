@@ -125,6 +125,12 @@ enum class PlayerPanel {
 
     /** Aspect, the 4K performance mode and full screen, behind the pill's Display button. Floats above the pill. */
     Display,
+
+    /** The subtitle tracks, delay and (later) online subtitles, on the right edge. Takes the place of the controls. */
+    Subtitles,
+
+    /** The audio tracks and audio delay, floating above the pill. */
+    Audio,
 }
 
 /**
@@ -133,8 +139,12 @@ enum class PlayerPanel {
  */
 const val PLAYER_UI_SCALE = 1.25f
 
-/** Sources and the info card cover the controls (`showControls = false` in PlayerView.swift); speed floats above them. */
-fun panelCoversControls(panel: PlayerPanel?): Boolean = panel == PlayerPanel.Sources || panel == PlayerPanel.Info
+/**
+ * Sources, the info card and subtitles cover the controls (`showControls = false` in PlayerView.swift); speed, display and
+ * audio float above them.
+ */
+fun panelCoversControls(panel: PlayerPanel?): Boolean =
+    panel == PlayerPanel.Sources || panel == PlayerPanel.Info || panel == PlayerPanel.Subtitles
 
 /**
  * Playback speed as the slider and the label see it (`setRate`, `rateText` in PlayerView.swift). The slider runs

@@ -26,10 +26,13 @@ import com.mediahub.pear.player.EpisodeSupport
 import com.mediahub.pear.player.PlaybackProgress
 import com.mediahub.pear.player.PlaybackSnapshot
 import com.mediahub.pear.player.PlaybackState
+import com.mediahub.pear.player.TrackKind
+import com.mediahub.pear.player.TrackPicker
 import com.mediahub.pear.player.ProgressRules
 import com.mediahub.pear.player.VideoSurface
 import com.mediahub.pear.player.createDefaultPlayerEngine
 import com.mediahub.pear.player.withSource
+import com.mediahub.pear.player.ui.AudioPanel
 import com.mediahub.pear.player.ui.DisplayPanel
 import com.mediahub.pear.player.ui.InfoPanel
 import com.mediahub.pear.player.ui.OptionPill
@@ -41,6 +44,7 @@ import com.mediahub.pear.player.ui.PlayerPanel
 import com.mediahub.pear.player.ui.SkipButtons
 import com.mediahub.pear.player.ui.SourcesPanel
 import com.mediahub.pear.player.ui.SpeedPanel
+import com.mediahub.pear.player.ui.SubtitlesPanel
 import com.mediahub.pear.player.ui.isCurrentSource
 import com.mediahub.pear.player.ui.isVideoMoving
 import com.mediahub.pear.player.ui.pillItemsAvailable
@@ -197,8 +201,41 @@ fun PlayerScreen(
     val orderRaw = rememberPref(prefs, PrefKeys.PLAYER_PILL_ORDER) {
         it.string(PrefKeys.PLAYER_PILL_ORDER, PillItem.encodeOrder(PillItem.defaultOrder))
     }
-    val layout = remember(pinnedRaw, orderRaw, nextEp) {
-        pillLayout(PillItem.decodeOrder(orderRaw), PillItem.decodePinned(pinnedRaw), pillItemsAvailable(nextEp != null))
+    // Tracks (4.4a): the file's audio and subtitle tracks, the language preferences that choose them, and the delays.
+    // A preference chosen in a menu is kept for the next episodes, as on iOS (`preferredSubtitleLanguage`).
+    val audioTracks by engine.audioTracks.collectAsState()
+    val subtitleTracks by engine.subtitleTracks.collectAsState()
+    var preferredSubLang by remember(request) { mutableStateOf(prefs.string(PrefKeys.SUB_LANG, "off").takeIf { it != "off" }) }
+    var preferredAudioLang by remember(request) { mutableStateOf(prefs.string(PrefKeys.AUDIO_LANG, "off").takeIf { it != "off" }) }
+    var subDelay by remember(request) { mutableStateOf(0.0) }
+    var audioDelay by remember(request) { mutableStateOf(0.0) }
+    // The file whose tracks were already chosen. Each file is chosen once, when its tracks arrive (the list is empty
+    // while the new file opens, because the engine clears it on start).
+    var pickedFor by remember(request) { mutableStateOf<String?>(null) }
+    LaunchedEffect(current.url, subtitleTracks, audioTracks) {
+        if (pickedFor == current.url || (subtitleTracks.isEmpty() && audioTracks.isEmpty())) return@LaunchedEffect
+        preferredAudioLang?.let { lang ->
+            TrackPicker.bestAudio(audioTracks, lang)?.takeIf { !it.isSelected }?.let { engine.selectTrack(TrackKind.Audio, it.id) }
+        }
+        preferredSubLang?.let { lang ->
+            TrackPicker.bestSubtitle(subtitleTracks, lang)?.takeIf { !it.isSelected }?.let { engine.selectTrack(TrackKind.Subtitle, it.id) }
+        }
+        pickedFor = current.url
+    }
+    // The delays are set again whenever a file starts playing: a new file may start them from zero.
+    LaunchedEffect(state, current.url) {
+        if (state == PlaybackState.Playing) {
+            engine.setAudioDelay(audioDelay)
+            engine.setSubtitleDelay(subDelay)
+        }
+    }
+
+    val layout = remember(pinnedRaw, orderRaw, nextEp, subtitleTracks.isNotEmpty(), audioTracks.size) {
+        pillLayout(
+            PillItem.decodeOrder(orderRaw),
+            PillItem.decodePinned(pinnedRaw),
+            pillItemsAvailable(nextEp != null, hasSubtitles = subtitleTracks.isNotEmpty(), hasAudio = audioTracks.size > 1),
+        )
     }
 
     // Panels: one at a time. Sources and info load while they are open.
@@ -339,6 +376,11 @@ fun PlayerScreen(
                     onSpeed = { togglePanel(PlayerPanel.Speed) },
                     onSources = { togglePanel(PlayerPanel.Sources) },
                     onDisplay = { togglePanel(PlayerPanel.Display) },
+                    subtitlesOpen = panel == PlayerPanel.Subtitles,
+                    subtitlesOn = subtitleTracks.any { it.isSelected },
+                    onSubtitles = { togglePanel(PlayerPanel.Subtitles) },
+                    audioOpen = panel == PlayerPanel.Audio,
+                    onAudio = { togglePanel(PlayerPanel.Audio) },
                     onNext = { playNext() },
                     nextEnabled = !switching,
                     fullscreen = fullscreen,
@@ -365,6 +407,32 @@ fun PlayerScreen(
                         onAspect = { aspect = it },
                         fastFourK = performance,
                         onFastFourK = { performance = it },
+                        onClose = { panel = null },
+                    )
+                    PlayerPanel.Subtitles -> SubtitlesPanel(
+                        tracks = subtitleTracks,
+                        onPick = { t ->
+                            preferredSubLang = t?.let { it.language?.takeIf { l -> l.isNotBlank() } ?: it.title }
+                            engine.selectTrack(TrackKind.Subtitle, t?.id)
+                        },
+                        delaySeconds = subDelay,
+                        onDelay = {
+                            subDelay = it
+                            engine.setSubtitleDelay(it)
+                        },
+                        onClose = { panel = null },
+                    )
+                    PlayerPanel.Audio -> AudioPanel(
+                        tracks = audioTracks,
+                        onPick = { t ->
+                            preferredAudioLang = t.language?.takeIf { l -> l.isNotBlank() } ?: t.title
+                            engine.selectTrack(TrackKind.Audio, t.id)
+                        },
+                        delaySeconds = audioDelay,
+                        onDelay = {
+                            audioDelay = it
+                            engine.setAudioDelay(it)
+                        },
                         onClose = { panel = null },
                     )
                     null -> Unit

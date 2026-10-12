@@ -188,3 +188,37 @@ The card text was never scaled in the wide layout: the hover lift shadowed the c
 - The app's glass is **Glass** (Haze glass regular). A saved choice in Settings still wins, so an install that already chose Frosted keeps it until it's changed.
 - Episodes show in **one row**. The Two rows option is still in the Seasons header on wide windows.
 - Episode stills are **w780** (was w300). Saved Continue Watching links carrying the small sizes are upgraded when shown.
+
+## Subtitles and audio: tracks, language and delay (Batch 4.4a)
+
+Code: `player/TrackRules.kt` (the picks, the labels, the delay steps; pure, unit tested), `player/ui/TrackPanels.kt` (the menus), `player/ui/OptionPill.kt` (the buttons), `shell/PlayerScreen.kt` (picking on load, the delays), `settings/SubtitleSettingsScreen.kt` (the defaults), `desktopMain/.../mpv/MpvPlayerEngine.kt` (`sid`, `aid`, `sub-delay`, `audio-delay`). Spec: `subtitlePanel`, the audio `Menu`, `bestSubtitle` and `refreshTracks` in PlayerView.swift and SubtitleSupport.swift.
+
+- **Pill.** Subtitles joins the pill when the file has subtitle tracks, and Audio when it has more than one audio track (as on iOS). The subtitles button shows as on while a track plays.
+- **Subtitles panel** (right edge, covers the controls like Sources): Off, then each track with its flags (Forced, SDH, Default), the track playing marked. Picking a track keeps the panel open. Below it, the subtitle delay.
+- **Audio panel** (floats above the pill, like Speed): the audio tracks, then the audio delay.
+- **Delay.** Steps of 0.1 s, up to 10 s either way, with a Reset that appears only while the delay is set. mpv `sub-delay` and `audio-delay` move the subtitles and the sound, so the picture stays where it was. The delays last for the window: they are set again each time a file starts playing, and they are not saved.
+- **Auto-pick on load**, once per file, when its tracks arrive:
+  - Subtitles: the preferred language picks a normal track, then one that isn't forced, then any in that language. A language with nothing in the file leaves the file's default. The preference is Settings → Subtitles → Default language, or the last language picked in a menu.
+  - Audio: the preferred language picks the track the file marks as default if it is in that language, else the first in it. The preference is Settings → Subtitles → Default audio language (desktop only, Off by default, so nothing changes until it is set).
+  - A track picked in a menu sets the language for the next episodes as well, as the subtitle choice does on iOS.
+- **The track list is cleared when a new file starts.** The list belongs to the file being left until the new one reports its own; without the clear, the language pick could select a track of the previous file.
+
+### Where this differs from iOS
+1. iOS has no delay controls and no audio language preference. Both are desktop additions, as the plan asked for them.
+2. iOS leaves a subtitle the file already selected alone. This picks the viewer's language even when the file marks another subtitle as default.
+3. iOS reads SDH from the engine. mpv's track list gives no such flag here, so SDH is read from the track title ("SDH", "HI", "hearing").
+
+### Not in 4.4a
+Online subtitles (OpenSubtitles and add-on sources, 4.4b). Subtitle appearance and the libass question (4.4c). Episodes (the episode carousel) is still not built.
+
+### Check it
+1. A file with English and French audio, and the default language set to French: it starts in French, and the audio button shows the French track as playing.
+2. A file with a forced English subtitle and a full English one: with English as the default language, the full one plays.
+3. Set the subtitle delay to +1.5 s: the subtitles arrive 1.5 s later than the picture. Reset: they line up again. Repeat with the audio delay.
+4. Change to the next episode: the delays stay where you set them, and the language you picked in a menu is used again.
+5. Open a file with one audio track: the audio button is not on the pill.
+6. A file with no subtitles: the subtitles button is not on the pill.
+7. The track names read as "English · Forced", "English (Commentary)" and so on, never as raw mpv titles.
+
+### Not compiled
+As before, run `gradle :shared:desktopTest --tests "*TrackRules*" --tests "*TrackPill*" --tests "*PillItems*" --tests "*DesktopPill*"` first, then `gradle :desktopApp:run`.

@@ -70,6 +70,12 @@ internal fun OptionPill(
     onSpeed: () -> Unit,
     onSources: () -> Unit,
     onDisplay: () -> Unit,
+    subtitlesOpen: Boolean = false,
+    /** A subtitle track is playing (the button shows as on, like the filled icon on iOS). */
+    subtitlesOn: Boolean = false,
+    onSubtitles: () -> Unit = {},
+    audioOpen: Boolean = false,
+    onAudio: () -> Unit = {},
     onNext: () -> Unit,
     nextEnabled: Boolean = true,
     fullscreen: Boolean = false,
@@ -186,6 +192,17 @@ internal fun OptionPill(
                                             bumpUnfolded()
                                             onDisplay()
                                         },
+                                        subtitlesOpen = subtitlesOpen,
+                                        subtitlesOn = subtitlesOn,
+                                        onSubtitles = {
+                                            bumpUnfolded()
+                                            onSubtitles()
+                                        },
+                                        audioOpen = audioOpen,
+                                        onAudio = {
+                                            bumpUnfolded()
+                                            onAudio()
+                                        },
                                     )
                                 }
                             }
@@ -225,9 +242,9 @@ internal fun OptionPill(
 }
 
 /**
- * One button of the pill. Only the buttons this build has are drawn: Next (4.3d, only while there is an episode after
- * this one), and Episodes, Subtitles and Audio (4.4a and later) and Picture in Picture (not on desktop) are not in the
- * layout yet, so they fall through to nothing.
+ * One button of the pill. Only the buttons this build has are drawn: Next (4.3d), Subtitles and Audio (4.4a), each only
+ * when the file or the episode has them. Episodes (not built yet) and Picture in Picture (not on desktop) fall through
+ * to nothing.
  */
 @Composable
 private fun PillButton(
@@ -243,6 +260,11 @@ private fun PillButton(
     nextEnabled: Boolean,
     displayOpen: Boolean,
     onDisplay: () -> Unit,
+    subtitlesOpen: Boolean,
+    subtitlesOn: Boolean,
+    onSubtitles: () -> Unit,
+    audioOpen: Boolean,
+    onAudio: () -> Unit,
 ) {
     when (item) {
         PillItem.Speed -> PlayerPillButton(
@@ -272,6 +294,18 @@ private fun PillButton(
             symbol = item.symbol,
             selected = displayOpen,
             onClick = onDisplay,
+            contentDescription = item.title,
+        )
+        PillItem.Subtitles -> PlayerPillButton(
+            symbol = item.symbol,
+            selected = subtitlesOpen || subtitlesOn,
+            onClick = onSubtitles,
+            contentDescription = item.title,
+        )
+        PillItem.Audio -> PlayerPillButton(
+            symbol = item.symbol,
+            selected = audioOpen,
+            onClick = onAudio,
             contentDescription = item.title,
         )
         else -> Unit

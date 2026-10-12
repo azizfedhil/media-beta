@@ -66,6 +66,12 @@ interface PlayerEngine {
     /** Tone-map HDR (PQ/HLG) video to SDR. On by default. */
     fun setHdrToneMapping(enabled: Boolean) {}
 
+    /** Audio delay in seconds: positive plays the sound later (mpv `audio-delay`). Kept across loads by the caller. */
+    fun setAudioDelay(seconds: Double) {}
+
+    /** Subtitle delay in seconds: positive shows the text later (mpv `sub-delay`). Kept across loads by the caller. */
+    fun setSubtitleDelay(seconds: Double) {}
+
     fun release()
 }
 

@@ -59,17 +59,23 @@ enum class PillItem(val raw: String, val title: String, val symbol: String) {
 }
 
 /**
- * The buttons this build can show, whatever the show. Each one joins the set when its batch lands: Subtitles and
- * Audio in 4.4a, Episodes later. Next depends on the episode (see [pillItemsAvailable]). Picture in Picture never
- * applies on desktop. Full screen is not one of these: it is always the pill's last button, and never folds away.
+ * The buttons this build can show whatever the file: Speed, Sources, Volume and Display. Subtitles and Audio depend on
+ * the file's tracks, Next on the episode (see [pillItemsAvailable]). Episodes is not built yet, and Picture in Picture
+ * never applies on desktop. Full screen is not one of these: it is always the pill's last button, and never folds away.
  */
 val desktopPillItems: Set<PillItem> = setOf(PillItem.Speed, PillItem.Sources, PillItem.Volume, PillItem.Display)
 
 /**
- * The buttons available right now: [desktopPillItems], plus Next while the show has an episode after this one
- * (`pillHas` in PlayerView.swift).
+ * The buttons available right now (`pillHas` in PlayerView.swift): [desktopPillItems], plus Subtitles while the file has
+ * subtitle tracks, Audio while it has more than one audio track, and Next while there is an episode after this one.
  */
-fun pillItemsAvailable(hasNext: Boolean): Set<PillItem> = if (hasNext) desktopPillItems + PillItem.Next else desktopPillItems
+fun pillItemsAvailable(hasNext: Boolean, hasSubtitles: Boolean = false, hasAudio: Boolean = false): Set<PillItem> {
+    var items = desktopPillItems
+    if (hasSubtitles) items = items + PillItem.Subtitles
+    if (hasAudio) items = items + PillItem.Audio
+    if (hasNext) items = items + PillItem.Next
+    return items
+}
 
 /** What the pill shows right now: the buttons in on-screen order, and how many of them are folded away. */
 data class PillLayout(val items: List<PillItem>, val folded: Int)
