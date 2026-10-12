@@ -35,6 +35,9 @@ class DummyPlayerEngine(
     private val _subtitleTracks = MutableStateFlow<List<PlayerTrack>>(emptyList())
     override val subtitleTracks: StateFlow<List<PlayerTrack>> = _subtitleTracks.asStateFlow()
 
+    private val _subtitleText = MutableStateFlow<String?>(null)
+    override val subtitleText: StateFlow<String?> = _subtitleText.asStateFlow()
+
     override suspend fun load(
         url: String,
         headers: Map<String, String>,

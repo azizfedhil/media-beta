@@ -47,6 +47,12 @@ interface PlayerEngine {
     val audioTracks: StateFlow<List<PlayerTrack>>
     val subtitleTracks: StateFlow<List<PlayerTrack>>
 
+    /**
+     * The text of the subtitle line showing now, for a track the app draws (see [SubtitleRendering]). Null when nothing is
+     * showing, or when mpv draws the selected track itself.
+     */
+    val subtitleText: StateFlow<String?>
+
     suspend fun load(
         url: String,
         headers: Map<String, String> = emptyMap(),

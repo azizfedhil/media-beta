@@ -5,6 +5,7 @@ import com.mediahub.pear.player.DummyPlayerEngine
 import com.mediahub.pear.player.PlaybackState
 import com.mediahub.pear.player.PlayerEngine
 import com.mediahub.pear.player.PlayerTrack
+import com.mediahub.pear.player.SubtitleRendering
 import com.mediahub.pear.player.TrackKind
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.ByteByReference
@@ -32,6 +33,8 @@ class MpvPlayerEngine private constructor(
     @Volatile private var renderer: MpvVideoRenderer? = null
     private var hdrToneMap = true
     private var hdrFilterOn = false
+    /** True while the selected subtitle is drawn by the app (plain text), so its cue text is kept. */
+    @Volatile private var appDrawsSubtitles = false
 
     /** Runs a native call only while the handle is alive; destroy takes the same lock, so no use-after-free. */
     private inline fun <T> native(default: T, block: () -> T): T = synchronized(lock) { if (destroyed) default else block() }
@@ -63,6 +66,9 @@ class MpvPlayerEngine private constructor(
     private val _subtitleTracks = MutableStateFlow<List<PlayerTrack>>(emptyList())
     override val subtitleTracks: StateFlow<List<PlayerTrack>> = _subtitleTracks.asStateFlow()
 
+    private val _subtitleText = MutableStateFlow<String?>(null)
+    override val subtitleText: StateFlow<String?> = _subtitleText.asStateFlow()
+
     init {
         // Observe properties
         mpv.mpv_observe_property(handle, 1L, "pause", MpvFormat.FLAG)
@@ -75,6 +81,7 @@ class MpvPlayerEngine private constructor(
         mpv.mpv_observe_property(handle, 8L, "track-list/count", MpvFormat.INT64)
         mpv.mpv_observe_property(handle, 9L, "eof-reached", MpvFormat.FLAG)
         mpv.mpv_observe_property(handle, 10L, "video-params/gamma", MpvFormat.STRING)
+        mpv.mpv_observe_property(handle, 11L, "sub-text", MpvFormat.STRING)
 
         // Event loop thread
         val eventThread = Thread({
@@ -88,6 +95,7 @@ class MpvPlayerEngine private constructor(
                         // the language preference never picks from the previous file's tracks.
                         _audioTracks.value = emptyList()
                         _subtitleTracks.value = emptyList()
+                        _subtitleText.value = null
                         _state.value = PlaybackState.Loading
                     }
                     MpvEventId.FILE_LOADED -> {
@@ -165,6 +173,12 @@ class MpvPlayerEngine private constructor(
                     }
                 }
             }
+            "sub-text" -> {
+                // Only while the app draws the track: mpv's own text is not what the viewer sees then.
+                if (prop.format == MpvFormat.STRING && appDrawsSubtitles) {
+                    _subtitleText.value = data.getPointer(0)?.getString(0)?.takeIf { it.isNotBlank() }
+                }
+            }
             "video-params/gamma" -> {
                 if (prop.format == MpvFormat.STRING) {
                     val gamma = data.getPointer(0)?.getString(0)
@@ -222,6 +236,18 @@ class MpvPlayerEngine private constructor(
 
         _audioTracks.value = aTracks
         _subtitleTracks.value = sTracks
+        applySubtitleRendering(sTracks.firstOrNull { it.isSelected })
+    }
+
+    /**
+     * Plain-text subtitles are drawn by the app from [subtitleText], so mpv stops drawing them (`sub-visibility`). Every
+     * other track, ASS and bitmap included, stays in the picture. [selected] is the subtitle track now chosen, or null.
+     */
+    private fun applySubtitleRendering(selected: PlayerTrack?) {
+        val appDraws = SubtitleRendering.drawnByApp(selected)
+        appDrawsSubtitles = appDraws
+        if (!appDraws) _subtitleText.value = null
+        native(0) { mpv.mpv_set_property_string(handle, "sub-visibility", if (appDraws) "no" else "yes") }
     }
 
     private fun getPropertyString(name: String): String? {
@@ -297,7 +323,15 @@ class MpvPlayerEngine private constructor(
         }
         val value = trackId?.toString() ?: "no"
         native(0) { mpv.mpv_set_property_string(handle, prop, value) }
-        refreshTrackList()
+        if (kind == TrackKind.Subtitle) {
+            // mpv applies the choice on its own thread and reports the list later. The list is updated here, so how the
+            // subtitle is drawn follows at once; the next track-list event confirms it.
+            val updated = _subtitleTracks.value.map { it.copy(isSelected = it.id == trackId) }
+            _subtitleTracks.value = updated
+            applySubtitleRendering(updated.firstOrNull { it.isSelected })
+        } else {
+            refreshTrackList()
+        }
     }
 
     /** Frames only reach the screen through a render context; [VideoSurface] asks for one. */

@@ -251,3 +251,32 @@ Subtitle appearance and the libass question (4.4c). The episode carousel is stil
 
 ### Not compiled
 As before, run `gradle :shared:desktopTest --tests "*SubtitleSources*" --tests "*OnlinePick*" --tests "*TrackRules*"` first, then `gradle :desktopApp:run`.
+
+## Subtitle drawing and style (Batch 4.4c)
+
+- **Who draws what** (`player/SubtitleRendering.kt`). Plain text (SRT, WebVTT, MP4 text, and online subtitles, which are SRT or VTT) is drawn by the app from the cue text, so the subtitle style applies, as on iOS. Styled ASS/SSA and bitmap tracks (PGS, VobSub, DVB) stay with mpv, which keeps their own layout and styling. A codec that isn't named stays with mpv.
+- **How it switches** (`MpvPlayerEngine`). The engine observes `sub-text` (the current cue's text). When the selected track is plain text it sets `sub-visibility` to `no`, so mpv doesn't draw the same line twice, and passes the cue text on through `PlayerEngine.subtitleText`. For every other track it sets `sub-visibility` back to `yes`. The selection changes at once when the viewer picks a track, without waiting for mpv's track list.
+- **The style** (`player/SubtitleStyle.kt`). One JSON string under `sub.style`, with the iOS key names and ranges (size 12 to 72, box 0 to 0.9, distance 0 to 160), so a phone backup restores it. Empty or unreadable means the default look, as on iOS.
+- **Drawing** (`player/ui/SubtitleLine.kt`). `SubtitleLine` draws one line: the colour, the edge (none, shadow, or outline as four offset copies), and the box. `SubtitleLayer` places it at the bottom and lifts it 112 dp while the controls show (iOS: `lift: showControls ? 112 : 0`). The overlay draws it above the picture and under the controls and panels, and it takes no input.
+- **Settings** (`settings/SubtitleSettingsScreen.kt`). Appearance is the real editor now: size, colour, font, weight, edge, background, distance from the bottom, and reset. The preview calls the same `SubtitleLine` as the player. Sliders save when the drag ends, not on every move. The page reads the setting live, so a change made elsewhere shows up here.
+
+### Where this differs from iOS
+- Compose has no rounded font family, so "rounded" uses the sans-serif family. The other fonts map directly.
+- Sizes are in the same units as iOS, but the player's controls are scaled by PLAYER_UI_SCALE and the subtitles are not, so the same size can read smaller next to the controls.
+- ASS tracks keep mpv's styling, which is not the viewer's `sub.style`. As on iOS, that matches the file rather than the app.
+- The settings preview draws plain text only. A styled ASS line appears only in the player.
+
+### Not in 4.4c
+- Style controls inside the player's subtitle panel (iOS has them there too; the setting is shared, so it's a small addition later).
+- Android (Media3 has its own subtitle view; this needs its own pass).
+
+### Check it
+1. Play a file with an SRT track: the line is drawn in the app, and only once. Switch to an ASS track: mpv draws it, with its own styling. Switch back: the app draws again.
+2. Settings -> Subtitles -> Appearance: change each control. The preview and the player's line change the same way. Leave and reopen the page: the values stay.
+3. Show the controls during a line: the line rises above them. Hide them: it drops back to the distance you set.
+4. Subtitle delay still moves the app-drawn line.
+5. A phone backup restores the style with the iOS look.
+6. If no plain-text line shows at all while mpv is hiding the track, the assumption that `sub-text` still updates while `sub-visibility` is `no` is wrong. Tell me, and I'll switch to a fallback that keeps mpv drawing and hides only its text.
+
+### Not compiled
+As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest --tests "*SubtitleStyle*" --tests "*SubtitleRendering*"` first, then `gradle :desktopApp:run`.

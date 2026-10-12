@@ -44,6 +44,8 @@ import com.mediahub.pear.player.ui.PlayerInfoRules
 import com.mediahub.pear.player.ui.PlayerOverlay
 import com.mediahub.pear.player.ui.PlayerPanel
 import com.mediahub.pear.player.ui.SkipButtons
+import com.mediahub.pear.player.ui.SubtitleLayer
+import com.mediahub.pear.player.SubtitleStyle
 import com.mediahub.pear.player.ui.SourcesPanel
 import com.mediahub.pear.player.ui.SpeedPanel
 import com.mediahub.pear.player.ui.SubtitlesPanel
@@ -169,6 +171,8 @@ fun PlayerScreen(
     // Glass while the video plays is on by default (the Settings switch turns it off if the machine can't keep up).
     val blurPlaying = rememberPref(prefs, PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING) { it.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true) }
     val look = playerLook(glassOn, env.glass.mode, isVideoMoving(state), blurPlaying)
+    // The viewer's subtitle look (Settings -> Subtitles -> Appearance), followed live. It draws the plain-text subtitles.
+    val subStyle = rememberPref(prefs, PrefKeys.SUB_STYLE) { SubtitleStyle.decode(it.string(PrefKeys.SUB_STYLE, "")) }
 
     // The next episode, its skip timestamps, and the settings that drive them (4.3d). Looked up again for every episode
     // (`loadAux` in PlayerView.swift); a source switch keeps both.
@@ -519,6 +523,11 @@ fun PlayerScreen(
                         onNext = { playNext() },
                     )
                 }
+            },
+            subtitles = { shown ->
+                // Read here, not in the screen, so a cue changing redraws only the subtitle line.
+                val cue by engine.subtitleText.collectAsState()
+                SubtitleLayer(cue, subStyle, shown)
             },
             notice = notice,
             video = {

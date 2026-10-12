@@ -103,6 +103,8 @@ fun PlayerOverlay(
     trailing: @Composable () -> Unit = {},
     panels: @Composable BoxScope.() -> Unit = {},
     skip: @Composable BoxScope.(controlsShown: Boolean) -> Unit = {},
+    /** Subtitles the app draws (4.4c), above the picture and under the controls. Gets whether the controls show. */
+    subtitles: @Composable BoxScope.(controlsShown: Boolean) -> Unit = {},
     notice: String? = null,
     video: @Composable BoxScope.() -> Unit,
 ) {
@@ -189,6 +191,9 @@ fun PlayerOverlay(
                         .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Black.copy(alpha = 0.6f)))),
                 )
             }
+
+            // Subtitles the app draws: above the picture, under the controls and panels.
+            subtitles(visible)
 
             // Waiting for data while the controls are hidden: just a spinner.
             if (isWaiting(state) && errorMessage == null && !visible) {
