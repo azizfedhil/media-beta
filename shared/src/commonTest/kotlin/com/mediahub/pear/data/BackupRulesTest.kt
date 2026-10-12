@@ -8,7 +8,8 @@ import kotlin.test.assertTrue
 class BackupRulesTest {
     @Test
     fun settingsKeysAreAlwaysAllowed() {
-        assertEquals(28, BackupRules.keys.size) // the list in SettingsBackup.swift
+        // The 28 keys of SettingsBackup.swift, plus audio.lang, which only the desktop app writes (Batch 4.4a).
+        assertEquals(29, BackupRules.keys.size)
         assertTrue(BackupRules.isAllowed("tmdb.key", includeData = false))
         assertTrue(BackupRules.isAllowed("ui.accent", includeData = false))
     }
