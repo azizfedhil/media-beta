@@ -89,6 +89,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
                         "AddonsCheck" -> nav.push(Route.AddonsCheck)
                         "HistoryCheck" -> nav.push(Route.HistoryCheck)
                         "BackupCheck" -> nav.push(Route.BackupCheck)
+                        "PlayerCheck" -> nav.push(Route.PlayerCheck)
                     }
                 },
             )
@@ -151,6 +152,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.AddonsCheck -> AddonsCheckScreen(env.data, onBack = { nav.pop() })
         Route.HistoryCheck -> HistoryCheckScreen(env.data, onBack = { nav.pop() })
         Route.BackupCheck -> BackupCheckScreen(env.data, onBack = { nav.pop() })
+        Route.PlayerCheck -> PlayerCheckScreen(onBack = { nav.pop() })
     }
 }
 

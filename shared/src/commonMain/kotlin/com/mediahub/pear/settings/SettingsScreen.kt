@@ -263,6 +263,7 @@ fun SettingsScreen(
                         DevChip("Metadata", false) { onNavigateDeveloperCheck("MetadataCheck") }
                         DevChip("Add-ons", false) { onNavigateDeveloperCheck("AddonsCheck") }
                         DevChip("History", false) { onNavigateDeveloperCheck("HistoryCheck") }
+                        DevChip("Player", false) { onNavigateDeveloperCheck("PlayerCheck") }
                     }
                 }
             }

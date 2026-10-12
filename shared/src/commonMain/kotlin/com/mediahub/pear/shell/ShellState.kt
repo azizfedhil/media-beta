@@ -37,6 +37,7 @@ sealed interface Route {
     data object AddonsCheck : Route
     data object HistoryCheck : Route
     data object BackupCheck : Route
+    data object PlayerCheck : Route
 }
 
 class CatalogueItem(val id: String, val title: String)
