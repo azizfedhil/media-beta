@@ -34,6 +34,8 @@ import com.mediahub.pear.theme.weight
 import com.mediahub.pear.home.HomeScreen
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
+import com.mediahub.pear.detail.DetailScreen
+import com.mediahub.pear.model.MetaPreview
 
 private val PageMaxWidth = 900.dp
 
@@ -47,9 +49,10 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
     when (route) {
         is Route.Root -> when (route.tab) {
             AppTab.Home -> HomeScreen(
-                onSelectTitle = { item: MetaPreview, s: Int?, ep: Int? -> nav.push(Route.Demo(1)) },
+                onSelectTitle = { item: MetaPreview, s: Int?, ep: Int? -> nav.push(Route.Detail(item, s, ep)) },
                 onSeeAll = { row: CatalogRow -> nav.push(Route.Catalogue(row.id, row.title)) },
             )
+            AppTab.Settings -> SettingsPlaceholder(nav)
             AppTab.Settings -> SettingsPlaceholder(nav)
             AppTab.Explore -> Placeholder("Explore", "ExploreView.swift", "Batch 3.3", nav)
             AppTab.Library -> Placeholder("Library", "LibraryView.swift", "Batch 3.4", nav)
@@ -57,6 +60,15 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         }
         is Route.Catalogue -> Placeholder(route.title, "CatalogGridView.swift", "Batch 3.1", nav, onBack = null)
         is Route.Demo -> DemoPage(route, nav)
+        is Route.Detail -> DetailScreen(
+            item = route.item,
+            startSeason = route.startSeason,
+            startEpisode = route.startEpisode,
+            onBack = { nav.pop() },
+            onSelectTitle = { item -> nav.push(Route.Detail(item)) },
+            onPlay = { playRequest -> /* Entry point to Phase 4 playback */ },
+            )
+            Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })
         Route.StorageCheck -> StorageCheckScreen(env.data, onBack = { nav.pop() })

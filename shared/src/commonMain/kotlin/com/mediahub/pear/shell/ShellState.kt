@@ -12,6 +12,7 @@ sealed interface Route {
     data class Root(val tab: AppTab) : Route
     data class Catalogue(val id: String, val title: String) : Route
     data class Demo(val depth: Int) : Route
+    data class Detail(val item: MetaPreview, val startSeason: Int? = null, val startEpisode: Int? = null) : Route
     data object ThemePreview : Route
     data object GlassGallery : Route
     data object StorageCheck : Route
