@@ -56,7 +56,10 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
             AppTab.Search -> SearchScreen(
                 onSelectTitle = { item -> nav.push(Route.Detail(item)) },
             )
-            AppTab.Library -> Placeholder("Library", "LibraryView.swift", "Batch 3.4", nav)
+            AppTab.Library -> LibraryScreen(
+                onSelectTitle = { item -> nav.push(Route.Detail(item)) },
+                onOpenDownloads = { nav.push(Route.Downloads) },
+            )
             AppTab.Settings -> SettingsPlaceholder(nav)
         }
         is Route.Catalogue -> CatalogGridScreen(
@@ -64,14 +67,25 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
         )
-        is Route.Demo -> DemoPage(route, nav)
         is Route.Detail -> DetailScreen(
             item = route.item,
             startSeason = route.startSeason,
             startEpisode = route.startEpisode,
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
-            onPlay = { _ -> /* Entry point to Phase 4 playback */ },
+            onPlay = { _ -> },
+        )
+        Route.ProfileDetail -> ProfileDetailScreen(
+            onBack = { nav.pop() },
+            onNavigateIntegrations = { /* Batch 3.5 integrations */ },
+            onNavigateDownloads = { nav.push(Route.Downloads) },
+        )
+        Route.ContentSettings -> ContentSettingsScreen(
+            onBack = { nav.pop() },
+            onNavigateAIOMetadata = { /* Batch 3.5 AIOMetadata */ },
+        )
+        Route.Downloads -> DownloadsScreen(
+            onBack = { nav.pop() },
         )
         Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })

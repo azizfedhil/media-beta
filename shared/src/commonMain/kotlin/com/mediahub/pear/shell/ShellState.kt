@@ -19,6 +19,9 @@ sealed interface Route {
     }
     data class Demo(val depth: Int) : Route
     data class Detail(val item: MetaPreview, val startSeason: Int? = null, val startEpisode: Int? = null) : Route
+    data object ProfileDetail : Route
+    data object ContentSettings : Route
+    data object Downloads : Route
     data object ThemePreview : Route
     data object GlassGallery : Route
     data object StorageCheck : Route
