@@ -3,7 +3,7 @@ package com.mediahub.pear.glass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import com.sun.jna.platform.win32.Kernel32
-import com.sun.jna.platform.win32.WinBase
+import com.sun.jna.platform.win32.WinNT.SYSTEM_POWER_STATUS
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -24,7 +24,7 @@ internal fun readLowBattery(): Boolean = runCatching {
 }.getOrDefault(false)
 
 private fun windowsLowBattery(): Boolean {
-    val status = WinBase.SYSTEM_POWER_STATUS()
+    val status = SYSTEM_POWER_STATUS()
     if (!Kernel32.INSTANCE.GetSystemPowerStatus(status)) return false
     val onAc = status.ACLineStatus.toInt() == 1
     val percent = status.BatteryLifePercent.toInt() and 0xFF // 255 means unknown
