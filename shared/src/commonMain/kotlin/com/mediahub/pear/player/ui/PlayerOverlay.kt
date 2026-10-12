@@ -76,6 +76,7 @@ import kotlinx.coroutines.flow.onStart
  *   loading, ended or failed, while dragging the seek bar, while hovering the controls, while the pill is open and
  *   while a panel is open
  * - a click on the video toggles play/pause, or closes an open panel; a double-click toggles fullscreen
+ * - [skip] (skip intro, next episode) sits bottom right above the bar, and [notice] a message at the top
  *
  * The video goes in [video]: it is the blur source for the glass surfaces, so blur works over live frames.
  * [look] decides how surfaces are drawn (see [playerLook]). [openedAt] is the resume point the source is opening at:
@@ -101,6 +102,8 @@ fun PlayerOverlay(
     pill: @Composable (onActive: (Boolean) -> Unit) -> Unit = {},
     trailing: @Composable () -> Unit = {},
     panels: @Composable BoxScope.() -> Unit = {},
+    skip: @Composable BoxScope.(controlsShown: Boolean) -> Unit = {},
+    notice: String? = null,
     video: @Composable BoxScope.() -> Unit,
 ) {
     val state by engine.state.collectAsState()
@@ -216,8 +219,13 @@ fun PlayerOverlay(
                 )
             }
 
+            // Skip intro and next episode: hidden under a panel or an error (`skipLayer` in PlayerView.swift).
+            if (errorMessage == null && panel == null) skip(visible)
+
             // Panels last, so they sit above the controls. Only one is open at a time; the host decides which.
             panels()
+
+            PlayerNotice(notice)
         }
     }
 }
@@ -389,6 +397,35 @@ private fun ErrorCard(message: String, onClose: () -> Unit, modifier: Modifier =
                 textAlign = TextAlign.Center,
             )
             PlayerPill { PlayerPillButton(label = "Go back", onClick = onClose) }
+        }
+    }
+}
+
+/**
+ * A short message over the top of the picture, for example "No playable source found for that episode" (`toast` in
+ * PlayerView.swift). It stays for as long as the host keeps [message] set.
+ */
+@Composable
+private fun BoxScope.PlayerNotice(message: String?) {
+    // Keeps the last text while the message fades out.
+    var shown by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(message) { if (message != null) shown = message }
+    AnimatedVisibility(
+        visible = message != null,
+        modifier = Modifier.align(Alignment.TopCenter).padding(top = 18.dp),
+        enter = fadeIn(tween(PearMotion.BASE)),
+        exit = fadeOut(tween(PearMotion.BASE)),
+    ) {
+        shown?.let { text ->
+            PlayerSurface(kind = SurfaceKind.Capsule) {
+                PearText(
+                    text,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    style = PearTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold),
+                    color = Color.White,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }

@@ -6,17 +6,23 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.data.PrefKeys
+import com.mediahub.pear.history.EpisodeItem
+import com.mediahub.pear.meta.SkipSegment
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.model.StreamItem
 import com.mediahub.pear.player.AspectMode
+import com.mediahub.pear.player.EpisodeSupport
 import com.mediahub.pear.player.PlaybackProgress
 import com.mediahub.pear.player.PlaybackSnapshot
 import com.mediahub.pear.player.PlaybackState
@@ -32,11 +38,12 @@ import com.mediahub.pear.player.ui.PlayerInfo
 import com.mediahub.pear.player.ui.PlayerInfoRules
 import com.mediahub.pear.player.ui.PlayerOverlay
 import com.mediahub.pear.player.ui.PlayerPanel
+import com.mediahub.pear.player.ui.SkipButtons
 import com.mediahub.pear.player.ui.SourcesPanel
 import com.mediahub.pear.player.ui.SpeedPanel
-import com.mediahub.pear.player.ui.desktopPillItems
 import com.mediahub.pear.player.ui.isCurrentSource
 import com.mediahub.pear.player.ui.isVideoMoving
+import com.mediahub.pear.player.ui.pillItemsAvailable
 import com.mediahub.pear.player.ui.pillLayout
 import com.mediahub.pear.player.ui.playableSourceGroups
 import com.mediahub.pear.player.ui.playerLook
@@ -44,13 +51,15 @@ import com.mediahub.pear.player.ui.playerSubtitleLine
 import com.mediahub.pear.theme.PearDark
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 
 /**
  * Hosts the player: creates the engine, loads the stream and shows the video under [PlayerOverlay] (Batch 4.3a),
- * keeps the viewing history (Batch 4.3b), and runs the controls pill and its panels (Batch 4.3c): speed, the other
- * sources of the title, and the episode or movie card. A source switch keeps the position and the progress.
- * Skip intro and up next (4.3d) come later.
+ * keeps the viewing history (Batch 4.3b), runs the controls pill and its panels (Batch 4.3c), and plays the next
+ * episode with skip intro and autoplay (Batch 4.3d). A source switch keeps the position and the progress.
  */
 @Composable
 fun PlayerScreen(
@@ -62,15 +71,16 @@ fun PlayerScreen(
     val data = env.data
     val prefs = data.prefs
     val engine = remember(request) { createDefaultPlayerEngine() }
+    val scope = rememberCoroutineScope()
 
     // Resume, progress and history (4.3b). The resume point is read once, before the first save can replace it.
     val resumeAt = remember(request) {
         ProgressRules.startAt(ProgressRules.resumePoint(data.history.entry(request.item.id), request.key))
     }
-    // What is playing. A source switch replaces it; the title, the key and the artwork stay the same.
+    // What is playing. A source switch or an episode switch replaces it; the title and the artwork stay the same.
     var current by remember(request) { mutableStateOf(request) }
     val nowPlaying = rememberUpdatedState(current)
-    // Where the next load opens: the resume point, or the playhead after a source switch.
+    // Where the next load opens: the resume point, or the playhead after a source switch, or the start of a new episode.
     var loadAt by remember(request) { mutableStateOf(resumeAt) }
 
     val progress = remember(request, data) {
@@ -147,15 +157,48 @@ fun PlayerScreen(
     val blurPlaying = rememberPref(prefs, PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING) { it.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true) }
     val look = playerLook(glassOn, env.glass.mode, isVideoMoving(state), blurPlaying)
 
-    // The pill follows Settings -> Playback -> Player controls, live.
+    // The next episode, its skip timestamps, and the settings that drive them (4.3d). Looked up again for every episode
+    // (`loadAux` in PlayerView.swift); a source switch keeps both.
+    val episodeSupport = remember(data) {
+        EpisodeSupport(data.episodes, data.meta.tmdb, data.addonClient, { data.addons.enabledAddons }, data.pinned)
+    }
+    var nextEp by remember(request) { mutableStateOf<Pair<Int, EpisodeItem>?>(null) }
+    var segments by remember(request) { mutableStateOf<List<SkipSegment>>(emptyList()) }
+    var segmentsLoaded by remember(request) { mutableStateOf(false) }
+    // The episode opened part way in (a resume): the manual skip button isn't offered for it.
+    var openedMidway by remember(request) { mutableStateOf(loadAt > ProgressRules.RESUME_THRESHOLD) }
+    // Changes at each episode switch, so the skip button starts fresh (its used and expired state is per episode).
+    var episodeSerial by remember(request) { mutableIntStateOf(0) }
+    var switching by remember(request) { mutableStateOf(false) }
+    var notice by remember(request) { mutableStateOf<String?>(null) }
+    val autoplay = rememberPref(prefs, PrefKeys.PLAYER_AUTOPLAY_NEXT) { it.bool(PrefKeys.PLAYER_AUTOPLAY_NEXT, true) }
+    val manualSkipSeconds = rememberPref(prefs, PrefKeys.SKIP_FALLBACK_SECONDS) { it.int(PrefKeys.SKIP_FALLBACK_SECONDS, 0) }
+
+    LaunchedEffect(current.item.id, current.key) {
+        nextEp = null
+        segments = emptyList()
+        segmentsLoaded = false
+        val req = current
+        coroutineScope {
+            val intro = async { data.intro.segments(req.item, req.imdb, req.season, req.episode) }
+            val next = episodeSupport.next(req)
+            // A show switched on under us must not be overwritten by the answers to the one before.
+            currentCoroutineContext().ensureActive()
+            nextEp = next
+            segments = intro.await()
+            segmentsLoaded = true
+        }
+    }
+
+    // The pill follows Settings -> Playback -> Player controls, live. Next joins it while there is an episode after this one.
     val pinnedRaw = rememberPref(prefs, PrefKeys.PLAYER_PILL_PINNED) {
         it.string(PrefKeys.PLAYER_PILL_PINNED, PillItem.encodePinned(PillItem.defaultPinned))
     }
     val orderRaw = rememberPref(prefs, PrefKeys.PLAYER_PILL_ORDER) {
         it.string(PrefKeys.PLAYER_PILL_ORDER, PillItem.encodeOrder(PillItem.defaultOrder))
     }
-    val layout = remember(pinnedRaw, orderRaw) {
-        pillLayout(PillItem.decodeOrder(orderRaw), PillItem.decodePinned(pinnedRaw), desktopPillItems)
+    val layout = remember(pinnedRaw, orderRaw, nextEp) {
+        pillLayout(PillItem.decodeOrder(orderRaw), PillItem.decodePinned(pinnedRaw), pillItemsAvailable(nextEp != null))
     }
 
     // Panels: one at a time. Sources and info load while they are open.
@@ -227,6 +270,48 @@ fun PlayerScreen(
         panel = null
     }
 
+    fun flash(message: String) {
+        notice = message
+        scope.launch {
+            delay(2_600)
+            if (notice == message) notice = null
+        }
+    }
+
+    // Jumps to an episode (`switchEpisode` in PlayerView.swift): finds its stream first, so a failure leaves the current
+    // episode playing; then banks the episode being left and loads the new one at its own resume point.
+    suspend fun switchEpisode(season: Int, episode: EpisodeItem) {
+        if (switching) return
+        switching = true
+        try {
+            val next = episodeSupport.resolve(current, season, episode)
+            if (next == null) {
+                flash("No playable source found for that episode")
+                return
+            }
+            progress.finish(current, snapshot()) // save and scrobble the episode we are leaving
+            val at = ProgressRules.startAt(ProgressRules.resumePoint(data.history.entry(next.item.id), next.key))
+            loadAt = at
+            openedMidway = at > ProgressRules.RESUME_THRESHOLD
+            current = next
+            episodeSerial++
+            progress.begin(at) // the new episode starts its own session: its own start, resume guard and watch flags
+            panel = null
+        } finally {
+            switching = false
+        }
+    }
+
+    // The next episode, from the pill, the skip button, or on its own when the file ends (autoplay).
+    fun playNext() {
+        val (season, episode) = nextEp ?: return
+        scope.launch { switchEpisode(season, episode) }
+    }
+
+    LaunchedEffect(state) {
+        if (state == PlaybackState.Ended && autoplay) playNext()
+    }
+
     // The player is always dark, whatever the app appearance is (preferredColorScheme(.dark) in Swift).
     PearDark(env.theme) {
         PlayerOverlay(
@@ -239,7 +324,7 @@ fun PlayerScreen(
             onClose = { leave(); onBack() },
             onToggleFullscreen = { setFullscreen(!fullscreen) },
             modifier = modifier,
-            openedAt = resumeAt.takeIf { it > 0.0 },
+            openedAt = loadAt.takeIf { it > 0.0 },
             panel = panel,
             onDismissPanel = { panel = null },
             onTitleClick = { panel = PlayerPanel.Info },
@@ -254,6 +339,8 @@ fun PlayerScreen(
                     onSpeed = { togglePanel(PlayerPanel.Speed) },
                     onSources = { togglePanel(PlayerPanel.Sources) },
                     onDisplay = { togglePanel(PlayerPanel.Display) },
+                    onNext = { playNext() },
+                    nextEnabled = !switching,
                     onActive = onActive,
                 )
             },
@@ -283,6 +370,22 @@ fun PlayerScreen(
                     null -> Unit
                 }
             },
+            skip = { shown ->
+                key(episodeSerial) {
+                    SkipButtons(
+                        engine = engine,
+                        controlsShown = shown,
+                        segments = segments,
+                        loaded = segmentsLoaded,
+                        hasNext = nextEp != null,
+                        manualSeconds = if (shown && current.season != null && manualSkipSeconds > 0) manualSkipSeconds.toDouble() else null,
+                        openedMidway = openedMidway,
+                        onSeek = { engine.seek(it) },
+                        onNext = { playNext() },
+                    )
+                }
+            },
+            notice = notice,
             video = {
                 if (!isP2P) {
                     VideoSurface(

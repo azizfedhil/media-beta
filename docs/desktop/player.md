@@ -33,7 +33,7 @@ The app-wide glass mode set to Flat also means Tint in the player. Settings -> P
 
 ### Not in 4.3a (by plan)
 
-Skip intro / up next (4.3d). Not planned: the "pear." loader animation and the paused-state show logo; the overlay shows a spinner instead. (The pill, speed, sources and info card are 4.3c, below.)
+Not planned: the "pear." loader animation and the paused-state show logo; the overlay shows a spinner instead. (The pill, speed, sources and info card are 4.3c, below.)
 
 ## Resume, progress and history (Batch 4.3b)
 
@@ -78,7 +78,7 @@ Code: `player/ui/PillItems.kt` (pill rules), `player/ui/OptionPill.kt` (the pill
 - Speaker: turns the pill into a volume slider (mute button and slider, at least 260 dp wide). It goes back to the icons 3 s after the last change, and the countdown pauses while the slider is dragged.
 - Panels close the pill's folds (`panelOpen`); the pill keeps the controls up while it is open (`onActive`).
 - Live: the pill reads both prefs through `rememberPref`, so a change in Settings shows in an open player.
-- Buttons in this build: **Speed, Sources, Volume** (`desktopPillItems`). Episodes and Next join in 4.3d; Subtitles and Audio in 4.4a; Picture in Picture never applies on desktop. Until then, pinning changes nothing visible (folding needs more than four buttons), and reordering does.
+- Buttons in this build: **Speed, Sources, Volume** (`desktopPillItems`), and **Next** while there is an episode after this one (`pillItemsAvailable`, 4.3d). Episodes (the episode carousel) is not built yet; Subtitles and Audio come in 4.4a; Picture in Picture never applies on desktop. Pinning changes nothing visible until there are more than four buttons, and reordering does.
 
 ### Desktop-only buttons
 Aspect (cycles Fit / Fill / Stretch), 4K performance mode and full screen sit in their own capsule after the pill (`DesktopControls` in `PlayerScreen`). They are not in the pill or in Settings, because the iOS player has none of them. This departs from the plan's "moved into the pill", which conflicted with the Swift pill.
@@ -132,3 +132,39 @@ missing dependency is visible. The library is not in the repository; see `deskto
 - **Info card** (synopsis) is centred on the screen.
 - **Larger controls.** `PLAYER_UI_SCALE` (1.25) scales the controls and panels, text included, through the local density. The
   video behind them is not scaled.
+
+## Skip intro, next episode, autoplay (Batch 4.3d)
+
+Code: `player/ui/SkipRules.kt` (the rules, pure), `player/ui/SkipOverlay.kt` (the buttons), `player/EpisodeSupport.kt` (next-episode lookup, `SourceChooser`), `shell/PlayerScreen.kt` (wiring, switching). Spec: `SkipOverlay`, `loadAux`, `switchEpisode`, `playNext` and the `didEnd` autoplay in PlayerView.swift; `UpNext.swift`, `EpisodeSupport.swift`, `IntroClient.swift`. The data side (`UpNext`, `EpisodeLoader`, `IntroClient`) already existed from 2.2 and 2.4.
+
+- **One skip button, bottom right** above the bar (140 dp up while the controls show, 40 dp when they hide). It changes with the moment, as `choose` in `SkipRules` decides:
+  1. **Next Episode** in the credits, or in the last 45 s once past the first minute, when there is an episode after this one.
+  2. **Skip Intro / Recap / Credits / Preview** for the segment the playhead is in (half a second early, a second and a half before its end). A segment with no end runs to the end of the file, so a credits skip with nothing after it jumps to the end.
+  3. **Skip Ns**, the manual button, only when the setting (Settings -> Playback -> Manual skip button) is above 0, the show has no timestamps, the episode did not open part way in, the playhead is between 3 s and 420 s, and the controls are showing. It goes away after 12 s, and after one use per episode. Each time it is offered again the 12 s start over.
+- **Hidden under panels and errors**, as on iOS. The speed panel hides it too.
+- **Timestamps** come from `IntroClient` (TheIntroDB, TMDB id first, then IMDb) and are looked up again for every episode. The playhead is read in half-second steps, so the overlay doesn't redraw for every frame.
+- **Next episode** (`EpisodeSupport.next`): `UpNext.next`, which is the same rule as the Home screen's Up Next card (the next episode of the season, else episode 1 of the next season, only when it has aired; when no metadata answers it assumes the following episode exists). A movie has none.
+- **Choosing its stream** (`SourceChooser`, the same order as `SourceResolver.request`): the add-on and name of the source being watched now (so the quality and provider carry on), then the show's pinned source, then the first playable stream of any add-on in the user's order. Only direct links count while P2P is off. A name that is gone falls back to that add-on's first playable stream.
+- **Switching** (`switchEpisode`): the stream is found first, so a failure leaves the current episode playing and shows "No playable source found for that episode" in a toast at the top. On success the episode being left is banked (`progress.finish`: save, watch time, Simkl stop), then the new one starts at its own resume point, with `progress.begin` clearing the per-episode state (Simkl start, the start guard). Panels close.
+- **Next** is the pill's last button while there is an episode after this one, and it is greyed out while the next stream is being found. It is the same action as the skip button's Next Episode.
+- **Autoplay** (`player.autoplayNext`, on by default, Settings -> Playback): when the file ends and there is a next episode, it plays. With autoplay off the file just ends, and Next is still there.
+- **End of the show**: no next episode, so no Next button, no autoplay, and the ended state keeps the controls up.
+
+### Differences from the plan (4.3d)
+1. The plan said "Up Next card near the end". The iOS player has no card: the skip button shows Next Episode in the last minute. That is what is built. The Up Next **card** is the Home screen's Continue Watching card, which already exists.
+2. The plan said the next episode "prefers the pinned one". The iOS code (the source of truth) prefers the source being watched now, then the pin. This build follows the code.
+3. The Episodes carousel (the pill's episode button and its season / episode panel) is **not** in this batch. It's its own batch, so Episodes stays out of the pill for now.
+4. The seek bar's "opening" hold (`openedAt`) now follows the load position rather than the resume point, so a source switch and an episode switch hold the right time while the new file opens. For a fresh episode it is zero, as before.
+
+### Check it
+1. An episode with timestamps (a show TheIntroDB knows): at the start of the intro the button reads **Skip Intro**, a click lands at the intro's end, and the button goes away.
+2. In the last minute of an episode with a next one: **Next Episode** shows; a click plays the next episode, the title line shows the new S·E, and the saved progress of the old one is kept (Continue Watching).
+3. Let an episode run out with autoplay on: the next one starts by itself. Turn autoplay off in Settings: the episode stops at the end, and Next in the pill still plays it.
+4. An episode with no timestamps and the manual skip set to 30 s (Settings): Skip 30s shows in the first minutes, once; it goes away after about 12 s, and it doesn't come back for that episode.
+5. Resume an episode mid-way (opens part way in): no manual skip button.
+6. Next episode of a show whose next episode has no stream: a toast says so, and the current episode keeps playing.
+7. Last episode of a show: no Next button, no autoplay; the ended state keeps the controls up.
+8. Credits of the last episode: **Skip Credits** jumps to the end, and the player ends.
+
+### Not compiled
+As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest --tests "*SkipRules*" --tests "*NextPill*" --tests "*UpNext*" --tests "*IntroClient*"` first, then `gradle :desktopApp:run` for the list above.

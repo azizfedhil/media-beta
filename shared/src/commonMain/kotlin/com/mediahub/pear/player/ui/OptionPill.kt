@@ -70,6 +70,8 @@ internal fun OptionPill(
     onSpeed: () -> Unit,
     onSources: () -> Unit,
     onDisplay: () -> Unit,
+    onNext: () -> Unit,
+    nextEnabled: Boolean = true,
     onActive: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -171,6 +173,11 @@ internal fun OptionPill(
                                                 volumeOpen = true
                                             }
                                         },
+                                        onNext = {
+                                            bumpUnfolded()
+                                            onNext()
+                                        },
+                                        nextEnabled = nextEnabled,
                                     )
                                 }
                             }
@@ -211,8 +218,9 @@ internal fun OptionPill(
 }
 
 /**
- * One button of the pill. Only the buttons this build has are drawn: Episodes and Next (4.3d), Subtitles and Audio
- * (4.4a) and Picture in Picture (not on desktop) are never in the layout yet, so they fall through to nothing.
+ * One button of the pill. Only the buttons this build has are drawn: Next (4.3d, only while there is an episode after
+ * this one), and Episodes, Subtitles and Audio (4.4a and later) and Picture in Picture (not on desktop) are not in the
+ * layout yet, so they fall through to nothing.
  */
 @Composable
 private fun PillButton(
@@ -224,6 +232,8 @@ private fun PillButton(
     onSpeed: () -> Unit,
     onSources: () -> Unit,
     onVolume: () -> Unit,
+    onNext: () -> Unit,
+    nextEnabled: Boolean,
 ) {
     when (item) {
         PillItem.Speed -> PlayerPillButton(
@@ -241,6 +251,12 @@ private fun PillButton(
         PillItem.Volume -> PlayerPillButton(
             symbol = if (volume < 0.001f) "speaker.slash" else item.symbol,
             onClick = onVolume,
+            contentDescription = item.title,
+        )
+        PillItem.Next -> PlayerPillButton(
+            symbol = item.symbol,
+            onClick = onNext,
+            enabled = nextEnabled,
             contentDescription = item.title,
         )
         else -> Unit

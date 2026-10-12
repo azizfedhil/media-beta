@@ -56,10 +56,17 @@ enum class PillItem(val raw: String, val title: String, val symbol: String) {
 }
 
 /**
- * The buttons this build can show. Each one joins the set when its batch lands: Episodes and Next in 4.3d,
- * Subtitles and Audio in 4.4a. Picture in Picture never applies on desktop.
+ * The buttons this build can show, whatever the show. Each one joins the set when its batch lands: Subtitles and
+ * Audio in 4.4a, Episodes later. Next depends on the episode (see [pillItemsAvailable]). Picture in Picture never
+ * applies on desktop.
  */
 val desktopPillItems: Set<PillItem> = setOf(PillItem.Speed, PillItem.Sources, PillItem.Volume)
+
+/**
+ * The buttons available right now: [desktopPillItems], plus Next while the show has an episode after this one
+ * (`pillHas` in PlayerView.swift).
+ */
+fun pillItemsAvailable(hasNext: Boolean): Set<PillItem> = if (hasNext) desktopPillItems + PillItem.Next else desktopPillItems
 
 /** What the pill shows right now: the buttons in on-screen order, and how many of them are folded away. */
 data class PillLayout(val items: List<PillItem>, val folded: Int)
