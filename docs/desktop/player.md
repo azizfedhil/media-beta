@@ -280,3 +280,19 @@ As before, run `gradle :shared:desktopTest --tests "*SubtitleSources*" --tests "
 
 ### Not compiled
 As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest --tests "*SubtitleStyle*" --tests "*SubtitleRendering*"` first, then `gradle :desktopApp:run`.
+
+## Margins, the Subtitles panel, and the shared style editor (review 6)
+
+- **Margins** (`player/ui/PlayerOverlay.kt`). The top bar and the bottom bar use two named constants: `PLAYER_SIDE_MARGIN` (48 dp) and `PLAYER_BOTTOM_MARGIN` (28 dp). iOS keeps its controls inside the safe area (24 pt from the sides, 6 pt from the bottom, and a landscape iPhone's notch and home indicator add to that). A desktop window has no safe area, so these two numbers stand in for it. The floating speed, display and audio panels sit at `PLAYER_PANEL_CLEARANCE` (132 dp) so they clear the pill, which moved up with the bottom margin.
+- **Subtitles panel** (`player/ui/TrackPanels.kt`). Two tabs, Tracks and Appearance. Tracks: Off, the file's tracks, the online files, and the subtitle delay, under section labels. Appearance: the style editor. iOS keeps both in one long list, with the style at the bottom.
+- **Shared style editor** (`player/ui/SubtitleStyleEditor.kt`). The preview, size, colour, font, weight, edge, background, distance and reset. The Settings page and the player's panel use it, so they edit the same `sub.style` and show it the same way. A change in the player reaches the picture at once, and the settings page follows it.
+- **Icons**. Lucide 1.55.0 (ISC licence) replaces Material Design Icons. See `docs/desktop/theme.md`.
+
+### Check it
+1. Margins: in a window, the title and the pill sit 48 dp from the sides and 28 dp from the bottom. Open the speed panel with the pill: it floats clear above the pill.
+2. Subtitles panel: open it from the pill. The Tracks tab lists Off and the file's tracks; the Appearance tab shows the preview and the controls. Change the size: the line in the picture changes as the slider moves, and the value saves when the drag ends.
+3. Settings -> Subtitles -> Appearance: the same controls, and a change there shows in the Subtitles panel the next time you open it.
+4. Icons: every icon is an outline. The former solid icons (for example the checkmark in a circle, the play circle) are outlines now, as Lucide has no solid set.
+
+### Not compiled
+As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest` first, then `gradle :desktopApp:run`.

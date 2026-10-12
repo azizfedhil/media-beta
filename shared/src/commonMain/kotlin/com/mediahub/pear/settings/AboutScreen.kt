@@ -58,7 +58,7 @@ fun AboutScreen(
                 ComponentRow("Haze", "Glass and blur material engine (Apache-2.0)", "https://github.com/chrisbanes/haze")
                 ComponentRow("libmpv", "Video playback core (LGPL-2.1 / GPL-2.0)", "https://mpv.io")
                 ComponentRow("librqbit", "Peer-to-peer torrent streaming engine (Apache-2.0)", "https://github.com/ikatson/rqbit")
-                ComponentRow("Material Design Icons", "Icon set by Pictogrammers (Apache-2.0)", "https://pictogrammers.com/library/mdi/")
+                ComponentRow("Lucide", "Icon set (ISC licence), a fork of Feather (MIT)", "https://lucide.dev")
             }
 
             GlassCard(Modifier.fillMaxWidth()) {

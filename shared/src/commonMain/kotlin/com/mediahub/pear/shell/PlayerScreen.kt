@@ -491,6 +491,8 @@ fun PlayerScreen(
                         online = OpenSubtitlesClient.choices(onlineSubs, preferredSubLang).filter { it.id !in addedOnline },
                         loadingOnline = onlineLoading,
                         onPickOnline = { addOnline(it) },
+                        style = subStyle,
+                        onStyle = { prefs.setString(PrefKeys.SUB_STYLE, it.encoded()) },
                         onClose = { panel = null },
                     )
                     PlayerPanel.Audio -> AudioPanel(

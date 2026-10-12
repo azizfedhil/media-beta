@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.model.OnlineSubtitle
 import com.mediahub.pear.player.DelayMath
 import com.mediahub.pear.player.PlayerTrack
+import com.mediahub.pear.player.SubtitleStyle
+import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.player.TrackLabels
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
@@ -47,6 +51,14 @@ import com.mediahub.pear.theme.weight
  * Subtitles: Off and each track of the file, the track playing marked, then the subtitle delay. Picking a track keeps
  * the card open, as on iOS. [onPick] gets null for Off.
  */
+/** The two sections of the Subtitles panel: the tracks (with the online list and the timing), and the look. */
+internal enum class SubtitleSection(val title: String) { Tracks("Tracks"), Appearance("Appearance") }
+
+/**
+ * The Subtitles panel (Batch 4.4c). iOS keeps the track list and the look in one long list; here they are two tabs, so the
+ * look is one tap away and the track list stays short. Tracks: Off, the file's tracks, the online files, then the timing.
+ * Appearance: the shared style editor, which changes the subtitles in the picture as it is changed.
+ */
 @Composable
 internal fun SubtitlesPanel(
     tracks: List<PlayerTrack>,
@@ -59,43 +71,71 @@ internal fun SubtitlesPanel(
     online: List<OnlineSubtitle> = emptyList(),
     loadingOnline: Boolean = false,
     onPickOnline: (OnlineSubtitle) -> Unit = {},
+    /** The viewer's subtitle look, and how a change to it is saved (4.4c). */
+    style: SubtitleStyle = SubtitleStyle(),
+    onStyle: (SubtitleStyle) -> Unit = {},
 ) {
+    var section by remember { mutableStateOf(SubtitleSection.Tracks) }
     BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
-        // Read here, where the constraints are in scope, and passed down to the list.
-        val listMax = maxHeight / 2
         PlayerSurface(Modifier.width(340.dp).heightIn(max = maxHeight), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 PanelHeader("Subtitles", onClose)
-                Column(
-                    Modifier.heightIn(max = listMax).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    TrackRow("Off", selected = tracks.none { it.isSelected }) { onPick(null) }
-                    tracks.forEach { t ->
-                        TrackRow(TrackLabels.of(t), selected = t.isSelected) { onPick(t) }
-                    }
-                    if (loadingOnline || online.isNotEmpty()) {
-                        Row(
-                            Modifier.padding(top = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            PearText(
-                                "ONLINE",
-                                style = PearTheme.type.caption2.weight(FontWeight.Bold),
-                                color = Color.White.copy(alpha = 0.6f),
-                            )
-                            if (loadingOnline) PlayerSpinner(diameter = 14.dp)
-                        }
-                    }
-                    online.forEach { s ->
-                        TrackRow(onlineLabel(s, online), selected = false) { onPickOnline(s) }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SubtitleSection.entries.forEach { s ->
+                        DevChip(s.title, selected = section == s) { section = s }
                     }
                 }
-                DelayControl("Subtitle delay", delaySeconds, onDelay)
+                // Only the body scrolls; the header and the tabs stay where they are.
+                Column(
+                    Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    when (section) {
+                        SubtitleSection.Tracks -> TracksSection(tracks, onPick, online, loadingOnline, onPickOnline, delaySeconds, onDelay)
+                        SubtitleSection.Appearance -> SubtitleStyleEditor(style, onChange = onStyle)
+                    }
+                }
             }
         }
     }
+}
+
+/** The track list: Off, the file's tracks, the online files, then the subtitle delay. */
+@Composable
+private fun TracksSection(
+    tracks: List<PlayerTrack>,
+    onPick: (PlayerTrack?) -> Unit,
+    online: List<OnlineSubtitle>,
+    loadingOnline: Boolean,
+    onPickOnline: (OnlineSubtitle) -> Unit,
+    delaySeconds: Double,
+    onDelay: (Double) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SectionLabel("In this file")
+        TrackRow("Off", selected = tracks.none { it.isSelected }) { onPick(null) }
+        tracks.forEach { t -> TrackRow(TrackLabels.of(t), selected = t.isSelected) { onPick(t) } }
+    }
+    if (loadingOnline || online.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel("Online")
+                if (loadingOnline) PlayerSpinner(diameter = 14.dp)
+            }
+            online.forEach { s -> TrackRow(onlineLabel(s, online), selected = false) { onPickOnline(s) } }
+        }
+    }
+    DelayControl("Subtitle delay", delaySeconds, onDelay)
+}
+
+/** A small caps heading that names a section of the panel. */
+@Composable
+private fun SectionLabel(text: String) {
+    PearText(
+        text.uppercase(),
+        style = PearTheme.type.caption2.weight(FontWeight.Bold),
+        color = Color.White.copy(alpha = 0.6f),
+    )
 }
 
 /**
@@ -121,7 +161,7 @@ internal fun AudioPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier.fillMaxSize().padding(end = 20.dp, bottom = 118.dp), contentAlignment = Alignment.BottomEnd) {
+    Box(modifier.fillMaxSize().padding(end = 20.dp, bottom = PLAYER_PANEL_CLEARANCE), contentAlignment = Alignment.BottomEnd) {
         PlayerSurface(Modifier.width(360.dp), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 PanelHeader("Audio", onClose)

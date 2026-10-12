@@ -84,6 +84,18 @@ import kotlinx.coroutines.flow.onStart
  *
  * Only the seek bar reads the engine's clock, so the rest of the overlay does not recompose while a video plays.
  */
+/**
+ * The controls' margins. iOS keeps its controls at 24 pt from the sides and 6 pt from the bottom, inside the safe area; a
+ * landscape iPhone's notch and home indicator add to that, so the controls sit well in from the edges. A desktop window has
+ * no safe area, so the margins are set here instead: 48 dp at the sides and 28 dp at the bottom, the nearest match to the
+ * iOS player's look at window size. Change these two numbers to adjust them.
+ */
+internal val PLAYER_SIDE_MARGIN = 48.dp
+internal val PLAYER_BOTTOM_MARGIN = 28.dp
+
+/** How far the speed and audio panels float above the bottom edge: clear of the pill, which moved up with the margin. */
+internal val PLAYER_PANEL_CLEARANCE = 132.dp
+
 @Composable
 fun PlayerOverlay(
     engine: PlayerEngine,
@@ -261,7 +273,7 @@ private fun Controls(
             Box(Modifier.fillMaxWidth().height(260.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
         }
 
-        Box(Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp).hoverFlag(overTop)) {
+        Box(Modifier.align(Alignment.TopStart).padding(start = PLAYER_SIDE_MARGIN, top = 16.dp).hoverFlag(overTop)) {
             PlayerCircleButton("xmark", size = 42.dp, icon = 16.dp, onClick = onClose, contentDescription = "Close")
         }
 
@@ -278,7 +290,7 @@ private fun Controls(
                 trailing = trailing,
                 onScrubbing = onScrubbing,
                 openedAt = openedAt,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp).padding(bottom = 14.dp).hoverFlag(overBottom),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = PLAYER_SIDE_MARGIN).padding(bottom = PLAYER_BOTTOM_MARGIN).hoverFlag(overBottom),
             )
         }
     }

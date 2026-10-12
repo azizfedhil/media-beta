@@ -1,6 +1,8 @@
 package com.mediahub.pear.theme
 
 import androidx.compose.ui.graphics.vector.PathParser
+import com.mediahub.pear.theme.icons.lucideIcons
+import com.mediahub.pear.theme.icons.sfToLucide
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -28,17 +30,25 @@ class IconMapTest {
     @Test
     fun everyIconParsesToDrawingCommands() {
         for (name in PearIcons.symbols) {
-            val data = PearIcons.pathData(name)
-            assertTrue(data.isNotBlank(), "empty path for $name")
-            val nodes = PathParser().parsePathString(data).toNodes()
-            assertTrue(nodes.isNotEmpty(), "no path nodes for $name")
+            val shapes = PearIcons.shapes(name)
+            assertTrue(shapes.isNotEmpty(), "no parts for $name")
+            for (shape in shapes) {
+                assertTrue(shape.d.isNotBlank(), "empty path in $name")
+                assertTrue(PathParser().parsePathString(shape.d).toNodes().isNotEmpty(), "no path nodes in $name")
+            }
         }
+    }
+
+    @Test
+    fun everyMappedLucideNameHasItsDrawing() {
+        val missing = sfToLucide.values.distinct().filter { it !in lucideIcons }
+        assertTrue(missing.isEmpty(), "Lucide names without drawing data: $missing")
     }
 
     @Test
     fun unknownSymbolFallsBackInsteadOfCrashing() {
         assertFalse(PearIcons.has("no.such.symbol"))
-        assertTrue(PearIcons.pathData("no.such.symbol").isNotBlank())
+        assertTrue(PearIcons.shapes("no.such.symbol").isNotEmpty())
     }
 
     @Test

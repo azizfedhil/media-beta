@@ -15,10 +15,17 @@ Code: `shared/.../theme/`. Preview screen: `preview/ThemePreview.kt` (Settings -
   `shared/src/desktopMain/resources/fonts/` (see the README there), otherwise the system font.
 - **Icons** (`PearIcon.kt`): `PearIcon("house.fill")` takes the SF Symbol names the Swift app uses. Unknown names show a question mark.
 
-## Deviation from the plan: icon set
+## Icon set: Lucide
 
-The plan said Material Symbols. I could not download it (no network here), so the icons are **Material Design Icons** (Pictogrammers, Apache 2.0, the same
-licence). They are stored as SVG path data in `theme/icons/PearIconData.kt` and drawn with Compose's `PathParser`: no font file, no resource pipeline.
-The map is `SF_TO_MDI` in `tools/gen_icons.py`; to add an icon, add a line there and run
-`python tools/gen_icons.py <path to @mdi/svg/svg> `. MDI is added to the About screen list in Batch 3.5. Switching to Material Symbols later only changes
-`PearIconData.kt` and `PearIcon`.
+The plan said Material Symbols. The icons are now **Lucide** (ISC licence, a fork of Feather, MIT), version 1.55.0 for the
+generated file. Lucide is outline-only: every element is a 2-unit stroke with round caps and joins on a 24x24 grid.
+`tools/gen_icons.py` turns each element (path, circle, ellipse, rect, line, polyline, polygon) into path data and keeps
+whether it is filled (the few solid dots). `PearIcon` strokes the outline parts and fills the dots, so no font file or
+resource pipeline is needed.
+
+- The map is `SF_TO_LUCIDE` in `tools/gen_icons.py`. To add an icon, add a line there and run
+  `python tools/gen_icons.py <folder with Lucide *.svg>`, then commit the regenerated `PearIconData.kt`.
+- The script stops with a message if a mapped name is missing from the folder, or if an icon's stroke width is not 2.
+- Filled SF variants (`checkmark.circle.fill`, `play.circle.fill`) draw as the Lucide outline: Lucide has no solid set.
+  A few Lucide icons have solid dots; those stay filled.
+- The About screen credits Lucide (ISC) with Feather (MIT).
