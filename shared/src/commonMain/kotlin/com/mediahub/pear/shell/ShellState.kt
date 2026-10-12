@@ -88,6 +88,18 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
         sourcePicker = null
     }
 
+    /** The long-press style menu of a poster, season or episode, if one is open. */
+    var contextMenu: ContextMenuRequest? by mutableStateOf(null)
+        private set
+
+    fun openContextMenu(request: ContextMenuRequest) {
+        contextMenu = request
+    }
+
+    fun closeContextMenu() {
+        contextMenu = null
+    }
+
     private val tabNavs = HashMap<AppTab, NavController<Route>>()
 
     var catalogueNav: NavController<Route>? by mutableStateOf(null)
@@ -97,6 +109,7 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
 
     fun select(tab: AppTab) {
         sourcePicker = null
+        contextMenu = null
         catalogue = null
         catalogueNav = null
         this.tab = tab

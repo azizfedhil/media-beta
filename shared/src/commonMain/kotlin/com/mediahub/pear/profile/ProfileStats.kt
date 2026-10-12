@@ -149,6 +149,20 @@ data class ProfileStats(
 class ProfileStatsModel(private val data: AppData) {
     var stats by mutableStateOf(ProfileStats())
         private set
+
+    /** TMDB's genre names by id. Movie and TV lists are merged: the shared genres have the same name in both. */
+    private suspend fun genreNameMap(): Map<Int, String> {
+        if (!data.meta.tmdb.hasKey) return emptyMap()
+        return (data.meta.tmdb.genres("movie") + data.meta.tmdb.genres("tv")).associate { it.id to it.name }
+    }
+
+    /** A title's genre names: from its TMDB ids, or from its details when the source listed no ids. */
+    private suspend fun genreNames(item: MetaPreview, names: Map<Int, String>): List<String> {
+        val ids = item.genreIDs.orEmpty()
+        if (ids.isNotEmpty()) return ids.mapNotNull { names[it] }
+        if (!data.meta.tmdb.hasKey) return emptyList()
+        return data.meta.tmdb.cachedDetails(item.id, item.type)?.genres?.map { it.name }.orEmpty()
+    }
     var loading by mutableStateOf(false)
         private set
     var done by mutableIntStateOf(0)
@@ -164,6 +178,8 @@ class ProfileStatsModel(private val data: AppData) {
             val historyEntries = data.history.allEntries
             val localEntries = data.library.entries
             val simklRows = if (includeSimkl) data.simkl.library else emptyList()
+            // Genre names, not TMDB's numbers: the favourite genres list reads them from here.
+            val names = genreNameMap()
 
             val builtTitles = mutableListOf<StatTitle>()
             val processedIds = HashSet<String>()
@@ -189,7 +205,7 @@ class ProfileStatsModel(private val data: AppData) {
                         status = status,
                         episodes = epCount,
                         minutes = mins,
-                        genres = h.item.genreIDs?.map { it.toString() } ?: emptyList(),
+                        genres = genreNames(h.item, names),
                         year = h.item.year,
                         isSeries = isSeries,
                     ),
@@ -213,7 +229,7 @@ class ProfileStatsModel(private val data: AppData) {
                         status = status,
                         episodes = if (status == StatTitleStatus.Completed && isSeries) 10 else 0,
                         minutes = if (status == StatTitleStatus.Completed) rt else 0.0,
-                        genres = l.item.genreIDs?.map { it.toString() } ?: emptyList(),
+                        genres = genreNames(l.item, names),
                         year = l.item.year,
                         isSeries = isSeries,
                     ),

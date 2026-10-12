@@ -11,6 +11,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.matchParentSize
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -82,6 +84,8 @@ fun GlassSurface(
     highlight: Boolean = false,
     /** Scales the border's alpha: 1 is the theme outline, 0.5 is half as strong (the player's surfaces). Frosted and Flat only. */
     outlineStrength: Float = 1f,
+    /** A gradient drawn over the glass, under the content. Gives the surface its colour (the accent sheen). */
+    sheen: Brush? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = PearTheme.colors
@@ -110,5 +114,8 @@ fun GlassSurface(
         }
         GlassMode.Flat -> Modifier.clip(shape).background(flatColor(c, wash)).border(1.dp, outline, shape)
     }
-    Box(modifier.then(effect).then(if (highlight) Modifier.background(c.fillSubtle) else Modifier), content = content)
+    Box(modifier.then(effect).then(if (highlight) Modifier.background(c.fillSubtle) else Modifier)) {
+        if (sheen != null) Box(Modifier.matchParentSize().clip(shape).background(sheen))
+        content()
+    }
 }

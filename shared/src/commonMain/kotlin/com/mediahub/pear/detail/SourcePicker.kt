@@ -353,6 +353,7 @@ private fun SourceCard(stream: StreamItem, isPinned: Boolean, onClick: () -> Uni
         RoundedCornerShape(PearRadii.card),
         wash = if (isPinned) c.accent.copy(alpha = 0.3f) else null,
         highlight = hovered,
+        sheen = c.sheen,
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,9 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.round
 
 /** The widest the profile page gets in the wide layout. Wider windows get empty space on the sides, not stretched cards. */
 private const val MAX_CONTENT_WIDTH_DP = 1120
@@ -137,29 +141,67 @@ fun ProfileDetailScreen(
     @Composable
     fun TilesSection() {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatTile("Watching", "eye.fill", stats.count(StatTitleStatus.Watching), "${stats.count(StatTitleStatus.Watching, StatKind.Shows)} shows", Modifier.weight(1f))
-            StatTile("Saved", "bookmark.fill", stats.count(StatTitleStatus.Planned), "${stats.count(StatTitleStatus.Planned, StatKind.Movies)} movies", Modifier.weight(1f))
+            StatTile("Watching", "eye.fill", stats.count(StatTitleStatus.Watching), splitCaption(stats, StatTitleStatus.Watching), Modifier.weight(1f))
+            StatTile("Saved", "bookmark.fill", stats.count(StatTitleStatus.Planned), splitCaption(stats, StatTitleStatus.Planned), Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatTile("Completed", "checkmark.circle.fill", stats.count(StatTitleStatus.Completed), "${stats.count(StatTitleStatus.Completed, StatKind.Shows)} shows", Modifier.weight(1f))
-            StatTile("Episodes seen", "play.rectangle.fill", stats.episodesSeen, "all time", Modifier.weight(1f))
+            StatTile("Completed", "checkmark.circle.fill", stats.count(StatTitleStatus.Completed), splitCaption(stats, StatTitleStatus.Completed), Modifier.weight(1f))
+            val shows = stats.titles.count { it.isSeries && it.episodes > 0 }
+            StatTile("Episodes seen", "play.rectangle.fill", stats.episodesSeen, "across $shows ${if (shows == 1) "show" else "shows"}", Modifier.weight(1f))
         }
     }
 
     @Composable
     fun WatchTimeSection() {
-        Box(
+        // The same card as the iOS profile: the total in days, hours and minutes, then shows, movies and the daily average.
+        val minutes = stats.totalMinutes
+        val days = minutes / 1440.0
+        val number = when {
+            days >= 10 -> fixed(days, 0)
+            days >= 1 -> fixed(days, 1)
+            else -> fixed(days, 2)
+        }
+        val daily = stats.averageDaily
+        Column(
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(PearRadii.card))
-                .background(PearTheme.colors.accent.copy(alpha = 0.85f))
-                .padding(20.dp),
+                .background(PearTheme.colors.gradient, alpha = 0.85f)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                PearText("Total watch time", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White.copy(alpha = 0.85f))
-                val days = stats.totalMinutes / 1440.0
-                val daysFormatted = if (days >= 10) "${days.toInt()} days" else "${(kotlin.math.round(days * 10) / 10)} days"
-                PearText(daysFormatted, style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 38.sp), color = Color.White)
-                PearText("${(stats.totalMinutes / 60).toInt()} hours · ${stats.totalMinutes.toInt()} minutes", style = PearTheme.type.footnote, color = Color.White.copy(alpha = 0.85f))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PearIcon("clock.fill", size = 16.dp, tint = Color.White)
+                PearText("Total watch time", style = PearTheme.type.headline, color = Color.White)
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PearText(number, style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 56.sp), color = Color.White, maxLines = 1)
+                PearText(
+                    if (abs(days - 1) < 0.005) "day" else "days",
+                    style = PearTheme.type.title3.weight(FontWeight.SemiBold),
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+            }
+            PearText(
+                "${grouped(round(minutes / 60).toLong())} hours · ${grouped(round(minutes).toLong())} minutes",
+                style = PearTheme.type.subheadline,
+                color = Color.White.copy(alpha = 0.75f),
+            )
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.25f)))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                MiniStat("Shows", durationText(stats.minutes(StatKind.Shows)))
+                MiniStat("Movies", durationText(stats.minutes(StatKind.Movies)))
+                MiniStat(
+                    if (daily != null && !daily.second) "Avg / day (est.)" else "Avg / day",
+                    daily?.let { durationText(it.first) } ?: "–",
+                )
+            }
+            daily?.let { (_, tracked) ->
+                PearText(
+                    if (tracked) "Average per day over the last 30 days of playback."
+                    else "Estimated from your library. Exact daily averages build up as you watch in the app.",
+                    style = PearTheme.type.caption,
+                    color = Color.White.copy(alpha = 0.65f),
+                )
             }
         }
     }
@@ -176,11 +218,21 @@ fun ProfileDetailScreen(
                 }
             }
 
-            // Favourite genres bars
+            // Favourite genres: always shown, with the reason when there is nothing yet (as on iOS).
             val genres = stats.genreShares(selectedKind)
-            if (genres.isNotEmpty()) {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    PearText("Favourite genres", style = PearTheme.type.headline)
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                PearText("Favourite genres", style = PearTheme.type.headline)
+                if (genres.isEmpty()) {
+                    PearText(
+                        when {
+                            !env.data.meta.tmdb.hasKey -> "Needs a TMDB key."
+                            model.loading -> "Working it out…"
+                            else -> "Not enough watched yet."
+                        },
+                        style = PearTheme.type.footnote,
+                        color = PearTheme.colors.textSecondary,
+                    )
+                } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         genres.forEach { s ->
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -188,12 +240,23 @@ fun ProfileDetailScreen(
                                     PearText(s.id, style = PearTheme.type.footnote)
                                     PearText("${s.percent.toInt()}%", style = PearTheme.type.footnote.weight(FontWeight.SemiBold))
                                 }
+                                val fraction = (s.percent / 100.0).toFloat().coerceIn(0.02f, 1f)
+                                val bar = if (s.id == "Other") {
+                                    Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.3f)))
+                                } else {
+                                    PearTheme.colors.gradient
+                                }
                                 Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(PearTheme.colors.fill)) {
-                                    Box(Modifier.fillMaxHeight().fillMaxWidth((s.percent / 100.0).toFloat().coerceIn(0.02f, 1f)).background(PearTheme.colors.accent))
+                                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(CircleShape).background(bar))
                                 }
                             }
                         }
                     }
+                    PearText(
+                        "Weighted by time spent, so a long series counts for more than a short film.",
+                        style = PearTheme.type.caption,
+                        color = PearTheme.colors.textSecondary,
+                    )
                 }
             }
 
@@ -294,4 +357,42 @@ private fun StatTile(title: String, symbol: String, value: Int, caption: String,
         PearText(value.toString(), style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 32.sp))
         PearText(caption, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
     }
+}
+
+/** A stat in the watch-time card: the value, and its label under it. */
+@Composable
+private fun MiniStat(title: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        PearText(value, style = PearTheme.type.title3.weight(FontWeight.Bold), color = Color.White)
+        PearText(title, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.7f))
+    }
+}
+
+/** The tile caption for a status: how many shows and movies are in it. */
+private fun splitCaption(stats: ProfileStats, status: StatTitleStatus): String =
+    "${stats.count(status, StatKind.Shows)} shows · ${stats.count(status, StatKind.Movies)} movies"
+
+/** A number with [decimals] places, rounded half up (`String(format:)` on iOS). Common code has no `String.format`. */
+private fun fixed(value: Double, decimals: Int): String {
+    val scale = 10.0.pow(decimals)
+    val n = round(value * scale).toLong()
+    val whole = n / scale.toLong()
+    if (decimals == 0) return whole.toString()
+    val frac = (n % scale.toLong()).toString().padStart(decimals, '0')
+    return "$whole.$frac"
+}
+
+/** 12345 -> "12,345". */
+private fun grouped(n: Long): String = n.toString().reversed().chunked(3).joinToString(",").reversed()
+
+/** Minutes as "45m", "3h", "3h 20m", "2d" or "2d 5h" (`duration` in ProfileDetailView.swift). */
+private fun durationText(minutes: Double): String {
+    val m = round(minutes).toLong()
+    if (m < 60) return "${m}m"
+    val h = m / 60
+    val r = m % 60
+    if (h < 24) return if (r == 0L) "${h}h" else "${h}h ${r}m"
+    val d = h / 24
+    val hh = h % 24
+    return if (hh == 0L) "${d}d" else "${d}d ${hh}h"
 }

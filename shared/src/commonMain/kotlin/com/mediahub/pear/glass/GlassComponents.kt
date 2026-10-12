@@ -86,6 +86,7 @@ fun GlassButton(
         shape = RoundedCornerShape(percent = 50),
         wash = tint?.copy(alpha = 0.55f),
         highlight = hovered && enabled,
+        sheen = if (tint == null) PearTheme.colors.sheen else null,
     ) {
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = if (label != null) 16.dp else 0.dp),
@@ -137,7 +138,7 @@ fun GlassCard(
     val hovered by source.collectIsHoveredAsState()
     val interactive = if (onClick == null) Modifier else
         Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand).clickable(interactionSource = source, indication = null, onClick = onClick)
-    GlassSurface(modifier.then(interactive), shape, highlight = hovered && onClick != null) {
+    GlassSurface(modifier.then(interactive), shape, highlight = hovered && onClick != null, sheen = PearTheme.colors.sheen) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }
@@ -145,7 +146,7 @@ fun GlassCard(
 /** Dropdown / context menu panel. Place it where the menu should open; positioning is the caller's job. */
 @Composable
 fun GlassMenu(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg)) {
+    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg), sheen = PearTheme.colors.sheen) {
         Column(Modifier.padding(6.dp), content = content)
     }
 }
@@ -184,7 +185,7 @@ fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, content
     } else {
         RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)
     }
-    GlassSurface(modifier, shape) {
+    GlassSurface(modifier, shape, sheen = c.sheen) {
         Column(Modifier.padding(horizontal = 20.dp).padding(top = if (floating) 20.dp else 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!floating) Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)

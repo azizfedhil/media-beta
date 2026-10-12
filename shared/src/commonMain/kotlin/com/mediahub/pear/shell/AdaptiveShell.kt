@@ -236,4 +236,7 @@ private fun ShellOverlays(
     shell.sourcePicker?.let { picker ->
         SourcePickerOverlay(picker, onClose = { shell.closeSourcePicker() })
     }
+    shell.contextMenu?.let { menu ->
+        ContextMenuOverlay(menu, onClose = { shell.closeContextMenu() })
+    }
 }

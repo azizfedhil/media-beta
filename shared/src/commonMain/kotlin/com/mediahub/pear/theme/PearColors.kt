@@ -1,5 +1,6 @@
 package com.mediahub.pear.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -40,6 +41,15 @@ class PearColors(
     val yellow: Color,
     val blue: Color,
 ) {
+    /** The accent gradient (iOS `ThemeStore.gradient`): the accent into its neighbouring hue, left to right. */
+    val gradient: Brush get() = Brush.horizontalGradient(listOf(accent, accent2))
+
+    /**
+     * The accent gradient, faint. Sits behind menus, cards, buttons and sheets so they stand off a black background,
+     * the way the iOS cards and menus take the accent. Glass only tints the blur; this is what gives it colour.
+     */
+    val sheen: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.34f), accent2.copy(alpha = 0.12f)))
+
     /** Name and colour of every token, for the theme preview screen. */
     fun swatches(): List<Pair<String, Color>> = listOf(
         "accent" to accent, "accent2" to accent2, "onAccent" to onAccent,

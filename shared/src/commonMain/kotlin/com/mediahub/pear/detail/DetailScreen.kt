@@ -74,7 +74,13 @@ import com.mediahub.pear.theme.weight
 import com.mediahub.pear.home.fallbackHeroAmbientColor
 import com.mediahub.pear.net.rememberDominantColor
 import com.mediahub.pear.shell.FadedPoster
+import com.mediahub.pear.shell.AppEnv
+import com.mediahub.pear.shell.ContextMenuItem
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.menuAnchor
 import com.mediahub.pear.shell.FeedCollapse
+import kotlin.math.max
 import com.mediahub.pear.shell.LocalFeedCollapse
 
 @Composable
@@ -229,6 +235,7 @@ fun DetailScreen(
                     ) {
                         if (isSeries) {
                             SeasonsAndEpisodesSection(
+                                item = item,
                                 details = details,
                                 selectedSeason = selectedSeason,
                                 selectedEpisode = selectedEpisode,
@@ -331,6 +338,7 @@ fun DetailScreen(
 
                 if (isSeries) {
                     SeasonsAndEpisodesSection(
+                        item = item,
                         details = details,
                         selectedSeason = selectedSeason,
                         selectedEpisode = selectedEpisode,
@@ -444,6 +452,7 @@ private fun DetailActionBar(
 
 @Composable
 private fun SeasonsAndEpisodesSection(
+    item: MetaPreview,
     details: TmdbDetails?,
     selectedSeason: Int,
     selectedEpisode: Int,
@@ -479,7 +488,22 @@ private fun SeasonsAndEpisodesSection(
         DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(seasons) { s ->
                 val num = s.seasonNumber
-                DevChip(s.title, selectedSeason == num) { onSelectSeason(num) }
+                val anchor = remember { MenuAnchor() }
+                Box(Modifier.menuAnchor(anchor)) {
+                    DevChip(s.title, selectedSeason == num) {
+                        // Wide layout: a click opens the season's menu (its first item shows the season). Phone: a tap selects.
+                        if (isWide) {
+                            env.shell.openContextMenu(
+                                ContextMenuRequest(
+                                    anchor.rect(),
+                                    seasonMenuItems(env, item, num, details, selectedSeason, episodes) { onSelectSeason(num) },
+                                ),
+                            )
+                        } else {
+                            onSelectSeason(num)
+                        }
+                    }
+                }
             }
         }
 
@@ -519,6 +543,40 @@ private fun SeasonsAndEpisodesSection(
             }
         }
     }
+}
+
+/**
+ * A season's menu (`seasonMenu` in DetailView.swift): show it, and mark it watched or unmark it. A season is watched
+ * when everything up to its last episode is.
+ */
+private fun seasonMenuItems(
+    env: AppEnv,
+    item: MetaPreview,
+    season: Int,
+    details: TmdbDetails?,
+    selectedSeason: Int,
+    episodes: List<EpisodeItem>,
+    onShow: () -> Unit,
+): List<ContextMenuItem> {
+    val history = env.data.history
+    val count = details?.seasons?.firstOrNull { it.seasonNumber == season }?.episodeCount
+        ?: episodes.takeIf { season == selectedSeason && it.isNotEmpty() }?.size
+        ?: 10
+    val minutes = (details?.minutes ?: 45).toDouble()
+    val watched = history.isWatched(season, count, item.id)
+    return listOf(
+        ContextMenuItem("Show Season $season", "rectangle.stack") { onShow() },
+        ContextMenuItem(
+            label = if (watched) "Unmark Season as Watched" else "Mark Season as Watched",
+            symbol = if (watched) "circle" else "checkmark.circle",
+        ) {
+            if (watched) {
+                history.unmarkThrough(episode = 1, season = season, item = item)
+            } else {
+                history.markWatched(item, season = season, episode = count, duration = max(minutes, 20.0) * count * 60.0)
+            }
+        },
+    )
 }
 
 // MARK: Trailers
