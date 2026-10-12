@@ -1,5 +1,10 @@
 package com.mediahub.pear.detail
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -135,6 +140,7 @@ fun DetailScreen(
                 episodeTitle = episodes.firstOrNull { it.id == selectedEpisode }?.name,
                 thumb = (if (isSeries) episodes.firstOrNull { it.id == selectedEpisode }?.image else null) ?: item.backdropUrl,
                 logo = logoUrl,
+                episodeInfo = episodes.firstOrNull { it.id == selectedEpisode },
                 onSelect = { request -> onPlay(request) },
             ),
         )
@@ -147,6 +153,11 @@ fun DetailScreen(
         }
     }
 
+    // Wide layout: the poster column folds away as the page scrolls, the way Home's hero does.
+    val wideScroll = rememberScrollState()
+    val fold by animateFloatAsState((wideScroll.value / 300f).coerceIn(0f, 1f), tween(140))
+    val posterWidth = 440.dp * (1f - fold)
+
     Box(modifier.fillMaxSize()) {
         if (isWide) {
             // Split layout for wide screens
@@ -156,8 +167,10 @@ fun DetailScreen(
                 LaunchedEffect(item.id, dominant) {
                     env.shell.heroAmbientColor = dominant ?: fallbackHeroAmbientColor(item.name)
                 }
+                Box(Modifier.width(posterWidth).fillMaxHeight().clipToBounds()) {
                 Box(
-                    Modifier.width(440.dp).fillMaxHeight(),
+                    Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(440.dp).fillMaxHeight()
+                        .graphicsLayer { alpha = (1f - fold * 1.3f).coerceIn(0f, 1f) },
                 ) {
                     FadedPoster(item.largePosterUrl() ?: item.backdropUrl, Modifier.fillMaxSize())
 
@@ -193,12 +206,13 @@ fun DetailScreen(
                         modifier = Modifier.padding(16.dp).align(Alignment.TopStart),
                     )
                 }
+                }
 
                 // Right column: Seasons, Episodes, Trailers, Recommendations, About Details
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     Column(
                         Modifier.fillMaxSize()
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(wideScroll)
                             .padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(28.dp),
                     ) {

@@ -1,5 +1,6 @@
 package com.mediahub.pear.shell
 
+import com.mediahub.pear.history.EpisodeItem
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,7 @@ class SourcePickerRequest(
     val episodeTitle: String?,
     val thumb: String?,
     val logo: String?,
+    val episodeInfo: EpisodeItem? = null,
     val onSelect: (PlayRequest) -> Unit,
 )
 

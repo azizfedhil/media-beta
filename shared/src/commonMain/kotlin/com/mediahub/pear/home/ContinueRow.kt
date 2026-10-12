@@ -1,5 +1,11 @@
 package com.mediahub.pear.home
 
+import com.mediahub.pear.shell.WideScale
+import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.detail.openSourceChooser
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,6 +71,17 @@ fun ContinueRow(
     }
     if (items.isEmpty()) return
 
+    val env = LocalAppEnv.current
+    val scope = rememberCoroutineScope()
+    // Wide layout: the cards are a third bigger. The phone layout keeps 1x.
+    val wideScale = if (LocalWideLayout.current) WideScale.CARD else 1f
+    // A card opens the source chooser for its title or episode. Only a title with no IMDb id falls back to the details page.
+    fun choose(item: MetaPreview, season: Int?, episode: Int?, title: String?, thumb: String?) {
+        scope.launch {
+            if (!openSourceChooser(env, item, season, episode, title, thumb)) onSelectTitle(item, season, episode)
+        }
+    }
+
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             Modifier.padding(horizontal = 20.dp),
@@ -88,14 +105,16 @@ fun ContinueRow(
                         val e = card.entry
                         ContinueCard(
                             entry = e,
-                            onClick = { onSelectTitle(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode) },
+                            scale = wideScale,
+                            onClick = { choose(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode, e.episodeTitle, e.thumb) },
                         )
                     }
                     is ContinueCardItem.Next -> {
                         val n = card.item
                         UpNextCard(
                             item = n,
-                            onClick = { onSelectTitle(n.item, n.season, n.episode) },
+                            scale = wideScale,
+                            onClick = { choose(n.item, n.season, n.episode, n.title, n.thumb) },
                         )
                     }
                 }
@@ -105,8 +124,8 @@ fun ContinueRow(
 }
 
 @Composable
-private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit) {
-    val width = 260.dp
+private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, scale: Float = 1f) {
+    val width = (260f * scale).dp
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val scale = if (hovered) 1.02f else 1f
@@ -136,17 +155,6 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit) {
                 PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 8.sp), color = Color.White)
             }
 
-            // Center play icon overlay (from mockup)
-            Box(
-                Modifier.align(Alignment.Center)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                PearIcon("play.fill", size = 15.dp, tint = Color.White)
-            }
 
             // Bottom progress bar
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.25f))) {
@@ -158,17 +166,17 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit) {
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            PearText(entry.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), maxLines = 1)
+            PearText(entry.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold).scaledBy(scale), maxLines = 1)
             val sub = entry.seasonEpisode?.let { "S${it.season} · E${it.episode}" + (entry.episodeTitle?.let { t -> " · $t" } ?: "") }
                 ?: Fmt.remaining(entry.duration - entry.position)
-            PearText(sub, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.55f), maxLines = 1)
+            PearText(sub, style = PearTheme.type.caption.scaledBy(scale), color = Color.White.copy(alpha = 0.55f), maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun UpNextCard(item: UpNextItem, onClick: () -> Unit) {
-    val width = 260.dp
+private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, scale: Float = 1f) {
+    val width = (260f * scale).dp
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val scale = if (hovered) 1.02f else 1f
@@ -197,21 +205,11 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit) {
                 PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 8.sp), color = Color.White)
             }
 
-            Box(
-                Modifier.align(Alignment.Center)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                PearIcon("play.fill", size = 15.dp, tint = Color.White)
-            }
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            PearText(item.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), maxLines = 1)
-            PearText("S${item.season} · E${item.episode} · ${item.title}", style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.55f), maxLines = 1)
+            PearText(item.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold).scaledBy(scale), maxLines = 1)
+            PearText("S${item.season} · E${item.episode} · ${item.title}", style = PearTheme.type.caption.scaledBy(scale), color = Color.White.copy(alpha = 0.55f), maxLines = 1)
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.mediahub.pear.detail
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,9 +16,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -39,19 +43,27 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.addons.AddonClient
+import com.mediahub.pear.addons.Pin
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassSurface
+import com.mediahub.pear.meta.MdbRating
 import com.mediahub.pear.model.Addon
+import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.model.StreamItem
 import com.mediahub.pear.preview.DevChip
+import com.mediahub.pear.net.RemoteImage
+import com.mediahub.pear.net.attempt
+import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.Route
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.SourcePickerRequest
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
+import com.mediahub.pear.home.scaledBy
 import com.mediahub.pear.theme.weight
 
 /**
@@ -91,6 +103,55 @@ fun SourcePickerOverlay(request: SourcePickerRequest, onClose: () -> Unit) {
     }
 }
 
+/**
+ * Opens the source picker for a title or episode from anywhere (Continue Watching uses it). Resolves the IMDb id, the
+ * episode and the logo the way the details page does. Returns false when there is no IMDb id to search with, so the
+ * caller can fall back to the details page.
+ */
+suspend fun openSourceChooser(
+    env: AppEnv,
+    item: MetaPreview,
+    season: Int?,
+    episode: Int?,
+    episodeTitle: String?,
+    thumb: String?,
+): Boolean {
+    val tmdb = env.data.meta.tmdb
+    val tmdbNum = item.id.removePrefix("tmdb:").toIntOrNull()
+    val imdb = if (item.id.startsWith("tt")) item.id else tmdbNum?.let { attempt { tmdb.imdbId(it, item.type) } }
+    if (imdb.isNullOrBlank()) return false
+    val episodeInfo = if (season != null && episode != null) {
+        attempt { env.data.episodes.load(item.id, "series", season) { imdb } }?.firstOrNull { it.id == episode }
+    } else {
+        null
+    }
+    val logo = item.logo ?: attempt { tmdb.logo(item.id, item.type) }
+    env.shell.openSourcePicker(
+        SourcePickerRequest(
+            item = item,
+            imdbId = imdb,
+            season = season,
+            episode = episode,
+            episodeTitle = episodeTitle ?: episodeInfo?.name,
+            thumb = thumb ?: episodeInfo?.image ?: item.backdropUrl,
+            logo = logo,
+            episodeInfo = episodeInfo,
+            onSelect = { request ->
+                env.shell.closeSourcePicker()
+                env.shell.currentNav().push(Route.Player(request))
+            },
+        ),
+    )
+    return true
+}
+
+/** Episode stills are cut at w300 on the list; the picker asks for the original file. */
+private fun largeStill(url: String?): String? = url?.replace(Regex("/t/p/w\\d+/"), "/t/p/original/")
+
+/**
+ * Wide layout: two thirds for the episode (image, logo, ratings, synopsis), one third for the sources, stacked down the
+ * page. The panel is glass, and so is every card and chip in it.
+ */
 @Composable
 private fun WideSourcePicker(
     request: SourcePickerRequest,
@@ -102,6 +163,7 @@ private fun WideSourcePicker(
     val groups = remember { mutableStateListOf<Pair<Addon, List<StreamItem>>>() }
     var loading by remember { mutableStateOf(true) }
     var filter by remember { mutableStateOf<String?>(null) }
+    var ratings by remember { mutableStateOf<List<MdbRating>>(emptyList()) }
     val pinned = env.data.pinned.pin(request.imdbId)
 
     // The same query the bottom sheet runs: every add-on that serves this title or episode.
@@ -114,63 +176,153 @@ private fun WideSourcePicker(
         }
         loading = false
     }
-
-    val ordered = AddonClient.ordered(groups.toList(), env.data.addons.enabledAddons)
-    val cards = ordered
-        .filter { filter == null || it.first.id == filter }
-        .flatMap { (addon, items) -> items.map { addon to it } }
-    val target = if (request.season != null && request.episode != null) {
-        "S${request.season} · E${request.episode}" + (request.episodeTitle?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
-    } else {
-        request.item.name
+    LaunchedEffect(request.imdbId) {
+        ratings = if (env.data.meta.mdblist.hasKey) {
+            attempt { env.data.meta.mdblist.ratings(request.imdbId, request.item.type) } ?: emptyList()
+        } else {
+            emptyList()
+        }
     }
 
+    val ordered = AddonClient.ordered(groups.toList(), env.data.addons.enabledAddons)
+    val shown = ordered.filter { filter == null || it.first.id == filter }
+
     GlassSurface(
-        modifier = modifier.fillMaxWidth(0.84f).widthIn(max = 980.dp).fillMaxHeight(0.84f).heightIn(max = 720.dp),
+        modifier = modifier.fillMaxWidth(0.86f).widthIn(max = 1280.dp).fillMaxHeight(0.86f).heightIn(max = 800.dp),
         shape = RoundedCornerShape(PearRadii.sheet),
     ) {
-        Column(Modifier.fillMaxSize().padding(26.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PearText("Choose a source", style = PearTheme.type.title2.weight(FontWeight.Bold))
-                    PearText(target, style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary, maxLines = 1)
-                }
-                GlassButton(onClick = onClose, symbol = "xmark", size = 36.dp)
-            }
+        Row(Modifier.fillMaxSize()) {
+            EpisodePane(request, ratings, Modifier.weight(2f).fillMaxHeight())
+            Box(Modifier.width(1.dp).fillMaxHeight().background(PearTheme.colors.hairline))
+            SourcesPane(
+                ordered = ordered,
+                shown = shown,
+                filter = filter,
+                onFilter = { filter = it },
+                loading = loading,
+                pinned = pinned,
+                onSelect = { addon, stream -> onSelect(sourcePlayRequest(request, addon, stream)) },
+                onClose = onClose,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            )
+        }
+    }
+}
 
-            // Add-on filter: All, then one chip per add-on that answered.
+/** The left two thirds: the episode's large image, the show's logo, MDBList ratings, and the synopsis. */
+@Composable
+private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, modifier: Modifier) {
+    val info = request.episodeInfo
+    val image = largeStill(info?.image) ?: request.thumb ?: request.item.backdropUrl ?: request.item.posterUrl
+    val kicker = if (request.season != null && request.episode != null) {
+        "${request.item.typeLabel.uppercase()} · S${request.season} · E${request.episode}"
+    } else {
+        request.item.typeLabel.uppercase()
+    }
+    val episodeName = info?.name?.takeIf { it.isNotBlank() } ?: request.episodeTitle
+    val synopsis = info?.overview?.takeIf { it.isNotBlank() } ?: request.item.description
+    Column(modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(PearRadii.card))
+                .background(PearTheme.colors.fill),
+        ) {
+            RemoteImage(image, Modifier.fillMaxSize())
+        }
+        PearText(kicker, style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textTertiary, maxLines = 1)
+        val logo = request.logo
+        if (logo != null) {
+            Box(Modifier.widthIn(max = 420.dp).height(64.dp)) {
+                RemoteImage(logo, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            }
+        } else {
+            PearText(request.item.name, style = PearTheme.type.largeTitle.weight(FontWeight.Bold), maxLines = 2)
+        }
+        episodeName?.let {
+            PearText(it, style = PearTheme.type.title3.weight(FontWeight.SemiBold), color = PearTheme.colors.textSecondary, maxLines = 1)
+        }
+        if (ratings.isNotEmpty()) {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DevChip("All (${ordered.sumOf { it.second.size }})", filter == null) { filter = null }
-                ordered.forEach { (addon, items) ->
-                    DevChip("${addon.manifest.name} (${items.size})", filter == addon.id) { filter = addon.id }
-                }
+                ratings.forEach { RatingBadge(it) }
             }
+        }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            synopsis?.let {
+                PearText(it, style = PearTheme.type.body, color = PearTheme.colors.textPrimary)
+            }
+        }
+    }
+}
 
-            Box(Modifier.fillMaxWidth().weight(1f)) {
-                when {
-                    cards.isEmpty() && loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        PearText("Finding sources…", style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
-                    }
-                    cards.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        PearText("No playable sources found for this title.", style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
-                    }
-                    else -> LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 260.dp),
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(cards, key = { (addon, stream) -> "${addon.id}|${stream.id}" }) { (addon, stream) ->
-                            SourceCard(
-                                addon = addon,
-                                stream = stream,
-                                isPinned = pinned?.addonID == addon.id && pinned.signature == stream.signature,
-                                onClick = { onSelect(sourcePlayRequest(request, addon, stream)) },
+/** The right third: the add-on filter, then every source stacked down the page, grouped by add-on. */
+@Composable
+private fun SourcesPane(
+    ordered: List<Pair<Addon, List<StreamItem>>>,
+    shown: List<Pair<Addon, List<StreamItem>>>,
+    filter: String?,
+    onFilter: (String?) -> Unit,
+    loading: Boolean,
+    pinned: Pin?,
+    onSelect: (Addon, StreamItem) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier,
+) {
+    val total = ordered.sumOf { it.second.size }
+    Column(modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                PearText("Sources", style = PearTheme.type.title3.weight(FontWeight.Bold))
+                PearText("$total found", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
+            }
+            GlassButton(onClick = onClose, symbol = "xmark", size = 36.dp)
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DevChip("All ($total)", filter == null) { onFilter(null) }
+            ordered.forEach { (addon, items) ->
+                DevChip("${addon.manifest.name} (${items.size})", filter == addon.id) { onFilter(addon.id) }
+            }
+        }
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            when {
+                shown.isEmpty() && loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    PearText("Finding sources…", style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
+                }
+                shown.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    PearText("No playable sources found for this title.", style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
+                }
+                else -> Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    shown.forEach { (addon, items) ->
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            PearText(
+                                addon.manifest.name.uppercase(),
+                                style = PearTheme.type.caption2.weight(FontWeight.Bold),
+                                color = PearTheme.colors.textTertiary,
+                                maxLines = 1,
                             )
+                            items.forEach { stream ->
+                                SourceCard(
+                                    stream = stream,
+                                    isPinned = pinned?.addonID == addon.id && pinned.signature == stream.signature,
+                                    onClick = { onSelect(addon, stream) },
+                                )
+                            }
+                        }
+                    }
+                    if (loading) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PearIcon("waveform", size = 14.dp, tint = PearTheme.colors.textSecondary)
+                            PearText("Checking more add-ons…", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
                         }
                     }
                 }
@@ -179,41 +331,38 @@ private fun WideSourcePicker(
     }
 }
 
-/** One source: its add-on, name, description and whether it is the pinned one. Torrents are marked P2P. */
+/** One source, as a glass card: its name, the description under it, and a mark when it is the pinned one. */
 @Composable
-private fun SourceCard(addon: Addon, stream: StreamItem, isPinned: Boolean, onClick: () -> Unit) {
+private fun SourceCard(stream: StreamItem, isPinned: Boolean, onClick: () -> Unit) {
     val c = PearTheme.colors
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val shape = RoundedCornerShape(PearRadii.card)
     val detail = stream.description ?: stream.title
-    Column(
-        Modifier.fillMaxWidth().height(150.dp)
-            .clip(shape)
-            .background(if (hovered) c.fill else c.fillSubtle)
-            .border(if (isPinned) 1.5.dp else 1.dp, if (isPinned) c.accent else c.outline, shape)
+    GlassSurface(
+        Modifier.fillMaxWidth()
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = source, indication = null, onClick = onClick)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
+        RoundedCornerShape(PearRadii.card),
+        wash = if (isPinned) c.accent.copy(alpha = 0.3f) else null,
+        highlight = hovered,
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            PearText(
-                addon.manifest.name.uppercase(),
-                style = PearTheme.type.caption2.weight(FontWeight.Bold),
-                color = c.textTertiary,
-                maxLines = 1,
-                modifier = Modifier.weight(1f),
-            )
-            if (stream.isTorrent) {
-                PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = c.textSecondary)
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                PearText(
+                    stream.name ?: stream.title ?: "Stream",
+                    style = PearTheme.type.headline,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f),
+                )
+                if (stream.isTorrent) {
+                    PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = c.textSecondary)
+                }
+                if (isPinned) PearIcon("pin.fill", size = 12.dp, tint = c.accent)
             }
-            if (isPinned) PearIcon("pin.fill", size = 12.dp, tint = c.accent)
-        }
-        PearText(stream.name ?: stream.title ?: "Stream", style = PearTheme.type.headline, maxLines = 2)
-        if (detail != null && detail != stream.name) {
-            PearText(detail, style = PearTheme.type.footnote, color = c.textSecondary, maxLines = 3)
+            if (detail != null && detail != stream.name) {
+                PearText(detail, style = PearTheme.type.footnote, color = c.textSecondary, maxLines = 3)
+            }
         }
     }
 }

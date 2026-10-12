@@ -121,3 +121,14 @@ missing dependency is visible. The library is not in the repository; see `deskto
 - Users never copy a file. A missing library means an incomplete install: the message says to reinstall.
 - Build check: after `createDistributable`, `app/resources/` in the output should contain `libmpv-2.dll`. If it doesn't, the Compose
   version doesn't copy platform folders the way this assumes; the fix is in `appResourcesRootDir`.
+
+## Player: glass, one pill, Display panel, centred info card, larger controls
+
+- **Glass while playing** is on by default (`desktop.playerBlurWhilePlaying`, default now `true`). Before, the controls were a flat
+  dark tint whenever the video played, so there was no glass. The Settings switch turns it off if a machine can't keep up.
+- **One pill.** The aspect, 4K performance and full-screen buttons are no longer a second capsule. A Display button is the pill's
+  last slot. It opens the Display panel: picture (Fit / Fill / Stretch), fast 4K mode, and full screen. Double-click still
+  toggles full screen.
+- **Info card** (synopsis) is centred on the screen.
+- **Larger controls.** `PLAYER_UI_SCALE` (1.25) scales the controls and panels, text included, through the local density. The
+  video behind them is not scaled.

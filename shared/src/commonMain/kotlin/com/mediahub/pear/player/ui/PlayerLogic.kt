@@ -120,9 +120,18 @@ enum class PlayerPanel {
     /** Other streams for this title or episode. Takes the place of the controls. */
     Sources,
 
-    /** The episode or movie card. Takes the place of the controls. */
+    /** The episode or movie card, centred on the screen. Takes the place of the controls. */
     Info,
+
+    /** Aspect, the 4K performance mode and full screen, behind the pill's Display button. Floats above the pill. */
+    Display,
 }
+
+/**
+ * How much larger the player's controls and text are drawn than the window's own density (desktop). The video itself
+ * is not scaled.
+ */
+const val PLAYER_UI_SCALE = 1.25f
 
 /** Sources and the info card cover the controls (`showControls = false` in PlayerView.swift); speed floats above them. */
 fun panelCoversControls(panel: PlayerPanel?): Boolean = panel == PlayerPanel.Sources || panel == PlayerPanel.Info

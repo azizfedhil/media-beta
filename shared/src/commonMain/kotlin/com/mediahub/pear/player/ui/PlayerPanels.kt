@@ -34,6 +34,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.model.Addon
+import com.mediahub.pear.player.AspectMode
 import com.mediahub.pear.model.StreamItem
 import com.mediahub.pear.player.PlayerEngine
 import com.mediahub.pear.theme.PearIcon
@@ -279,10 +280,62 @@ private fun SourceRow(stream: StreamItem, current: Boolean, onClick: () -> Unit)
 /** The info card, rising from the bottom of the video (`infoPanel` in PlayerView.swift). */
 @Composable
 internal fun InfoPanel(info: PlayerInfo, logo: String?, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, bottom = 10.dp), contentAlignment = Alignment.BottomCenter) {
+    Box(modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
         PlayerSurface(Modifier.widthIn(max = 720.dp).fillMaxWidth(), SurfaceKind.Card) {
             Box(Modifier.padding(20.dp)) {
                 PlayerInfoCard(info, logo, onClose)
+            }
+        }
+    }
+}
+
+/**
+ * Aspect, the 4K performance mode and full screen, behind the pill's Display button. Desktop only: the iOS player has none
+ * of these, so they stay out of the pill's own list and out of Settings. Floats above the pill, like speed.
+ */
+@Composable
+internal fun DisplayPanel(
+    aspect: AspectMode,
+    onAspect: (AspectMode) -> Unit,
+    fastFourK: Boolean,
+    onFastFourK: (Boolean) -> Unit,
+    fullscreen: Boolean,
+    onFullscreen: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier.fillMaxSize().padding(end = 20.dp, bottom = 118.dp), contentAlignment = Alignment.BottomEnd) {
+        PlayerSurface(Modifier.width(300.dp), SurfaceKind.Card) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    PearText("Display", style = PearTheme.type.title3.weight(FontWeight.SemiBold), color = Color.White)
+                    PlayerCircleButton("xmark", size = 34.dp, icon = 13.dp, onClick = onClose, contentDescription = "Close")
+                }
+                PearText("Picture", style = PearTheme.type.footnote, color = Color.White.copy(alpha = 0.7f))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AspectMode.entries.forEach { mode ->
+                        PlayerPillButton(
+                            label = mode.name,
+                            selected = mode == aspect,
+                            onClick = { onAspect(mode) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    PearText("Fast 4K mode", style = PearTheme.type.subheadline, color = Color.White)
+                    PlayerPillButton(
+                        label = if (fastFourK) "On" else "Off",
+                        selected = fastFourK,
+                        onClick = { onFastFourK(!fastFourK) },
+                    )
+                }
+                PlayerPillButton(
+                    label = if (fullscreen) "Exit full screen" else "Full screen",
+                    selected = fullscreen,
+                    onClick = onFullscreen,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

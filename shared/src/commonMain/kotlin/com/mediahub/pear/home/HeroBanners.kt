@@ -1,5 +1,6 @@
 package com.mediahub.pear.home
 
+import com.mediahub.pear.glass.GlassSurface
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -281,19 +282,16 @@ private fun WideHeroText(item: MetaPreview, extras: TitleExtras?, onDetailsClick
         )
     }
 
-    // (i) Details
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(PearRadii.pill))
-            .background(Color.White.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(PearRadii.pill))
-            .clickable(onClick = onDetailsClick)
-            .padding(horizontal = 18.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        PearIcon("info.circle", size = 16.dp, tint = Color.White)
-        PearText("Details", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White)
+    // (i) Details: a glass pill
+    GlassSurface(Modifier.clickable(onClick = onDetailsClick), RoundedCornerShape(PearRadii.pill)) {
+        Row(
+            Modifier.padding(horizontal = 18.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            PearIcon("info.circle", size = 16.dp, tint = Color.White)
+            PearText("Details", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White)
+        }
     }
 }
 

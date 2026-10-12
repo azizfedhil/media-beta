@@ -85,7 +85,8 @@ fun GlassSurface(
     val c = PearTheme.colors
     val state = LocalGlassState.current
     val store = LocalGlassStore.current
-    val mode = if (state == null) GlassMode.Flat else store.mode
+    // Glass everywhere, except on low battery, where it falls back to flat (see PowerStatus).
+    val mode = if (state == null || PowerStatus.lowBattery) GlassMode.Flat else store.mode
     val perf = store.performance.haze
 
     val effect: Modifier = when (mode) {

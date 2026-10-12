@@ -44,6 +44,8 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.glass.GlassScene
@@ -162,7 +164,10 @@ fun PlayerOverlay(
             },
         background = video,
     ) {
-        CompositionLocalProvider(LocalPlayerLook provides look) {
+        // The controls and panels are drawn PLAYER_UI_SCALE larger, text included. The video behind them is not scaled.
+        val base = LocalDensity.current
+        val scaled = Density(base.density * PLAYER_UI_SCALE, base.fontScale * PLAYER_UI_SCALE)
+        CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled) {
             // Click and double-click on the picture. The controls and panels sit above and take their own clicks.
             Box(
                 Modifier.fillMaxSize().pointerInput(Unit) {

@@ -85,3 +85,14 @@ is shared between the two passes a scale of 1x when the layout is compact.
   as its colour and white text. Windows 10 gets the dark mode only; Windows 11 also gets the colours.
 - The colour is fixed to the app's dark background. A light appearance would need the theme passed in.
 - Other systems keep their own bar, untouched.
+
+## Continue Watching, the source chooser, and the glass rule
+
+- Continue Watching cards have no play overlay. A card opens the source chooser for its title or episode (`openSourceChooser`).
+  Only a title with no IMDb id falls back to the details page. Cards are 33% larger in the wide layout (`WideScale.CARD`).
+- The source chooser (wide) is two columns: the left two thirds show the episode (a large image from the original still, logo,
+  MDBList ratings, synopsis); the right third lists the sources stacked, grouped by add-on. The phone layout keeps its sheet.
+- The wide details page folds its poster column away as the page scrolls (like Home's hero).
+- Glass rule (desktop): chips, source cards, the hero's Details button and the phone source rows are glass. Every glass surface
+  falls back to flat only while the PC is on low battery (`PowerStatus.lowBattery`, read every 30 s by `BatteryWatch`: Windows
+  through `GetSystemPowerStatus`, Linux through `/sys/class/power_supply`).

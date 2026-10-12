@@ -1,5 +1,6 @@
 package com.mediahub.pear.detail
 
+import com.mediahub.pear.glass.GlassSurface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -171,12 +172,13 @@ private fun SourceItemRow(
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(PearRadii.sm)
+    GlassSurface(
+        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape,
+        wash = if (isPinned) PearTheme.colors.accent.copy(alpha = 0.3f) else null,
+    ) {
     Row(
-        Modifier.fillMaxWidth()
-            .clip(shape)
-            .background(if (isPinned) PearTheme.colors.accent.copy(alpha = 0.15f) else PearTheme.colors.fillSubtle)
-            .clickable(onClick = onClick)
-            .padding(12.dp),
+        Modifier.fillMaxWidth().padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -205,5 +207,6 @@ private fun SourceItemRow(
                 PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textSecondary)
             }
         }
+    }
     }
 }

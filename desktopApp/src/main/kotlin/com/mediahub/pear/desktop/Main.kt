@@ -12,6 +12,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.mediahub.pear.App
 import com.mediahub.pear.data.desktopStorage
 import com.mediahub.pear.net.desktopNetwork
+import com.mediahub.pear.glass.BatteryWatch
 import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.NativeTitleBar
 import com.mediahub.pear.shell.WindowControl
@@ -59,6 +60,7 @@ fun main(args: Array<String>) = application {
         state = windowState,
     ) {
         window.minimumSize = Dimension(360, 600) // small enough for the phone layout
+        BatteryWatch()
         NativeTitleBar(window) // the window's own title bar, dark to match the app (Windows)
         App(windowControl = control, storage = storage, network = network)
     }

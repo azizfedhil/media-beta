@@ -24,6 +24,7 @@ import com.mediahub.pear.player.ProgressRules
 import com.mediahub.pear.player.VideoSurface
 import com.mediahub.pear.player.createDefaultPlayerEngine
 import com.mediahub.pear.player.withSource
+import com.mediahub.pear.player.ui.DisplayPanel
 import com.mediahub.pear.player.ui.InfoPanel
 import com.mediahub.pear.player.ui.OptionPill
 import com.mediahub.pear.player.ui.PillItem
@@ -31,8 +32,6 @@ import com.mediahub.pear.player.ui.PlayerInfo
 import com.mediahub.pear.player.ui.PlayerInfoRules
 import com.mediahub.pear.player.ui.PlayerOverlay
 import com.mediahub.pear.player.ui.PlayerPanel
-import com.mediahub.pear.player.ui.PlayerPill
-import com.mediahub.pear.player.ui.PlayerPillButton
 import com.mediahub.pear.player.ui.SourcesPanel
 import com.mediahub.pear.player.ui.SpeedPanel
 import com.mediahub.pear.player.ui.desktopPillItems
@@ -144,7 +143,8 @@ fun PlayerScreen(
     val error = if (isP2P) "Peer-to-peer sources aren't supported on desktop yet (Batch 4.5). Pick a direct or debrid source." else engineError
 
     val glassOn = rememberPref(prefs, PrefKeys.PLAYER_GLASS) { it.bool(PrefKeys.PLAYER_GLASS, true) }
-    val blurPlaying = rememberPref(prefs, PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING) { it.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, false) }
+    // Glass while the video plays is on by default (the Settings switch turns it off if the machine can't keep up).
+    val blurPlaying = rememberPref(prefs, PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING) { it.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true) }
     val look = playerLook(glassOn, env.glass.mode, isVideoMoving(state), blurPlaying)
 
     // The pill follows Settings -> Playback -> Player controls, live.
@@ -250,19 +250,11 @@ fun PlayerScreen(
                     panelOpen = panel != null,
                     speedOpen = panel == PlayerPanel.Speed,
                     sourcesOpen = panel == PlayerPanel.Sources,
+                    displayOpen = panel == PlayerPanel.Display,
                     onSpeed = { togglePanel(PlayerPanel.Speed) },
                     onSources = { togglePanel(PlayerPanel.Sources) },
+                    onDisplay = { togglePanel(PlayerPanel.Display) },
                     onActive = onActive,
-                )
-            },
-            trailing = {
-                DesktopControls(
-                    aspect = aspect,
-                    onAspect = { aspect = AspectMode.entries[(aspect.ordinal + 1) % AspectMode.entries.size] },
-                    performance = performance,
-                    onPerformance = { performance = !performance },
-                    fullscreen = fullscreen,
-                    onFullscreen = { setFullscreen(!fullscreen) },
                 )
             },
             panels = {
@@ -279,6 +271,15 @@ fun PlayerScreen(
                         onClose = { panel = null },
                     )
                     PlayerPanel.Info -> info?.let { InfoPanel(it, current.logo, onClose = { panel = null }) }
+                    PlayerPanel.Display -> DisplayPanel(
+                        aspect = aspect,
+                        onAspect = { aspect = it },
+                        fastFourK = performance,
+                        onFastFourK = { performance = it },
+                        fullscreen = fullscreen,
+                        onFullscreen = { setFullscreen(!fullscreen) },
+                        onClose = { panel = null },
+                    )
                     null -> Unit
                 }
             },
@@ -291,34 +292,6 @@ fun PlayerScreen(
                     )
                 }
             },
-        )
-    }
-}
-
-/**
- * The desktop-only buttons after the pill: aspect, the 4K performance mode and full screen. They are not in the pill
- * and not in Settings, because the iOS player has none of them.
- */
-@Composable
-private fun DesktopControls(
-    aspect: AspectMode,
-    onAspect: () -> Unit,
-    performance: Boolean,
-    onPerformance: () -> Unit,
-    fullscreen: Boolean,
-    onFullscreen: () -> Unit,
-) {
-    PlayerPill {
-        PlayerPillButton(label = aspect.name, onClick = onAspect)
-        PlayerPillButton(
-            label = if (performance) "4K: fast" else "4K: full",
-            selected = performance,
-            onClick = onPerformance,
-        )
-        PlayerPillButton(
-            symbol = if (fullscreen) "arrow.down.right.and.arrow.up.left" else "arrow.up.left.and.arrow.down.right",
-            contentDescription = if (fullscreen) "Exit full screen" else "Full screen",
-            onClick = onFullscreen,
         )
     }
 }

@@ -66,8 +66,10 @@ internal fun OptionPill(
     panelOpen: Boolean,
     speedOpen: Boolean,
     sourcesOpen: Boolean,
+    displayOpen: Boolean,
     onSpeed: () -> Unit,
     onSources: () -> Unit,
+    onDisplay: () -> Unit,
     onActive: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -111,11 +113,13 @@ internal fun OptionPill(
 
     val folded = layout.folded
     val mode = pillMode(expanded, volumeOpen, folded)
-    val windowSlots = pillWindowSlots(layout, mode)
+    // The Display button is always the pill's last slot, except in volume mode, where the slider takes the whole pill.
+    val displaySlots = if (mode == PillMode.Volume) 0 else 1
+    val windowSlots = pillWindowSlots(layout, mode) + displaySlots
     val windowWidth = if (mode == PillMode.Volume) maxOf(span(windowSlots), VOLUME_MIN_DP.dp) else span(windowSlots)
     val animatedWidth by animateDpAsState(windowWidth, PearMotion.snappy<Dp>(PearMotion.BASE))
 
-    val footprint = span(pillWindowSlots(layout, PillMode.Folded)) + (PAD_DP * 2).dp
+    val footprint = span(pillWindowSlots(layout, PillMode.Folded) + 1) + (PAD_DP * 2).dp
     val height = (SLOT_DP + PAD_DP * 2).dp
 
     fun bumpUnfolded() {
@@ -170,6 +174,17 @@ internal fun OptionPill(
                                     )
                                 }
                             }
+                        }
+                        Box(Modifier.size(SLOT_DP.dp), contentAlignment = Alignment.Center) {
+                            PlayerPillButton(
+                                symbol = "slider.horizontal.3",
+                                selected = displayOpen,
+                                onClick = {
+                                    bumpUnfolded()
+                                    onDisplay()
+                                },
+                                contentDescription = "Display",
+                            )
                         }
                     }
                 }
