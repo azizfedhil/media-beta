@@ -1,0 +1,233 @@
+package com.mediahub.pear.player.ui
+
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.mediahub.pear.player.PlayerEngine
+import com.mediahub.pear.theme.PearMotion
+import kotlinx.coroutines.delay
+
+// Sizes of the pill, in dp (`pillSlot`, `pillGap`, `pillPad` in PlayerView.swift).
+private const val SLOT_DP = 46f
+private const val GAP_DP = 2f
+private const val PAD_DP = 4f
+private const val VOLUME_MIN_DP = 260f
+
+/** Seconds an unfolded pill stays open after the last tap. */
+private const val PILL_LIFE_MILLIS = 5_000L
+
+/** Seconds the volume slider stays after the last change (`bumpVolume` in PlayerView.swift). */
+private const val VOLUME_LIFE_MILLIS = 3_000L
+
+/** Width of `slots` icons side by side. */
+private fun span(slots: Int): Dp = if (slots <= 0) 0.dp else (SLOT_DP * slots + GAP_DP * (slots - 1)).dp
+
+/**
+ * The controls pill (`iconRow` in PlayerView.swift): the buttons of [layout] in one glass capsule. With more than four
+ * buttons it folds to the pinned ones plus a chevron; the chevron unfolds the rest to the left, and the pill folds
+ * itself again 5 s after the last tap. The speaker turns the pill into a volume slider, which goes back to the icons
+ * 3 s after the last change.
+ *
+ * Widths come from the slot count (see [pillWindowSlots]), never from a measurement, so the glass, the icons and the
+ * slider cannot disagree. The pill's layout footprint is always its folded size; anything wider grows to the left
+ * over the title, so nothing around it moves.
+ *
+ * @param panelOpen a panel (speed, sources, info) is open: the pill folds back, as on iOS.
+ * @param onActive true while the pill is open, unfolded or with the slider, and while the slider is dragged. The
+ *   controls stay up while it is.
+ */
+@Composable
+internal fun OptionPill(
+    engine: PlayerEngine,
+    layout: PillLayout,
+    panelOpen: Boolean,
+    speedOpen: Boolean,
+    sourcesOpen: Boolean,
+    onSpeed: () -> Unit,
+    onSources: () -> Unit,
+    onActive: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val rate by engine.playbackRate.collectAsState()
+    val volume by engine.volume.collectAsState()
+
+    var expanded by remember { mutableStateOf(false) }
+    var volumeOpen by remember { mutableStateOf(false) }
+    var editingVolume by remember { mutableStateOf(false) }
+    var lastAudible by remember { mutableFloatStateOf(1f) }
+    // Each bump restarts a countdown: a tap inside an unfolded pill, or a change of volume.
+    var unfoldBumps by remember { mutableIntStateOf(0) }
+    var volumeBumps by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(volume) {
+        if (volume > 0.001f) lastAudible = volume
+        volumeBumps++
+    }
+    LaunchedEffect(panelOpen) {
+        if (panelOpen) {
+            expanded = false
+            volumeOpen = false
+        }
+    }
+    LaunchedEffect(expanded, unfoldBumps) {
+        if (expanded) {
+            delay(PILL_LIFE_MILLIS)
+            expanded = false
+        }
+    }
+    LaunchedEffect(volumeOpen, volumeBumps, editingVolume) {
+        // Dragging the slider pauses the countdown: it only runs once the drag has ended.
+        if (volumeOpen && !editingVolume) {
+            delay(VOLUME_LIFE_MILLIS)
+            volumeOpen = false
+        }
+    }
+    val active = expanded || volumeOpen || editingVolume
+    LaunchedEffect(active) { onActive(active) }
+    DisposableEffect(Unit) { onDispose { onActive(false) } }
+
+    val folded = layout.folded
+    val mode = pillMode(expanded, volumeOpen, folded)
+    val windowSlots = pillWindowSlots(layout, mode)
+    val windowWidth = if (mode == PillMode.Volume) maxOf(span(windowSlots), VOLUME_MIN_DP.dp) else span(windowSlots)
+    val animatedWidth by animateDpAsState(windowWidth, PearMotion.snappy<Dp>(PearMotion.BASE))
+
+    val footprint = span(pillWindowSlots(layout, PillMode.Folded)) + (PAD_DP * 2).dp
+    val height = (SLOT_DP + PAD_DP * 2).dp
+
+    fun bumpUnfolded() {
+        if (expanded) unfoldBumps++
+    }
+
+    Box(modifier.width(footprint).height(height), contentAlignment = Alignment.CenterEnd) {
+        PlayerSurface(Modifier.requiredWidth(animatedWidth + (PAD_DP * 2).dp).height(height), SurfaceKind.Capsule) {
+            Box(Modifier.fillMaxSize().padding(PAD_DP.dp).clipToBounds(), contentAlignment = Alignment.CenterEnd) {
+                if (mode == PillMode.Volume) {
+                    PlayerVolumeSliderRow(
+                        level = volume,
+                        onChange = { engine.setVolume(it) },
+                        onToggleMute = { engine.setVolume(toggledMute(volume, lastAudible)) },
+                        onEditing = { editingVolume = it },
+                    )
+                } else {
+                    // Trailing, so the buttons that are folded away overflow to the left and are clipped. The
+                    // unbounded wrap lets the row be wider than the window.
+                    Row(
+                        Modifier.wrapContentWidth(Alignment.End, unbounded = true),
+                        horizontalArrangement = Arrangement.spacedBy(GAP_DP.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        layout.items.forEachIndexed { index, item ->
+                            // Folded away: the slot keeps its place but is empty and takes no input.
+                            val hidden = index < folded && mode != PillMode.Unfolded
+                            Box(Modifier.size(SLOT_DP.dp), contentAlignment = Alignment.Center) {
+                                if (!hidden) {
+                                    PillButton(
+                                        item = item,
+                                        speedOpen = speedOpen,
+                                        sourcesOpen = sourcesOpen,
+                                        rate = rate,
+                                        volume = volume,
+                                        onSpeed = {
+                                            bumpUnfolded()
+                                            onSpeed()
+                                        },
+                                        onSources = {
+                                            bumpUnfolded()
+                                            onSources()
+                                        },
+                                        onVolume = {
+                                            if (volumeOpen) {
+                                                volumeOpen = false
+                                            } else {
+                                                expanded = false
+                                                volumeOpen = true
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if (folded > 0 && mode != PillMode.Volume) {
+                    // Left edge: unfolds the hidden buttons (the chevron points left), or folds them back (right).
+                    Box(Modifier.align(Alignment.CenterStart)) {
+                        PlayerPillButton(
+                            symbol = if (expanded) "chevron.right" else "chevron.left",
+                            onClick = {
+                                if (expanded) {
+                                    expanded = false
+                                } else {
+                                    expanded = true
+                                    unfoldBumps++
+                                }
+                            },
+                            contentDescription = if (expanded) "Fewer controls" else "More controls",
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One button of the pill. Only the buttons this build has are drawn: Episodes and Next (4.3d), Subtitles and Audio
+ * (4.4a) and Picture in Picture (not on desktop) are never in the layout yet, so they fall through to nothing.
+ */
+@Composable
+private fun PillButton(
+    item: PillItem,
+    speedOpen: Boolean,
+    sourcesOpen: Boolean,
+    rate: Double,
+    volume: Float,
+    onSpeed: () -> Unit,
+    onSources: () -> Unit,
+    onVolume: () -> Unit,
+) {
+    when (item) {
+        PillItem.Speed -> PlayerPillButton(
+            symbol = item.symbol,
+            selected = speedOpen || rate != 1.0,
+            onClick = onSpeed,
+            contentDescription = item.title,
+        )
+        PillItem.Sources -> PlayerPillButton(
+            symbol = item.symbol,
+            selected = sourcesOpen,
+            onClick = onSources,
+            contentDescription = item.title,
+        )
+        PillItem.Volume -> PlayerPillButton(
+            symbol = if (volume < 0.001f) "speaker.slash" else item.symbol,
+            onClick = onVolume,
+            contentDescription = item.title,
+        )
+        else -> Unit
+    }
+}
