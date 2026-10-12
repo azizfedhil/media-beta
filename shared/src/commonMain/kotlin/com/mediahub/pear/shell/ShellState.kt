@@ -12,7 +12,11 @@ import com.mediahub.pear.nav.NavController
 
 sealed interface Route {
     data class Root(val tab: AppTab) : Route
-    data class Catalogue(val row: CatalogRow) : Route
+    data class Catalogue(val row: CatalogRow) : Route {
+        constructor(id: String, title: String) : this(CatalogRow(id, title, emptyList()))
+        val id: String get() = row.id
+        val title: String get() = row.title
+    }
     data class Demo(val depth: Int) : Route
     data class Detail(val item: MetaPreview, val startSeason: Int? = null, val startEpisode: Int? = null) : Route
     data object ThemePreview : Route
@@ -55,7 +59,7 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
 
     fun selectCatalogue(item: CatalogueItem) {
         catalogue = item
-        catalogueNav = NavController(Route.Catalogue(CatalogRow(item.id, item.title, emptyList())))
+        catalogueNav = NavController(Route.Catalogue(item.id, item.title))
     }
 
     fun currentNav(): NavController<Route> = catalogueNav ?: navFor(tab)
