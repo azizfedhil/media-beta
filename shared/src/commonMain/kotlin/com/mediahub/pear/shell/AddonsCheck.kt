@@ -20,6 +20,7 @@ import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.epochMillis
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.CatalogSource
+import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.StreamItem
 import com.mediahub.pear.net.attempt
 import com.mediahub.pear.preview.DevChip
@@ -29,13 +30,8 @@ import io.ktor.http.Url
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Add-on addresses can hold API keys, so the screens show the host only. */
 private fun hostOf(url: String): String = attempt { Url(url).host } ?: "?"
 
-/**
- * Settings -> Developer -> Add-ons check (Batch 2.3). Installs, orders and switches add-ons, loads catalogues and
- * streams through the same clients the real screens will use, and shows how long each add-on took.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AddonsCheckScreen(data: AppData, onBack: () -> Unit) {
@@ -138,7 +134,7 @@ internal fun AddonsCheckScreen(data: AppData, onBack: () -> Unit) {
                         val targets = store.enabledAddons.flatMap { a -> a.manifest.catalogs.orEmpty().filter { it.isSearchable }.map { a to it } }.take(6)
                         if (targets.isEmpty()) return@run "No enabled add-on has a searchable catalogue."
                         targets.map { (a, cat) ->
-                            val found = attempt { client.catalog(a, cat, search = searchText) }
+                            val found: List<MetaPreview>? = attempt { client.catalog(a, cat, search = searchText) }
                             "  - ${a.manifest.name} / ${cat.name ?: cat.id}: ${found?.size ?: "failed"}${found?.firstOrNull()?.let { " first: ${it.name}" } ?: ""}"
                         }.joinToString("\n")
                     }
@@ -169,7 +165,9 @@ internal fun AddonsCheckScreen(data: AppData, onBack: () -> Unit) {
                         val started = epochMillis()
                         val got = ArrayList<Pair<Addon, List<StreamItem>>>()
                         val lines = ArrayList<String>()
-                        client.streamUpdates(id, type, enabled).collect { (addon, items) ->
+                        client.streamUpdates(id, type, enabled).collect { pair: Pair<Addon, List<StreamItem>> ->
+                            val addon = pair.first
+                            val items = pair.second
                             got.add(addon to items)
                             lines.add("  ${epochMillis() - started} ms  ${addon.manifest.name}: ${items.size} sources (${items.count { it.url != null }} direct, ${items.count { it.isTorrent }} torrent)")
                         }

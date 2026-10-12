@@ -62,7 +62,7 @@ fun SearchScreen(
             hasSearched = false
             return@LaunchedEffect
         }
-        delay(350) // Debounce matching iOS
+        delay(350)
         isSearching = true
         hasSearched = true
 
@@ -92,7 +92,7 @@ fun SearchScreen(
         }
 
         for ((addon, cat) in searchableJobs) {
-            val list = try { env.data.addonClient.catalog(addon, cat, search = q) } catch (_: Exception) { emptyList() }
+            val list = try { env.data.addonClient.catalog(addon, cat, search = q) } catch (_: Exception) { emptyList<MetaPreview>() }
             list.forEach { add(it) }
         }
 
