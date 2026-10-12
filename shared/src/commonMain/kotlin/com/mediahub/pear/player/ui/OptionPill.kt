@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -47,6 +49,18 @@ private const val PILL_LIFE_MILLIS = 5_000L
 
 /** Seconds the volume slider stays after the last change (`bumpVolume` in PlayerView.swift). */
 private const val VOLUME_LIFE_MILLIS = 3_000L
+
+/**
+ * Places the content against the right edge of the space it is given, and measures it without limits. When the content is
+ * wider than that space it grows to the left, past it, and never to the right. The edge is placed exactly, rather than by
+ * alignment, so a pill that is wider than the window keeps its right end (and its fullscreen button) on screen.
+ */
+private fun Modifier.anchorRight(): Modifier = layout { measurable, constraints ->
+    val child = measurable.measure(Constraints())
+    val width = if (constraints.hasBoundedWidth) constraints.maxWidth else child.width
+    val height = child.height.coerceIn(constraints.minHeight, constraints.maxHeight)
+    layout(width, height) { child.place(width - child.width, (height - child.height) / 2) }
+}
 
 /** Width of `slots` icons side by side. */
 private fun span(slots: Int): Dp = if (slots <= 0) 0.dp else (SLOT_DP * slots + GAP_DP * (slots - 1)).dp
@@ -157,7 +171,7 @@ internal fun OptionPill(
         },
         contentAlignment = Alignment.CenterEnd,
     ) {
-        PlayerSurface(Modifier.requiredWidth(animatedWidth + (PAD_DP * 2).dp).height(height), SurfaceKind.Capsule) {
+        PlayerSurface(Modifier.anchorRight().requiredWidth(animatedWidth + (PAD_DP * 2).dp).height(height), SurfaceKind.Capsule) {
             Box(Modifier.fillMaxSize().padding(PAD_DP.dp).clipToBounds(), contentAlignment = Alignment.CenterEnd) {
                 if (mode == PillMode.Volume) {
                     PlayerVolumeSliderRow(
@@ -170,7 +184,7 @@ internal fun OptionPill(
                     // Trailing, so the buttons that are folded away overflow to the left and are clipped. The
                     // unbounded wrap lets the row be wider than the window.
                     Row(
-                        Modifier.wrapContentWidth(Alignment.End, unbounded = true),
+                        Modifier.anchorRight(),
                         horizontalArrangement = Arrangement.spacedBy(GAP_DP.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

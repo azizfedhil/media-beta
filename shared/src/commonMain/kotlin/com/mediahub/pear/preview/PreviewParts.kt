@@ -9,6 +9,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.hoverable
 import com.mediahub.pear.glass.GlassSurface
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import com.mediahub.pear.shell.clickOrMenu
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -23,22 +27,38 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 
-/** A selectable chip. Glass like every other control; an accent wash when it is the selected one. */
+/**
+ * A selectable chip. The selected one is a solid accent with the accent's own text colour; the others are a solid fill
+ * with a hairline, so both read against any backdrop. A left click runs [onClick]; a right click runs [onSecondary]
+ * (a season's menu, for example).
+ */
 @Composable
-internal fun DevChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun DevChip(label: String, selected: Boolean, onClick: () -> Unit, onSecondary: (() -> Unit)? = null) {
     val c = PearTheme.colors
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    GlassSurface(
-        Modifier.hoverable(source)
+    val shape = RoundedCornerShape(PearRadii.pill)
+    val fill = when {
+        selected -> c.accent
+        hovered -> Color.White.copy(alpha = 0.28f)
+        else -> Color.White.copy(alpha = 0.18f)
+    }
+    val border = if (selected) c.accent else Color.White.copy(alpha = 0.25f)
+    Box(
+        Modifier
+            .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
-        RoundedCornerShape(PearRadii.pill),
-        wash = if (selected) c.accent.copy(alpha = 0.55f) else null,
-        highlight = hovered && !selected,
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, border, shape)
+            .clickOrMenu(source, onClick = onClick, onMenu = onSecondary ?: {}),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            PearText(label, style = PearTheme.type.footnote.weight(FontWeight.SemiBold), color = if (selected) c.onAccent else c.textPrimary)
-        }
+        PearText(
+            label,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            style = PearTheme.type.footnote.weight(FontWeight.SemiBold),
+            color = if (selected) c.onAccent else c.textPrimary,
+        )
     }
 }

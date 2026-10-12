@@ -86,7 +86,7 @@ fun GlassButton(
         shape = RoundedCornerShape(percent = 50),
         wash = tint?.copy(alpha = 0.55f),
         highlight = hovered && enabled,
-        sheen = if (tint == null) PearTheme.colors.sheen else null,
+        sheen = if (tint == null) PearTheme.colors.button else null,
     ) {
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = if (label != null) 16.dp else 0.dp),
@@ -138,7 +138,7 @@ fun GlassCard(
     val hovered by source.collectIsHoveredAsState()
     val interactive = if (onClick == null) Modifier else
         Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand).clickable(interactionSource = source, indication = null, onClick = onClick)
-    GlassSurface(modifier.then(interactive), shape, highlight = hovered && onClick != null, sheen = PearTheme.colors.sheen) {
+    GlassSurface(modifier.then(interactive), shape, wash = PearTheme.colors.panel, highlight = hovered && onClick != null) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }

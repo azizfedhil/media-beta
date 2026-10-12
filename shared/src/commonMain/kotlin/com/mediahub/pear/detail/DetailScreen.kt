@@ -490,19 +490,20 @@ private fun SeasonsAndEpisodesSection(
                 val num = s.seasonNumber
                 val anchor = remember { MenuAnchor() }
                 Box(Modifier.menuAnchor(anchor)) {
-                    DevChip(s.title, selectedSeason == num) {
-                        // Wide layout: a click opens the season's menu (its first item shows the season). Phone: a tap selects.
-                        if (isWide) {
+                    // A left click selects the season; a right click opens its menu.
+                    DevChip(
+                        s.title,
+                        selectedSeason == num,
+                        onClick = { onSelectSeason(num) },
+                        onSecondary = {
                             env.shell.openContextMenu(
                                 ContextMenuRequest(
                                     anchor.rect(),
                                     seasonMenuItems(env, item, num, details, selectedSeason, episodes) { onSelectSeason(num) },
                                 ),
                             )
-                        } else {
-                            onSelectSeason(num)
-                        }
-                    }
+                        },
+                    )
                 }
             }
         }

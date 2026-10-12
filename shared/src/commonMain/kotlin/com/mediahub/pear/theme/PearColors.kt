@@ -50,6 +50,15 @@ class PearColors(
      */
     val sheen: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.34f), accent2.copy(alpha = 0.12f)))
 
+    /**
+     * The tint of the sidebar and of every settings card: the same dark wash, so the cards read as the sidebar does.
+     * (Not the accent sheen: a card is a panel, not a control.)
+     */
+    val panel: Color get() = Color(0xFF0D0D11).copy(alpha = 0.55f)
+
+    /** Untinted buttons: a clear accent fill, so a button stands off its backdrop. */
+    val button: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.6f), accent2.copy(alpha = 0.3f)))
+
     /** Name and colour of every token, for the theme preview screen. */
     fun swatches(): List<Pair<String, Color>> = listOf(
         "accent" to accent, "accent2" to accent2, "onAccent" to onAccent,

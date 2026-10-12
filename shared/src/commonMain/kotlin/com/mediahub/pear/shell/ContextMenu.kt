@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import com.mediahub.pear.glass.GlassMenu
 import com.mediahub.pear.glass.GlassMenuItem
 import com.mediahub.pear.history.LibraryStatus
@@ -44,6 +45,9 @@ class ContextMenuItem(
     val destructive: Boolean = false,
     val onClick: suspend () -> Unit,
 )
+
+/** The width of every context menu: compact, as on macOS and Windows menus, not the width of the window. */
+private const val MENU_WIDTH_DP = 228
 
 /** A menu to show, and the rectangle it opens beside (window pixels). */
 class ContextMenuRequest(val anchor: Rect, val items: List<ContextMenuItem>)
@@ -89,6 +93,7 @@ fun ContextMenuOverlay(request: ContextMenuRequest, onClose: () -> Unit) {
         Box(
             Modifier
                 .offset { IntOffset(xs.roundToInt(), ys.roundToInt()) }
+                .width(MENU_WIDTH_DP.dp)
                 .onSizeChanged { menuSize = it }
                 .clickable(interactionSource = swallow, indication = null) {},
         ) {

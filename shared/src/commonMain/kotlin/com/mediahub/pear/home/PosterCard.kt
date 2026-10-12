@@ -41,6 +41,7 @@ import com.mediahub.pear.shell.ContextMenuRequest
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.MenuAnchor
 import com.mediahub.pear.shell.menuAnchor
+import com.mediahub.pear.shell.clickOrMenu
 import com.mediahub.pear.shell.titleMenuItems
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.theme.PearIcon
@@ -73,8 +74,7 @@ fun PosterCard(
     val hovered by source.collectIsHoveredAsState()
     val pressed by source.collectIsPressedAsState()
     val scale = if (pressed) 0.95f else if (hovered) 1.03f else 1f
-    // On the wide layout a click opens the title's menu beside the poster (the iOS long press); Details is one of its
-    // items. On the phone layout a tap still opens the title, as it does on iOS.
+    // A left click opens the title; a right click opens its menu beside the poster (the iOS long press).
     val anchor = remember { MenuAnchor() }
 
     // Desktop (wide) layout shows posters 50% bigger; grids get the same through their cell size.
@@ -87,13 +87,9 @@ fun PosterCard(
             .menuAnchor(anchor)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = source, indication = null) {
-                if (wide) {
-                    env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), titleMenuItems(env, item, onDetails = onClick)))
-                } else {
-                    onClick()
-                }
-            },
+            .clickOrMenu(source, onClick = onClick, onMenu = {
+                env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), titleMenuItems(env, item, onDetails = onClick)))
+            }),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(

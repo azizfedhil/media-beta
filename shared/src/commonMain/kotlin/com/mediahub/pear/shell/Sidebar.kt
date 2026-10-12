@@ -67,7 +67,7 @@ internal fun Sidebar(
     GlassSurface(
         modifier = modifier.width(width).fillMaxHeight(),
         shape = RoundedCornerShape(0.dp),
-        wash = Color(0xFF0D0D11).copy(alpha = 0.55f),
+        wash = PearTheme.colors.panel,
     ) {
         Column(
             Modifier.fillMaxHeight()
