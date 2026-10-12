@@ -228,8 +228,7 @@ private fun HeroMetaContent(item: MetaPreview, onDetailsClick: () -> Unit) {
     // Large Title Art
     PearText(
         text = item.name.uppercase(),
-        sstyle = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(letterSpacing = 1.sp),
-        color = Color.White,
+        style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(letterSpacing = 1.sp),
         color = Color.White,
         maxLines = 2,
     )
