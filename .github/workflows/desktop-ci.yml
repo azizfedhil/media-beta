@@ -18,8 +18,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.5.1"
+      - name: Fetch libmpv for packaging (GPL build, see desktopApp/packaging/resources/README.md)
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            curl -sSL -o "$RUNNER_TEMP/mpv-dev.7z" \
+              https://github.com/shinchiro/mpv-winbuild-cmake/releases/latest/download/mpv-dev-x86_64-v3.7z
+            7z x -y -o"$GITHUB_WORKSPACE/desktopApp/packaging/resources/windows-x64" "$RUNNER_TEMP/mpv-dev.7z" libmpv-2.dll
+          else
+            sudo apt-get update && sudo apt-get install -y libmpv2
+            cp /usr/lib/x86_64-linux-gnu/libmpv.so.2 "$GITHUB_WORKSPACE/desktopApp/packaging/resources/linux-x64/" || \
+              cp "$(ldconfig -p | awk '/libmpv\.so\.2 /{print $NF; exit}')" \
+                 "$GITHUB_WORKSPACE/desktopApp/packaging/resources/linux-x64/"
+          fi
       - name: Build, test, package
-        run: gradle :shared:build :desktopApp:createDistributable --console=plain
+        # If the fetch above couldn't place the library, still compile/test and produce a distributable,
+        # skipping only the bundling check (-Ppear.skipLibmpv).
+        run: |
+          gradle :shared:build :desktopApp:createDistributable --console=plain || {
+            echo "::warning::libmpv not available in CI; building without the bundled library (-Ppear.skipLibmpv)"
+            gradle :shared:build :desktopApp:createDistributable --console=plain -Ppear.skipLibmpv=true
+          }
       - name: Smoke test (opens the window for 3 s under Xvfb)
         if: runner.os == 'Linux'
         continue-on-error: true
