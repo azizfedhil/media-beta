@@ -25,10 +25,14 @@ compose.desktop {
 }
 
 // Fails the packaging early, with the reason, when the libmpv for the OS being packaged isn't in place.
+// Set -Ppear.skipLibmpv=true to skip the check (CI builds that only compile/package a shell without the binary).
 val checkLibmpv by tasks.registering {
     val os = System.getProperty("os.name").orEmpty().lowercase()
     val folder = packagingResources
+    val skip = providers.gradleProperty("pear.skipLibmpv").isPresent
+    onlyIf { !skip }
     doLast {
+        if (skip) return@doLast
         val (sub, file) = when {
             "win" in os -> "windows-x64" to "libmpv-2.dll"
             "linux" in os -> "linux-x64" to "libmpv.so.2"

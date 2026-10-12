@@ -126,4 +126,6 @@ internal fun TextStyle.scaledBy(k: Float): TextStyle {
     return copy(fontSize = fontSize.scaledBy(k), lineHeight = lineHeight.scaledBy(k))
 }
 
-private fun TextUnit.scaledBy(k: Float): TextUnit = if (isSpecified) (value * k).sp else this
+// TextStyle's fontSize / lineHeight default to TextUnit.Unspecified, which must be left alone.
+private fun TextUnit.scaledBy(k: Float): TextUnit =
+    if (this == TextUnit.Unspecified) this else (value * k).sp
