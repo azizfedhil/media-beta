@@ -338,7 +338,7 @@ class TmdbClientTest {
         val c = client(http)
         val eps = c.episodes("tmdb:9", "series", 1)
         assertEquals("Pilot", eps[0].name)
-        assertEquals("https://image.tmdb.org/t/p/w300/s.jpg", eps[0].stillUrl)
+        assertEquals("https://image.tmdb.org/t/p/w780/s.jpg", eps[0].stillUrl)
         assertNull(eps[1].stillUrl)
         c.episodes("tmdb:9", "series", 1)
         assertEquals(1, http.requests.size)
