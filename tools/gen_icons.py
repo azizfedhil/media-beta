@@ -142,6 +142,11 @@ SF_TO_MDI = {
     "moon.stars.fill": "weather-night",
     "person.fill": "account",
     "person.crop.circle": "account-circle-outline",
+    # player controls pill (Batch 4.3c)
+    "speaker.wave.2": "volume-medium",
+    "speaker.slash": "volume-off",
+    "pip.enter": "picture-in-picture-bottom-right",
+    "rectangle.stack": "card-multiple",
 }
 FALLBACK = "help-circle-outline"  # shown for any SF name that is not in the map
 

@@ -1,20 +1,12 @@
 package com.mediahub.pear.player.ui
 
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,84 +20,81 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
-import com.mediahub.pear.player.PlayerEngine
-import com.mediahub.pear.theme.PearMotion
 
 /**
- * Mute button with a slider that slides out while the pointer is over it (or while dragging it).
- * iOS shows a volume pill for 3 s instead; hover is the desktop version of the same idea.
- * Volume is the engine's own (0..1), so it is the player's volume, not the system mixer.
+ * The volume slider that replaces the pill's icons once the speaker is tapped (`VolumeSliderRow` in
+ * PlayerVolume.swift): a mute button, then the slider. The volume is the engine's own (0..1), not the system mixer.
+ * The pill goes back to its icons 3 s after the last change (see `OptionPill`).
  *
- * @param onActive true while the slider is open: the controls must stay up.
+ * @param onEditing true when a drag starts, false when it ends; the pill keeps its countdown paused in between.
  */
 @Composable
-internal fun PlayerVolumeControl(
-    engine: PlayerEngine,
-    onActive: (Boolean) -> Unit,
+internal fun PlayerVolumeSliderRow(
+    level: Float,
+    onChange: (Float) -> Unit,
+    onToggleMute: () -> Unit,
+    onEditing: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val volume by engine.volume.collectAsState()
-    var lastAudible by remember { mutableStateOf(1f) }
-    LaunchedEffect(volume) { if (volume > 0.01f) lastAudible = volume }
-
-    val source = remember { MutableInteractionSource() }
-    val hovered by source.collectIsHoveredAsState()
-    var dragging by remember { mutableStateOf(false) }
-    val open = hovered || dragging
-    LaunchedEffect(open) { onActive(open) }
-    DisposableEffect(Unit) { onDispose { onActive(false) } }
-
-    val sliderWidth by animateDpAsState(if (open) 96.dp else 0.dp, PearMotion.snappy(PearMotion.BASE))
-
-    Row(modifier.hoverable(source), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         PlayerPillButton(
-            symbol = volumeSymbol(volume),
-            onClick = { engine.setVolume(toggledMute(engine.volume.value, lastAudible)) },
-            contentDescription = if (volume > 0f) "Mute" else "Unmute",
+            symbol = volumeSymbol(level),
+            onClick = onToggleMute,
+            contentDescription = if (level < 0.001f) "Unmute" else "Mute",
         )
-        if (sliderWidth > 0.dp) {
-            VolumeSlider(
-                value = volume,
-                onChange = { engine.setVolume(it) },
-                onDragging = { dragging = it },
-                modifier = Modifier.width(sliderWidth).padding(end = 12.dp),
-            )
-        }
+        PlayerSlider(
+            fraction = level,
+            onChange = onChange,
+            onEditing = onEditing,
+            modifier = Modifier.weight(1f).padding(end = 16.dp),
+        )
     }
 }
 
+/**
+ * A horizontal slider in the player's style: a white track that thickens while it is dragged, as the volume slider
+ * on iOS does. [knob] draws a dot at the position (used by speed; volume has none, as on iOS). Press, drag and
+ * release work for mouse and touch alike; [onEditing] reports the drag.
+ */
 @Composable
-private fun VolumeSlider(
-    value: Float,
+internal fun PlayerSlider(
+    fraction: Float,
     onChange: (Float) -> Unit,
-    onDragging: (Boolean) -> Unit,
+    onEditing: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    knob: Boolean = false,
 ) {
+    var dragging by remember { mutableStateOf(false) }
     Box(
-        modifier.height(32.dp).fillMaxWidth()
+        modifier.height(40.dp)
             .pointerHoverIcon(PointerIcon.Hand)
             .fractionPointer(
                 onStart = {
-                    onDragging(true)
+                    dragging = true
+                    onEditing(true)
                     onChange(it)
                 },
                 onMove = { onChange(it) },
                 onEnd = {
                     onChange(it)
-                    onDragging(false)
+                    dragging = false
+                    onEditing(false)
                 },
             ),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Canvas(Modifier.fillMaxWidth().height(20.dp)) {
-            val trackH = 4.dp.toPx()
+        Canvas(Modifier.fillMaxWidth().height(40.dp)) {
+            val f = fraction.coerceIn(0f, 1f)
+            val trackH = (if (dragging) 16.dp else 10.dp).toPx()
             val y = (size.height - trackH) / 2f
-            val r = CornerRadius(trackH / 2f)
-            drawRoundRect(Color.White.copy(alpha = 0.3f), Offset(0f, y), Size(size.width, trackH), r)
-            drawRoundRect(Color.White, Offset(0f, y), Size(size.width * value.coerceIn(0f, 1f), trackH), r)
-            val knob = 6.dp.toPx()
-            val cx = (size.width * value.coerceIn(0f, 1f)).coerceIn(knob, size.width - knob)
-            drawCircle(Color.White, knob, Offset(cx, size.height / 2f))
+            val corner = CornerRadius(trackH / 2f)
+            drawRoundRect(Color.White.copy(alpha = 0.28f), Offset(0f, y), Size(size.width, trackH), corner)
+            drawRoundRect(Color.White, Offset(0f, y), Size(size.width * f, trackH), corner)
+            if (knob) {
+                val radius = 7.dp.toPx()
+                val cx = (size.width * f).coerceIn(radius, size.width - radius)
+                drawCircle(Color.White, radius, Offset(cx, size.height / 2f))
+            }
         }
     }
 }

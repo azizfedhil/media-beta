@@ -16,9 +16,9 @@ Code: `shared/.../player/ui/` (overlay, pieces, pure rules) and `shell/PlayerScr
 - `PlayerOverlay(engine, title, subtitle, look, glass, errorMessage, onClose, onToggleFullscreen, actions, video)`: one overlay for every platform. The video goes in the `video` slot, which is the Haze source, so blur works over live frames.
 - Layout as on iOS: round close button top left (no title bar: the title sits above the seek bar), skip -10 / play-pause / skip +10 in the centre, title + episode line left and the option pill right above a glass seek bar. Narrow windows (< 620 dp) drop the pill under the title.
 - Seek bar: elapsed, track with the buffered range (lighter, from the playhead to `demuxer-cache-time`), time left. Hover shows a time preview (no thumbnails). Dragging commits on release; the bar holds the target for up to 1.5 s so it doesn't jump back while mpv seeks. The bar reads the engine clock itself, rounded to 0.2 s, so nothing else recomposes while playing.
-- Volume: mute button in the pill, slider slides out on hover. It is mpv's own volume (0..1).
+- Volume: superseded in 4.3c. The speaker now turns the pill into a slider (see "Controls pill" below). Still mpv's own volume (0..1).
 - Auto-hide: 3.5 s after the last mouse movement, only while playing or buffering. Controls stay while paused, loading, ended, failed, dragging the seek bar, hovering the controls or using the volume slider. The cursor is hidden together with the controls (`hiddenPointerIcon`, desktop: blank AWT cursor).
-- Mouse: click on the picture toggles play/pause, double-click toggles fullscreen. (iOS toggles the controls on tap; on desktop hover already does that.)
+- Mouse: click on the picture toggles play/pause (or closes an open panel, 4.3c), double-click toggles fullscreen. (iOS toggles the controls on tap; on desktop hover already does that.)
 - The player is always dark (`PearDark`), whatever the app appearance.
 
 ### Glass setting (`PlayerLook`)
@@ -33,7 +33,7 @@ The app-wide glass mode set to Flat also means Tint in the player. Settings -> P
 
 ### Not in 4.3a (by plan)
 
-The pill with pinned and ordered options, speed, info card (4.3c; `actions` holds stand-in buttons for aspect, 4K mode and fullscreen until then), skip intro / up next (4.3d). Not planned: the "pear." loader animation and the paused-state show logo; the overlay shows a spinner instead.
+Skip intro / up next (4.3d). Not planned: the "pear." loader animation and the paused-state show logo; the overlay shows a spinner instead. (The pill, speed, sources and info card are 4.3c, below.)
 
 ## Resume, progress and history (Batch 4.3b)
 
@@ -67,3 +67,39 @@ Spec: `resumePoint`, `save`, `finalizeCurrent`, `logPlayTime` and the 15 s tick 
 
 ### Not compiled
 The authoring environment has no Gradle. `gradle :shared:desktopTest --tests "*PlaybackProgress*" --tests "*ProgressRules*" --tests "*AppExit*"` runs the new tests; then `gradle :desktopApp:run` for the list above.
+
+## Controls pill, panels and info card (Batch 4.3c)
+
+Code: `player/ui/PillItems.kt` (pill rules), `player/ui/OptionPill.kt` (the pill), `player/ui/PlayerPanels.kt` (speed, sources, info panel), `player/ui/InfoCard.kt` and `player/ui/PlayerInfo.kt` (the card and its data), `player/ui/SourcePanelRules.kt`, `player/ui/PlayerLogic.kt` (`PlayerPanel`, `SpeedMath`), `settings/PlayerControlsSettingsScreen.kt`, `shell/PlayerScreen.kt` (hosts it all), `shell/PrefState.kt` (`rememberPref`, a setting that follows changes). Spec: `PlayerControlsSettings.swift`, `PlayerView.swift` (`iconRow`, `pillLayout`, `speedPanel`, `sourcesPanel`, `infoPanel`, `loadInfo`), `PlayerInfoCard.swift`, `PlayerVolume.swift`, `SourceFilter.swift`.
+
+### The pill
+- `PillItem` has the iOS raw names and order. `PillItem.decodePinned` / `decodeOrder` / `encode*` follow the Swift code exactly, so a backup from iPhone restores the same layout. Prefs: `player.pillPinned`, `player.pillOrder`.
+- Folding: above four buttons the pill shows the pinned ones and a chevron. The chevron unfolds the rest to the left and the pill folds itself again 5 s after the last tap. Folded width is fixed, so the title never moves; the unfolded pill grows over it. Widths come from slot counts (`pillWindowSlots`), not measurements.
+- Speaker: turns the pill into a volume slider (mute button and slider, at least 260 dp wide). It goes back to the icons 3 s after the last change, and the countdown pauses while the slider is dragged.
+- Panels close the pill's folds (`panelOpen`); the pill keeps the controls up while it is open (`onActive`).
+- Live: the pill reads both prefs through `rememberPref`, so a change in Settings shows in an open player.
+- Buttons in this build: **Speed, Sources, Volume** (`desktopPillItems`). Episodes and Next join in 4.3d; Subtitles and Audio in 4.4a; Picture in Picture never applies on desktop. Until then, pinning changes nothing visible (folding needs more than four buttons), and reordering does.
+
+### Desktop-only buttons
+Aspect (cycles Fit / Fill / Stretch), 4K performance mode and full screen sit in their own capsule after the pill (`DesktopControls` in `PlayerScreen`). They are not in the pill or in Settings, because the iOS player has none of them. This departs from the plan's "moved into the pill", which conflicted with the Swift pill.
+
+### Panels
+- **Speed**: 360 dp card above the pill, slider 0.5x to 2x, label, reset to 1x. `SpeedMath` rounds to 0.01 and snaps to 1x within 0.025. The controls stay up.
+- **Sources**: right edge, 360 dp. Playable streams only (`isPlayable(p2pReady = false)`), grouped under each add-on in the user's add-on order, with a menu that narrows to one add-on (a stale choice shows everything). The stream being played has a check mark; picking it closes the panel. Groups appear as each add-on answers. Torrent-only streams are hidden, not shown as "P2P is off" (4.5).
+- **Info card**: episode or movie. Opens from the title's chevron, and covers the controls (as on iOS). The episode card uses TMDB's episode (still, synopsis, air date, runtime, TMDB vote). If the episode has no synopsis yet, the series description is shown with "About the series". The movie card uses TMDB details and MDBList ratings, with the TMDB vote and the catalog score filling in. The card is 230 dp wide with the still, and it stacks below 520 dp.
+- **Switching source** (`switchSource` in `PlayerScreen`): banks the progress of the stream being left, keeps the playhead as the load position, and swaps the request with `withSource`. It does not call `PlaybackProgress.begin()`, so the Simkl start flag and the resume guard stay as they are.
+- A click on the picture closes an open panel instead of toggling playback (`tapBackground` on iOS).
+
+### Settings
+Settings -> Playback -> Player controls: a live preview of the folded pill; "Always visible · N of 4" with the lock rules from Swift (a full set cannot take another; the last one cannot be removed); the order list, reordered by dragging its handle (each step is about one row, and the order is saved when the drag ends); and "Reset to default". Toggles use the codebase's ON/OFF chips (`DevChip`), as the other settings screens do, not iOS switches.
+
+### Check it
+1. Play anything. The pill shows Speed, Sources and Volume on the right, with the desktop capsule after them. Tap the speaker: the pill becomes a slider and returns after 3 s.
+2. Speed: pick 1.5x, the label and the picture change. Reset returns to 1x.
+3. Sources (a title with two add-ons): the list is grouped, the add-on menu narrows it, the stream playing has a check. Pick another stream: playback continues at the same position.
+4. Click the title (or its chevron): the info card opens and covers the controls. A click on the picture closes it.
+5. Settings -> Player controls: reorder the rows by dragging the handle, then open a player: the pill follows. Pin and unpin: the counter and the lock rules behave; the player changes only once it has more than four buttons (4.3d).
+6. Narrow the window below 620 dp: the pill drops under the title.
+
+### Not compiled
+As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest --tests "*PillItems*" --tests "*PlayerPanelRules*" --tests "*PlayerInfo*"` first, then `gradle :desktopApp:run` for the list above.

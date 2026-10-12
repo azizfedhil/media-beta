@@ -3,6 +3,8 @@ package com.mediahub.pear.player.ui
 import com.mediahub.pear.glass.GlassMode
 import com.mediahub.pear.history.Fmt
 import com.mediahub.pear.player.PlaybackState
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
 // Pure rules behind the player overlay (Batch 4.3a). No Compose in here, so they are unit tested.
 
@@ -52,8 +54,9 @@ fun controlsVisible(
     scrubbing: Boolean,
     pointerOverControls: Boolean,
     volumeActive: Boolean,
+    panelOpen: Boolean = false,
 ): Boolean {
-    if (hasError || recentlyActive || scrubbing || pointerOverControls || volumeActive) return true
+    if (hasError || recentlyActive || scrubbing || pointerOverControls || volumeActive || panelOpen) return true
     return when (state) {
         PlaybackState.Playing, PlaybackState.Buffering -> false
         PlaybackState.Idle, PlaybackState.Loading, PlaybackState.Paused, PlaybackState.Ended, PlaybackState.Error -> true
@@ -107,4 +110,50 @@ fun playerSubtitleLine(season: Int?, episode: Int?, episodeTitle: String?, relea
         return if (episodeTitle.isNullOrBlank()) base else "$base · $episodeTitle"
     }
     return releaseInfo?.takeIf { it.isNotBlank() }
+}
+
+/** The panels the player can show over the video (Batch 4.3c). Only one is open at a time, as on iOS. */
+enum class PlayerPanel {
+    /** Playback speed, floating above the pill. The controls stay up. */
+    Speed,
+
+    /** Other streams for this title or episode. Takes the place of the controls. */
+    Sources,
+
+    /** The episode or movie card. Takes the place of the controls. */
+    Info,
+}
+
+/** Sources and the info card cover the controls (`showControls = false` in PlayerView.swift); speed floats above them. */
+fun panelCoversControls(panel: PlayerPanel?): Boolean = panel == PlayerPanel.Sources || panel == PlayerPanel.Info
+
+/**
+ * Playback speed as the slider and the label see it (`setRate`, `rateText` in PlayerView.swift). The slider runs
+ * 0.5x to 2x; values round to 0.01 and snap to exactly 1x near the middle.
+ */
+object SpeedMath {
+    const val MIN = 0.5
+    const val MAX = 2.0
+
+    /** Slider position (0..1) to speed. */
+    fun fromFraction(fraction: Float): Double {
+        val v = (MIN + (MAX - MIN) * fraction.coerceIn(0f, 1f)).coerceIn(MIN, MAX)
+        return if (abs(v - 1.0) < 0.025) 1.0 else (v * 100).roundToLong() / 100.0
+    }
+
+    /** Speed to slider position (0..1). */
+    fun toFraction(rate: Double): Float = ((rate.coerceIn(MIN, MAX) - MIN) / (MAX - MIN)).toFloat()
+
+    /** "1×", "0.5×", "1.25×": up to two decimals, no trailing zeros. */
+    fun label(rate: Double): String {
+        val hundredths = (rate * 100).roundToLong()
+        val whole = hundredths / 100
+        val frac = (hundredths % 100).toInt()
+        val tail = when {
+            frac == 0 -> ""
+            frac % 10 == 0 -> ".${frac / 10}"
+            else -> ".${frac.toString().padStart(2, '0')}"
+        }
+        return "$whole$tail×"
+    }
 }
