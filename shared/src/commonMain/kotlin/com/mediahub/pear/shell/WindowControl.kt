@@ -4,14 +4,20 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 
-/** Lets shared code resize the window (desktop only). The dev "phone window" toggle uses it. */
+/** How the desktop window is shown. Maximized and full screen are the window's own states, not a size. */
+enum class WindowMode { Windowed, Maximized, Fullscreen }
+
+/** Lets shared code resize the window and change its state (desktop only). The dev "phone window" toggle uses it. */
 interface WindowControl {
     val size: DpSize
     fun resize(width: Dp, height: Dp)
 
-    /** Whole-screen window (the player's fullscreen button). */
-    var isFullscreen: Boolean
-        get() = false
+    /**
+     * The window's state. Reading it gives the state now; setting it puts the window in that state. The player reads it
+     * on entry and sets it back on leaving, so a maximized or full-screen app stays that way after a film.
+     */
+    var mode: WindowMode
+        get() = WindowMode.Windowed
         set(_) {}
 }
 

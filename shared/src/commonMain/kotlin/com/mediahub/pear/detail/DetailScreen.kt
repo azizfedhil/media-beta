@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,6 +74,8 @@ import com.mediahub.pear.theme.weight
 import com.mediahub.pear.home.fallbackHeroAmbientColor
 import com.mediahub.pear.net.rememberDominantColor
 import com.mediahub.pear.shell.FadedPoster
+import com.mediahub.pear.shell.FeedCollapse
+import com.mediahub.pear.shell.LocalFeedCollapse
 
 @Composable
 fun DetailScreen(
@@ -153,14 +157,21 @@ fun DetailScreen(
         }
     }
 
-    // Wide layout: the poster column folds away as the page scrolls, the way Home's hero does.
+    // Wide layout: the poster column folds away as the page scrolls, and as any row on the page is dragged (the episode
+    // cards, More like this), the way Home's hero does. Rows report to LocalFeedCollapse; the page's scroll sets the
+    // vertical part here.
     val wideScroll = rememberScrollState()
-    val fold by animateFloatAsState((wideScroll.value / 300f).coerceIn(0f, 1f), tween(140))
+    val feed = remember { FeedCollapse() }
+    LaunchedEffect(wideScroll) {
+        snapshotFlow { wideScroll.value }.collect { feed.vertical = (it / 300f).coerceIn(0f, 1f) }
+    }
+    val fold by animateFloatAsState(feed.progress, tween(140))
     val posterWidth = 440.dp * (1f - fold)
 
     Box(modifier.fillMaxSize()) {
         if (isWide) {
             // Split layout for wide screens
+            CompositionLocalProvider(LocalFeedCollapse provides feed) {
             Row(Modifier.fillMaxSize()) {
                 // Left column: the poster, frameless, dissolving into the page's colour wash.
                 val dominant = rememberDominantColor(item.posterUrl ?: item.backdropUrl)
@@ -248,6 +259,7 @@ fun DetailScreen(
                         AboutDetailsSection(details, isSeries)
                     }
                 }
+            }
             }
         } else {
             // Stacked layout for compact / phone screens

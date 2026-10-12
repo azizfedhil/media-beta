@@ -24,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.player.PlayerEngine
@@ -35,6 +37,9 @@ private const val SLOT_DP = 46f
 private const val GAP_DP = 2f
 private const val PAD_DP = 4f
 private const val VOLUME_MIN_DP = 260f
+
+/** Space kept between the pill and the window's left edge when it grows (dp, in the player's scale). */
+private const val PILL_EDGE_MARGIN_DP = 12f
 
 /** Seconds an unfolded pill stays open after the last tap. */
 private const val PILL_LIFE_MILLIS = 5_000L
@@ -127,7 +132,14 @@ internal fun OptionPill(
     // not one of the layout's items, so it never counts towards folding.
     val fullscreenSlots = if (mode == PillMode.Volume) 0 else 1
     val windowSlots = pillWindowSlots(layout, mode) + fullscreenSlots
-    val windowWidth = if (mode == PillMode.Volume) maxOf(span(windowSlots), VOLUME_MIN_DP.dp) else span(windowSlots)
+    val desiredWidth = if (mode == PillMode.Volume) maxOf(span(windowSlots), VOLUME_MIN_DP.dp) else span(windowSlots)
+    // The pill grows to the left, but never past the window's left edge. The room is measured from the footprint's
+    // right edge after layout (in the player's dp). A narrow window then clips the far buttons instead of pushing the
+    // pill off screen. It is not measured before the first layout, so the first frame shows the full width.
+    var rightEdgeDp by remember { mutableFloatStateOf(Float.POSITIVE_INFINITY) }
+    val density = LocalDensity.current
+    val roomDp = (rightEdgeDp - PILL_EDGE_MARGIN_DP - PAD_DP * 2).coerceAtLeast(SLOT_DP)
+    val windowWidth = minOf(desiredWidth, roomDp.dp)
     val animatedWidth by animateDpAsState(windowWidth, PearMotion.snappy<Dp>(PearMotion.BASE))
 
     val footprint = span(pillWindowSlots(layout, PillMode.Folded) + 1) + (PAD_DP * 2).dp
@@ -137,7 +149,13 @@ internal fun OptionPill(
         if (expanded) unfoldBumps++
     }
 
-    Box(modifier.width(footprint).height(height), contentAlignment = Alignment.CenterEnd) {
+    Box(
+        modifier.width(footprint).height(height).onGloballyPositioned { coords ->
+            // Distance from the window's left edge to the pill's right edge, in the player's dp.
+            rightEdgeDp = density.run { (coords.positionInWindow().x + coords.size.width).toDp().value }
+        },
+        contentAlignment = Alignment.CenterEnd,
+    ) {
         PlayerSurface(Modifier.requiredWidth(animatedWidth + (PAD_DP * 2).dp).height(height), SurfaceKind.Capsule) {
             Box(Modifier.fillMaxSize().padding(PAD_DP.dp).clipToBounds(), contentAlignment = Alignment.CenterEnd) {
                 if (mode == PillMode.Volume) {

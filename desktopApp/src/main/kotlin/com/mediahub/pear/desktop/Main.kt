@@ -16,6 +16,7 @@ import com.mediahub.pear.glass.BatteryWatch
 import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.NativeTitleBar
 import com.mediahub.pear.shell.WindowControl
+import com.mediahub.pear.shell.WindowMode
 import kotlinx.coroutines.delay
 import java.awt.Dimension
 import java.awt.Toolkit
@@ -38,10 +39,18 @@ fun main(args: Array<String>) = application {
         object : WindowControl {
             override val size: DpSize get() = windowState.size
 
-            override var isFullscreen: Boolean
-                get() = windowState.placement == WindowPlacement.Fullscreen
+            override var mode: WindowMode
+                get() = when (windowState.placement) {
+                    WindowPlacement.Fullscreen -> WindowMode.Fullscreen
+                    WindowPlacement.Maximized -> WindowMode.Maximized
+                    else -> WindowMode.Windowed
+                }
                 set(value) {
-                    windowState.placement = if (value) WindowPlacement.Fullscreen else WindowPlacement.Floating
+                    windowState.placement = when (value) {
+                        WindowMode.Fullscreen -> WindowPlacement.Fullscreen
+                        WindowMode.Maximized -> WindowPlacement.Maximized
+                        WindowMode.Windowed -> WindowPlacement.Floating
+                    }
                 }
 
             override fun resize(width: Dp, height: Dp) {

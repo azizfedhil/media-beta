@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.layout.ContentScale
@@ -222,13 +222,21 @@ private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, 
     }
     val episodeName = info?.name?.takeIf { it.isNotBlank() } ?: request.episodeTitle
     val synopsis = info?.overview?.takeIf { it.isNotBlank() } ?: request.item.description
-    Column(modifier.padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(PearRadii.card))
-                .background(PearTheme.colors.fill),
-        ) {
-            RemoteImage(image, Modifier.fillMaxSize())
+    // The whole pane scrolls, so a long synopsis is always reachable. The still is 16:9 at the pane's width but never taller
+    // than 220 dp, so it leaves room for the title, ratings and synopsis in a window of ordinary height.
+    Column(
+        modifier.verticalScroll(rememberScrollState()).padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val stillHeight = (maxWidth * 9f / 16f).coerceAtMost(220.dp)
+            Box(
+                Modifier.fillMaxWidth().height(stillHeight)
+                    .clip(RoundedCornerShape(PearRadii.card))
+                    .background(PearTheme.colors.fill),
+            ) {
+                RemoteImage(image, Modifier.fillMaxSize())
+            }
         }
         PearText(kicker, style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textTertiary, maxLines = 1)
         val logo = request.logo
@@ -251,10 +259,8 @@ private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, 
                 ratings.forEach { RatingBadge(it) }
             }
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            synopsis?.let {
-                PearText(it, style = PearTheme.type.body, color = PearTheme.colors.textPrimary)
-            }
+        synopsis?.let {
+            PearText(it, style = PearTheme.type.body, color = PearTheme.colors.textPrimary)
         }
     }
 }

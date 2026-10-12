@@ -139,13 +139,18 @@ fun PlayerScreen(
         }
     }
 
+    // The window as the player found it: maximized, full screen or a plain window. Leaving the player puts that back, so
+    // the app doesn't drop out of a maximized or full-screen state after a film. Full screen inside the player toggles
+    // from there, and turning it off returns to the same state (never full screen, as the window was not full screen).
     val window = LocalWindowControl.current
-    var fullscreen by remember { mutableStateOf(false) }
+    val windowBefore = remember { window?.mode ?: WindowMode.Windowed }
+    val windowAfterFullscreen = if (windowBefore == WindowMode.Fullscreen) WindowMode.Windowed else windowBefore
+    var fullscreen by remember { mutableStateOf(window?.mode == WindowMode.Fullscreen) }
     fun setFullscreen(value: Boolean) {
         fullscreen = value
-        window?.isFullscreen = value
+        window?.mode = if (value) WindowMode.Fullscreen else windowAfterFullscreen
     }
-    DisposableEffect(Unit) { onDispose { window?.isFullscreen = false } }
+    DisposableEffect(Unit) { onDispose { window?.mode = windowBefore } }
 
     var aspect by remember { mutableStateOf(AspectMode.Fit) }
     var performance by remember { mutableStateOf(false) }
