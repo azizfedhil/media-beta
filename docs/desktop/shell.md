@@ -77,3 +77,11 @@ is shared between the two passes a scale of 1x when the layout is compact.
   a grid of cards and the add-on filter across the top.
 - The ambient colour is drawn behind the app in both layouts (`AmbientWash`). The phone hero takes the poster's colour as the wide
   hero does; the title's hue is the fallback.
+
+## Native title bar (Windows)
+
+- The window keeps Windows' own title bar: its buttons, snap layouts and dragging all stay native. `NativeTitleBar(window)` in
+  `desktopMain/.../shell/NativeTitleBar.kt` asks DWM (`dwmapi.dll`, through JNA) to draw it in dark mode, with the app's background
+  as its colour and white text. Windows 10 gets the dark mode only; Windows 11 also gets the colours.
+- The colour is fixed to the app's dark background. A light appearance would need the theme passed in.
+- Other systems keep their own bar, untouched.

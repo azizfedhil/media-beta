@@ -13,6 +13,7 @@ import com.mediahub.pear.App
 import com.mediahub.pear.data.desktopStorage
 import com.mediahub.pear.net.desktopNetwork
 import com.mediahub.pear.shell.AppExit
+import com.mediahub.pear.shell.NativeTitleBar
 import com.mediahub.pear.shell.WindowControl
 import kotlinx.coroutines.delay
 import java.awt.Dimension
@@ -58,6 +59,7 @@ fun main(args: Array<String>) = application {
         state = windowState,
     ) {
         window.minimumSize = Dimension(360, 600) // small enough for the phone layout
+        NativeTitleBar(window) // the window's own title bar, dark to match the app (Windows)
         App(windowControl = control, storage = storage, network = network)
     }
 }
