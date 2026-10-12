@@ -2,6 +2,12 @@ name: Desktop CI
 # Manual only: Actions tab -> "Desktop CI" -> Run workflow.
 on:
   workflow_dispatch:
+
+env:
+  # libmpv for the Windows build: the 64-bit LGPL mpv-dev package, pinned by URL and SHA-256.
+  MPV_DEV_URL: https://github.com/zhongfly/mpv-winbuild/releases/download/2026-10-11-d94d095814/mpv-dev-lgpl-x86_64-20261011-git-d94d095814.7z
+  MPV_DEV_SHA256: 72bc1e3fe1c8aaf17b5243003b110a522d109caf6d871cbc8e05996238b93d06
+
 jobs:
   build:
     strategy:
@@ -9,55 +15,75 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    # Force bash for all multi-line `run` steps; on Windows the default shell is
-    # PowerShell, which can't parse POSIX `if [ ... ]; then ... fi` syntax.
+    timeout-minutes: 45
     defaults:
       run:
+        # PowerShell is the default on Windows and can't parse POSIX `if [ ... ]; then ... fi`.
         shell: bash
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.5.1"
-      - name: Fetch libmpv for packaging (GPL build, see desktopApp/packaging/resources/README.md)
+
+      # Windows: download the pinned archive, check its hash, and copy libmpv-2.dll into the packaging folder.
+      # Nothing is committed to the repo; the installer carries the DLL.
+      - name: Fetch libmpv (Windows)
+        if: runner.os == 'Windows'
         run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            curl -sSL -o "$RUNNER_TEMP/mpv-dev.7z" \
-              https://github.com/shinchiro/mpv-winbuild-cmake/releases/latest/download/mpv-dev-x86_64-v3.7z
-            # `7z` is not on the bash PATH on Windows runners; use the bundled 7-Zip binary instead.
-            "/c/Program Files/7-Zip/7z.exe" x -y \
-              -o"$GITHUB_WORKSPACE/desktopApp/packaging/resources/windows-x64" \
-              "$RUNNER_TEMP/mpv-dev.7z" libmpv-2.dll
-          else
-            sudo apt-get update && sudo apt-get install -y libmpv2
-            cp /usr/lib/x86_64-linux-gnu/libmpv.so.2 "$GITHUB_WORKSPACE/desktopApp/packaging/resources/linux-x64/" || \
-              cp "$(ldconfig -p | awk '/libmpv\.so\.2 /{print $NF; exit}')" \
-                 "$GITHUB_WORKSPACE/desktopApp/packaging/resources/linux-x64/"
+          set -euo pipefail
+          shopt -s globstar nullglob
+          mkdir -p mpv-dl
+          curl --fail --location --retry 3 --output mpv-dl/mpv-dev.7z "$MPV_DEV_URL"
+          echo "$MPV_DEV_SHA256  mpv-dl/mpv-dev.7z" | sha256sum --check --strict -
+          # 7-Zip is on the runner's PATH; the install folder is the fallback.
+          SEVENZIP="$(command -v 7z || true)"
+          if [ -z "$SEVENZIP" ]; then SEVENZIP="/c/Program Files/7-Zip/7z.exe"; fi
+          "$SEVENZIP" x -y -ompv-dl/extracted mpv-dl/mpv-dev.7z > /dev/null
+          found=(mpv-dl/extracted/**/libmpv-2.dll)
+          if [ "${#found[@]}" -eq 0 ]; then
+            echo "libmpv-2.dll is not in the archive" >&2
+            exit 1
           fi
-      - name: Build, test, package
-        # If the fetch above couldn't place the library, still compile/test and produce a distributable,
-        # skipping only the bundling check (-Ppear.skipLibmpv).
+          mkdir -p desktopApp/packaging/resources/windows-x64
+          cp "${found[0]}" desktopApp/packaging/resources/windows-x64/libmpv-2.dll
+          rm -rf mpv-dl
+
+      # Linux: the distribution's libmpv (libmpv2 provides libmpv.so.2), copied into the packaging folder.
+      - name: Fetch libmpv (Linux)
+        if: runner.os == 'Linux'
         run: |
-          gradle :shared:build :desktopApp:createDistributable --console=plain || {
-            echo "::warning::libmpv not available in CI; building without the bundled library (-Ppear.skipLibmpv)"
-            gradle :shared:build :desktopApp:createDistributable --console=plain -Ppear.skipLibmpv=true
-          }
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libmpv2
+          lib="$(ldconfig -p | awk '/libmpv\.so\.2 / {print $NF; exit}')"
+          test -n "$lib"
+          mkdir -p desktopApp/packaging/resources/linux-x64
+          cp -L "$lib" desktopApp/packaging/resources/linux-x64/libmpv.so.2
+
+      # No fallback: a missing libmpv fails the job here, not later in a build without video.
+      - name: Build, test, package
+        run: gradle :shared:build :desktopApp:createDistributable --console=plain
+
       - name: Smoke test (opens the window for 3 s under Xvfb)
         if: runner.os == 'Linux'
         continue-on-error: true
         env:
           SKIKO_RENDER_API: SOFTWARE_FAST
         run: |
-          sudo apt-get update
           sudo apt-get install -y xvfb libgl1 libxrender1 libxtst6 libxi6 libfontconfig1
           xvfb-run -a gradle :desktopApp:run --args="--smoke" --console=plain
+
       - name: Generate Gradle wrapper (commit these files once)
         if: runner.os == 'Linux'
         run: gradle wrapper --gradle-version 9.5.1 --console=plain
+
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
@@ -66,6 +92,7 @@ jobs:
             gradlew
             gradlew.bat
             gradle/wrapper/*
+
       - uses: actions/upload-artifact@v4
         with:
           name: pear-desktop-${{ runner.os }}

@@ -1,22 +1,25 @@
 # Bundled libmpv
 
-Pear plays video through libmpv, and the app bundles it. Users never install or copy it: the installer carries the library,
-and the player finds it in the app's own resources folder.
+Pear plays video through libmpv, and the installer bundles it. Users never install or copy it.
 
-The library itself isn't in the repository. Put it here once, before packaging:
+The library is **not stored in the repository**. It's ~100 MB, and git is the wrong place for it.
+CI fetches it at build time (see `.github/workflows/desktop-ci.yml`):
 
-| Platform | Folder | File |
+| Platform | Source | Placed at |
 | --- | --- | --- |
-| Windows (64-bit) | `windows-x64/` | `libmpv-2.dll`, from an mpv-dev build (for example shinchiro's). Copy any other DLLs from the same archive into the same folder. |
-| Linux (64-bit) | `linux-x64/` | `libmpv.so.2`, or leave it out and depend on the distribution's `libmpv2` package in the package's dependencies |
+| Windows (64-bit) | mpv-dev LGPL x86_64, release `2026-10-11-d94d095814`, SHA-256 pinned in the workflow | `windows-x64/libmpv-2.dll` |
+| Linux (64-bit) | distribution package `libmpv2` | `linux-x64/libmpv.so.2` |
 
-Everything in a platform's folder is copied into the packaged app's resources folder. The build (`createDistributable`, `package*`)
-stops with a message if the file for the OS being packaged is missing, so a release can't go out without it.
+Everything in a platform's folder is copied into the installed app's resources folder, which the player searches first.
+`checkLibmpv` (in `desktopApp/build.gradle.kts`) fails any `createDistributable` or `package*` task whose file is missing,
+so an installer can't go out without the library.
 
-Running from source (`gradle :desktopApp:run`) searches these folders too, so a source build plays video without an installed app.
+## Building locally
+
+Copy the DLL into `windows-x64/` (or the .so into `linux-x64/`) before `gradle :desktopApp:createDistributable`.
+Running from source (`gradle :desktopApp:run`) searches these folders too. The files are ignored by git (`.gitignore`).
 
 ## Licence
 
-mpv and libmpv are GPL by default, and the Windows build from shinchiro is GPL. Shipping it inside the installer means the
-distributed app must be available under GPL terms (or the build must be an LGPL-only build, see `docs/desktop/phase0-decisions.md`).
-Check this before the first public release. The About screen already lists libmpv and its licence.
+The Windows library is an LGPL build. Shipping it inside the installer still means the LGPL terms apply: include the
+licence text, and offer the libmpv source for the version you ship. Check the release notes before each release.

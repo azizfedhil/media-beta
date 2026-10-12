@@ -65,3 +65,11 @@ Fill this in from the spike's "Print summary" output (2 s samples, averages):
 - "Haze 2 is alpha" is obsolete: 2.0.1 is stable; only glass is experimental. Pin versions anyway.
 - New: Kotlin 2.4.20 and CMP 1.12 are required together with Haze, so the whole project tracks them.
 - New: the Windows spike downloads shinchiro's latest libmpv build; pin a specific release before Phase 6.
+
+## Pinned libmpv (Windows) — recorded for Phase 6
+
+- Release: `2026-10-11-d94d095814` (zhongfly/mpv-winbuild), LGPL build, x86_64 (not v3, so it runs on any 64-bit PC).
+- Archive: `mpv-dev-lgpl-x86_64-20261011-git-d94d095814.7z`, SHA-256 `72bc1e3fe1c8aaf17b5243003b110a522d109caf6d871cbc8e05996238b93d06`.
+- Contains `libmpv-2.dll`, SHA-256 `e3ae7ade8ccf49e5e0a9c4e95ab464a639e80fe156429cad16a15d083901acfc`, 101,194,240 bytes.
+- Hard dependency: `vulkan-1.dll`, which comes with GPU drivers and is not part of Windows. Verify on a machine without it.
+- Not in the repository. CI fetches it and checks the hash; the installer carries it. Update this record whenever the pinned release changes.
