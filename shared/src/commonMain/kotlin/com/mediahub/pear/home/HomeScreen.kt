@@ -61,7 +61,9 @@ fun HomeScreen(
         }
         val fold by animateFloatAsState(fc.progress, tween(140))
         CompositionLocalProvider(LocalFeedCollapse provides fc) {
-            Row(modifier.fillMaxSize()) {
+            // One wash behind the hero and the feed together. It used to sit only on the feed column, so the hero's
+            // faded right edge met a plain black page at a hard vertical line.
+            Row(modifier.fillMaxSize().attachedAmbient(AmbientTuning.WIDE_REACH_DP)) {
                 if (model.hero.isNotEmpty()) {
                     WideHeroPanel(
                         items = model.hero,
@@ -81,7 +83,6 @@ fun HomeScreen(
                     ) {
                         Column(
                             Modifier.fillMaxWidth()
-                                .attachedAmbient(AmbientTuning.WIDE_REACH_DP)
                                 .padding(start = 14.dp, top = 18.dp, bottom = bottomInset + 40.dp),
                             verticalArrangement = Arrangement.spacedBy(28.dp),
                         ) {
