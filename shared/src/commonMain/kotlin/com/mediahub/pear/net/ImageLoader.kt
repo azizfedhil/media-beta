@@ -140,8 +140,10 @@ suspend fun loadRemoteBitmap(http: Http, url: String): ImageBitmap? {
     ImageMemoryCache.get(url)?.let { return it }
     // Runs on the caller's context, not Dispatchers.Default: callers that must know whether an image arrived wait on
     // this call, and tests drive it through a virtual-time scheduler that cannot see work moved to a real dispatcher.
-    val loaded = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)).body }
-        ?.let { decodeImageBitmap(it) } ?: return null
+    val reply = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)) } ?: return null
+    // An error answer is never a picture. It isn't decoded at all, so a 404 costs no image work.
+    if (reply.status !in 200..299) return null
+    val loaded = decodeImageBitmap(reply.body) ?: return null
     ImageMemoryCache.put(url, loaded)
     return loaded
 }

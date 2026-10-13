@@ -55,6 +55,9 @@ kotlin {
         val desktopTest by getting {
             dependencies {
                 implementation(libs.ktor.client.mock)
+                // The host OS's Skiko native runtime, the same dependency desktopApp adds for the app. Without it the test
+                // JVM has Skiko's classes but no native library, so any test that decodes an image fails to load Skiko.
+                implementation(compose.desktop.currentOs)
             }
         }
     }
