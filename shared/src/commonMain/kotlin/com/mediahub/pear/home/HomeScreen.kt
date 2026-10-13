@@ -82,7 +82,7 @@ fun HomeScreen(
                             .padding(top = 18.dp, bottom = bottomInset + 40.dp),
                     ) {
                         // The pane's glow scrolls with its rows, as iOS draws it on the feed.
-                        Column(Modifier.fillMaxWidth().attachedAmbient(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                        Column(Modifier.fillMaxWidth().attachedAmbient(AmbientTuning.WIDE_REACH_DP), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                             FeedRows(model, onSelectTitle, onSeeAll)
                         }
                     }

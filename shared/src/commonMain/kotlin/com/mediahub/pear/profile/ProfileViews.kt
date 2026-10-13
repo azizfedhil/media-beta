@@ -58,6 +58,14 @@ import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import androidx.compose.animation.core.animateFloatAsState
 import com.mediahub.pear.theme.PearMotion
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import com.mediahub.pear.glass.FlatSheet
+import com.mediahub.pear.shell.PearCircleButton
+import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.shell.PearButtonStyle
 
 @Composable
 fun ProfileAvatar(
@@ -178,6 +186,28 @@ fun ProfileSheetOverlay(
 }
 
 /** "Who's watching?" sheet dialog. [floating] is the wide layout's panel (a card, smaller avatars). */
+/** A card on the flat sheet: a step lighter than the sheet, so the two don't merge. Same shape as the glass cards. */
+@Composable
+private fun SheetCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    val fill by animateColorAsState(
+        if (hovered && onClick != null) PearTheme.colors.fillStrong else PearTheme.colors.fillSubtle,
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    val interactive = if (onClick == null) Modifier else
+        Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand).clickable(interactionSource = source, indication = null, onClick = onClick)
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(PearRadii.card)).background(fill).then(interactive).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
+}
+
 @Composable
 fun ProfileSheet(
     onDismiss: () -> Unit,
@@ -195,7 +225,7 @@ fun ProfileSheet(
     val avatarSize = if (floating) 56.dp else 72.dp
     val avatarGap = if (floating) 14.dp else 18.dp
 
-    GlassSheet(modifier = modifier, floating = floating) {
+    FlatSheet(modifier = modifier, floating = floating) {
         if (editingProfile != null || isCreatingNew) {
             ProfileEditor(
                 profile = editingProfile,
@@ -223,12 +253,12 @@ fun ProfileSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     PearText("Who's watching?", style = PearTheme.type.title2.weight(FontWeight.Bold))
-                    GlassButton(onClick = onDismiss, symbol = "xmark", size = 32.dp)
+                    PearCircleButton(onClick = onDismiss, symbol = "xmark", size = 32.dp)
                 }
 
                 if (!isManaging) {
                     // Profile details hub link card
-                    GlassCard(
+                    SheetCard(
                         onClick = {
                             onDismiss()
                             onOpenProfileDetail()
@@ -245,7 +275,7 @@ fun ProfileSheet(
                     }
 
                     // Downloads link card
-                    GlassCard(
+                    SheetCard(
                         onClick = {
                             onDismiss()
                             onOpenDownloads()
@@ -329,7 +359,7 @@ fun ProfileSheet(
                     color = PearTheme.colors.textTertiary,
                 )
 
-                GlassButton(
+                PearCapsuleButton(
                     onClick = { isManaging = !isManaging },
                     label = if (isManaging) "Done Editing" else "Manage Profiles",
                     modifier = Modifier.fillMaxWidth(),
@@ -340,6 +370,7 @@ fun ProfileSheet(
 }
 
 /** Profile creation/editor sub-screen. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProfileEditor(
     profile: Profile?,
@@ -360,7 +391,7 @@ fun ProfileEditor(
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             PearText(if (profile == null) "New Profile" else "Edit Profile", style = PearTheme.type.title3.weight(FontWeight.Bold))
-            GlassButton(onClick = onDismiss, symbol = "xmark", size = 32.dp)
+            PearCircleButton(onClick = onDismiss, symbol = "xmark", size = 32.dp)
         }
 
         // Preview Avatar
@@ -375,7 +406,7 @@ fun ProfileEditor(
 
         // Color Presets
         PearText("Colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Accents.presets.forEach { p ->
                 val col = Accents.parseHex(p.hex) ?: Color.Gray
                 Box(
@@ -392,7 +423,7 @@ fun ProfileEditor(
 
         // Symbol Choices
         PearText("Icon symbol", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             symbols.forEach { s ->
                 val isSel = symbol == s
                 Box(
@@ -412,19 +443,20 @@ fun ProfileEditor(
         // Save & Delete buttons
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (profile != null) {
-                GlassButton(
+                PearCapsuleButton(
                     onClick = { onDelete(profile.id) },
                     symbol = "trash",
                     label = "Delete",
+                    style = PearButtonStyle.Destructive,
                     modifier = Modifier.weight(1f),
                 )
             }
-            GlassButton(
+            PearCapsuleButton(
                 onClick = {
                     onSave(Profile(profile?.id ?: "new", name.trim().ifEmpty { "Profile" }, colorHex, symbol, simklIdentity))
                 },
                 label = "Save",
-                tint = PearTheme.colors.accent,
+                style = PearButtonStyle.Accent,
                 modifier = Modifier.weight(1f),
             )
         }

@@ -126,3 +126,8 @@ Run `gradle :shared:build` first (new common test: `WindowMemoryRulesTest`), the
 - **Fade.** The colour fades over 0.9 s on an ease-in-out curve, as iOS's `easeInOut(duration: 0.9)`.
 - **Detail pages** keep the fixed glow behind the page (`AmbientWash`). They have no scrolling hero of this kind.
 - **Not yet done:** the detail page still samples the poster (`DetailScreen.kt`, `rememberDominantColor`), so its glow can still differ from the hero image.
+
+## Home glow reach (wide layout)
+
+- `AmbientTuning.WIDE_REACH_DP` (900 dp) and `WIDE_REACH_ALPHA` (0.35) add a horizontal fade from the feed's left edge, so the glow reaches further right than the iOS glow alone. The vertical glow is unchanged. Change the two numbers to tune the reach.
+- The page colour stays `#09090B`. The navy in the mockup is the poster's glow, not the page colour.

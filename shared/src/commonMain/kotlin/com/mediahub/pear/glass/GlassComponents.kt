@@ -192,6 +192,26 @@ fun GlassMenuDivider() {
     Box(Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 8.dp).height(1.dp).background(PearTheme.colors.outline))
 }
 
+/**
+ * A solid sheet with the same shape as [GlassSheet]: no glass and no blur. Used where a panel floats over a busy picture, so
+ * the controls inside it don't sit in glass on glass.
+ */
+@Composable
+fun FlatSheet(modifier: Modifier = Modifier, floating: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    val c = PearTheme.colors
+    val shape = if (floating) {
+        RoundedCornerShape(PearRadii.sheet)
+    } else {
+        RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)
+    }
+    Box(modifier.clip(shape).background(c.surface)) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = if (floating) 20.dp else 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!floating) Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        }
+    }
+}
+
 /** Bottom sheet panel: rounded top corners and a grabber. */
 @Composable
 fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, content: @Composable ColumnScope.() -> Unit) {

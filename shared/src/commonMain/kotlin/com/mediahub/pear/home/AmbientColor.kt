@@ -29,6 +29,15 @@ private const val AMBIENT_FADE_MILLIS = 900
 
 private val AMBIENT_EASE = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
+/** The Home glow's reach on the wide layout. The mockup's glow runs further right than iOS draws it, so this adds reach. */
+object AmbientTuning {
+    /** How far, in dp from the feed's left edge, the extra horizontal fade runs. */
+    const val WIDE_REACH_DP = 900f
+
+    /** Its strength at the left edge. The vertical glow is unchanged. */
+    const val WIDE_REACH_ALPHA = 0.35f
+}
+
 /**
  * iOS's tuning of a hero's colour (`ImagePipeline.averageColor`): the hue is kept, the saturation is raised a little, and
  * the brightness is held between 0.35 and 0.62, so the glow is never black and never glares.
@@ -87,9 +96,10 @@ suspend fun heroAmbientFor(http: Http, url: String): Color? {
  * The Home glow, drawn as the background of the content that scrolls (iOS: `.background(alignment: .top) { ambient }` on
  * the rows): the glow colour at 70% from the top, 25% halfway, clear at the bottom of a 1100 dp band. Put it on the column
  * that holds the hero and the rows, so the glow moves with them. Until a hero's colour is known the accent is used.
+ * [reachDp] (0 by default, the iOS glow alone) adds a horizontal fade from the left edge, so the glow reaches further right.
  */
 @Composable
-fun Modifier.attachedAmbient(): Modifier {
+fun Modifier.attachedAmbient(reachDp: Float = 0f): Modifier {
     val shell = LocalAppEnv.current.shell
     val target = if (shell.heroAmbientKnown) shell.heroAmbientColor else PearTheme.colors.accent
     val glow by animateColorAsState(target, tween(AMBIENT_FADE_MILLIS, easing = AMBIENT_EASE))
@@ -103,5 +113,15 @@ fun Modifier.attachedAmbient(): Modifier {
             ),
             size = Size(size.width, band),
         )
+        if (reachDp > 0f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(glow.copy(alpha = AmbientTuning.WIDE_REACH_ALPHA), Color.Transparent),
+                    startX = 0f,
+                    endX = reachDp.dp.toPx(),
+                ),
+                size = Size(size.width, band),
+            )
+        }
     }
 }

@@ -54,7 +54,7 @@ fun CatalogRowView(
             row.symbol?.let { sym ->
                 PearIcon(sym, size = 18.dp, tint = PearTheme.colors.accent)
             }
-            PearText(row.title, style = PearTheme.type.title3.weight(FontWeight.Bold))
+            PearText(row.title, style = PearTheme.type.title3.weight(FontWeight.Bold), maxLines = 2, modifier = Modifier.weight(1f, fill = false))
             PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
         }
 

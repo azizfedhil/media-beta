@@ -13,3 +13,10 @@ Code: `shared/.../glass/` (components) and `preview/GlassGallery.kt` (the galler
 - Glass screens must keep scroll content *inside* the `hazeSource` (the `background` of `GlassScene`) and glass surfaces *outside* it, as `PageScaffold` does; a glass card inside the source would sample itself.
 
 - **The sidebar is solid, not glass.** It is `PearColors.sidebar` (#121212), as the iPad sidebar's `Color(white: 0.07)` is, so the ambient glow of Home does not tint it. No glass is drawn under it.
+
+## Flat sheets and flat buttons (Track B)
+
+- `FlatSheet` (`glass/GlassComponents.kt`): the shape of `GlassSheet`, drawn solid (`c.surface`) with no glass and no blur. The profile popup uses it, because it floats over a busy hero and its controls must not sit in glass on glass.
+- `PearCircleButton` and `PearCapsuleButton`, with `PearButtonStyle` (Neutral, Accent, Destructive), in `shell/PearControls.kt`: flat buttons for any opaque surface, with the glass buttons' hover and press feedback.
+- `GlassTopBar` on the phone layout keeps 58 dp clear at the end for the floating avatar, and sits on a soft edge in the page colour, so scrolled content does not print through the title.
+- Not done yet: the nesting guard (`LocalInsideGlass`) and the `veil` parameter from the plan's WP0a.

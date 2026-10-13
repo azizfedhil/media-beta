@@ -66,6 +66,7 @@ internal fun DevChip(
             modifier = if (compact) Modifier.padding(horizontal = 10.dp, vertical = 5.dp) else Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             style = (if (compact) PearTheme.type.caption else PearTheme.type.footnote).weight(FontWeight.SemiBold),
             color = if (selected) c.onAccent else c.textPrimary,
+         maxLines = 1,
         )
     }
 }

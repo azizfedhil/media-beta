@@ -63,7 +63,7 @@ fun AIOMetadataSettingsScreen(
             pickerAddons.forEach { addon ->
                 GlassCard(Modifier.fillMaxWidth()) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        PearText(addon.manifest.name, style = PearTheme.type.headline)
+                        PearText(addon.manifest.name, style = PearTheme.type.headline, modifier = Modifier.weight(1f), maxLines = 2)
                         DevChip("Remove all from Home", false) {
                             val keys = addon.homeCatalogs.map { addon.rowKey(it) }
                             content.setRowsAdded(keys, false)
