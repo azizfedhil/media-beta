@@ -85,23 +85,46 @@ val buildP2pCore by tasks.registering(Exec::class) {
     }
 }
 
+// UniFFI's output, kept so a failed check can report what the generator said (CI runs don't show it otherwise).
+val bindgenOutput = java.io.ByteArrayOutputStream()
+
+// The library as UniFFI reads it. Linux builds libp2p_core.so, and UniFFI names the Kotlin module after the file, so the
+// copy drops the "lib" prefix: the module is p2p_core on every OS, which is the package the desktop code imports. The app
+// itself still loads the real library; Windows' name has no prefix, so its copy keeps the same name.
+val bindgenLib = layout.buildDirectory.file("p2p-bindgen/${p2pLibFile.removePrefix("lib")}").get().asFile
+
 val generateP2pBindings by tasks.registering(Exec::class) {
     group = "p2p"
     description = "Generates the Kotlin bindings of p2p_core from the built library (UniFFI, library mode)."
     dependsOn(buildP2pCore)
     workingDir = p2pCrate
+    standardOutput = bindgenOutput
+    errorOutput = bindgenOutput
     commandLine(
         "cargo", "run", "--release", "--manifest-path", "uniffi-bindgen/Cargo.toml", "--",
-        "generate", "--library", p2pBuiltLib.absolutePath, "--language", "kotlin",
+        "generate", "--library", bindgenLib.absolutePath, "--language", "kotlin",
         "--out-dir", p2pBindings.get().asFile.absolutePath,
     )
     inputs.file(p2pBuiltLib)
     outputs.dir(p2pBindings)
-    doFirst { p2pBindings.get().asFile.deleteRecursively() }
+    doFirst {
+        p2pBindings.get().asFile.deleteRecursively()
+        bindgenLib.parentFile.mkdirs()
+        p2pBuiltLib.copyTo(bindgenLib, overwrite = true)
+    }
     doLast {
         // The app's P2P code names these; if a new UniFFI or p2p-core renames one, fail here with the reason.
-        val kt = p2pBindings.get().asFile.walkTopDown().firstOrNull { it.name == "p2p_core.kt" }
-            ?: throw GradleException("UniFFI wrote no p2p_core.kt into ${p2pBindings.get().asFile}")
+        val outDir = p2pBindings.get().asFile
+        val kt = outDir.walkTopDown().firstOrNull { it.name == "p2p_core.kt" }
+            ?: throw GradleException(
+                "UniFFI wrote no p2p_core.kt into $outDir.\n" +
+                    "Files it did write: " +
+                    outDir.walkTopDown().filter { it.isFile }.map { it.relativeTo(outDir).path }.toList()
+                        .ifEmpty { listOf("none") }.joinToString(", ") + ".\n" +
+                    "Library read: ${bindgenLib.absolutePath} (exists: ${bindgenLib.isFile}).\n" +
+                    "UniFFI's output, last 40 lines:\n" +
+                    bindgenOutput.toString(Charsets.UTF_8).lines().takeLast(40).joinToString("\n"),
+            )
         // UniFFI may quote identifiers with backticks (`defaultEngineConfig`); the Kotlin is the same either way, so the
         // check reads the text without them. Without this, `fun defaultEngineConfig` never matches a quoted declaration.
         val text = kt.readText().replace("`", "")
