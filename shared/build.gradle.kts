@@ -1,5 +1,13 @@
 import java.io.ByteArrayOutputStream
 
+/** Runs a command and returns its output (errors included), or why it could not run. Used only to report a failed bindings step. */
+fun commandOutput(vararg command: String): String = runCatching {
+    val process = ProcessBuilder(*command).redirectErrorStream(true).start()
+    val text = process.inputStream.bufferedReader().readText().trim()
+    process.waitFor()
+    text.ifEmpty { "(no output)" }
+}.getOrElse { "(could not run ${command.first()}: ${it.message})" }
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
@@ -78,6 +86,9 @@ val buildP2pCore by tasks.registering(Exec::class) {
     workingDir = p2pCrate
     // cdylib for this build only: the crate types in Cargo.toml stay as they are, so the iOS xcframework build is unchanged.
     commandLine("cargo", "rustc", "--release", "--lib", "--crate-type", "cdylib")
+    // The p2p-core release profile strips symbols (strip = true, for the iOS size). UniFFI reads its metadata from the
+    // symbol table, so a stripped library gives no bindings on Linux (Windows keeps its symbols). Keep them for this build.
+    environment("CARGO_PROFILE_RELEASE_STRIP", "none")
     inputs.dir(File(p2pCrate, "src"))
     inputs.file(File(p2pCrate, "Cargo.toml"))
     outputs.file(p2pBuiltLib)
@@ -124,6 +135,12 @@ val generateP2pBindings by tasks.registering(Exec::class) {
                     outDir.walkTopDown().filter { it.isFile }.map { it.relativeTo(outDir).path }.toList()
                         .ifEmpty { listOf("none") }.joinToString(", ") + ".\n" +
                     "Library read: ${bindgenLib.absolutePath} (exists: ${bindgenLib.isFile}).\n" +
+                    "Library inspection (what UniFFI reads from):\n" +
+                    "  file: " + commandOutput("file", bindgenLib.absolutePath) + "\n" +
+                    "  UNIFFI_META symbols in the dynamic table: " +
+                    commandOutput("sh", "-c", "nm -D \"\$0\" 2>&1 | grep -c UNIFFI_META; true", bindgenLib.absolutePath) + "\n" +
+                    "  UNIFFI_META symbols in the full table: " +
+                    commandOutput("sh", "-c", "nm \"\$0\" 2>&1 | grep -c UNIFFI_META; true", bindgenLib.absolutePath) + "\n" +
                     "UniFFI's output, last 40 lines:\n" +
                     bindgenOutput.toString(Charsets.UTF_8).lines().takeLast(40).joinToString("\n"),
             )

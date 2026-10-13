@@ -40,3 +40,9 @@ the cargo cache with `Swatinem/rust-cache`. Committing `p2p-core/Cargo.lock` mak
 - `BackButton` (4.6c) now reads the back button through AWT (`BackButton.desktop.kt`), the same route as the right-click
   check in `ClicksDesktop.kt`, instead of a Compose pointer API that doesn't exist in this version.
 - `BackButton` (4.6c), second attempt: AWT's `InputEvent` has masks only for buttons 1 to 3, so the held state of button 4 can't be read from the modifiers. The back press is now the `MOUSE_PRESSED` event for button 4, one per click. The edge detector that tracked a held button was removed with it.
+
+## Linux bindings came out empty (strip), and what keeps recompiling
+
+- **Why the Linux bindings are empty: not yet known.** The generator finds nothing in the Linux library, prints nothing and exits 0. One candidate was `strip = true` in `[profile.release]` (for the iOS size), which removes symbols UniFFI may read on Linux. The desktop build now sets `CARGO_PROFILE_RELEASE_STRIP=none`, and the Linux run still failed the same way, so that candidate is not confirmed. The failure report now includes `file` and the count of UNIFFI_META symbols in the library's dynamic and full symbol tables. Those numbers show whether the strip setting took effect and whether the metadata is there.
+- **Why it keeps compiling.** Without a committed `Cargo.lock`, cargo resolves every crate to its newest version on each run ("Locking 346 packages"), so the cache never matches. The bindgen tool is a separate workspace with its own `target` folder, which the cache step now covers too.
+- **To fix the caching, run once and commit both lock files:** `cd p2p-core && cargo generate-lockfile` and `cd p2p-core/uniffi-bindgen && cargo generate-lockfile`. Then the cache keys stay stable from one run to the next.

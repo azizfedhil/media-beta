@@ -75,7 +75,10 @@ jobs:
       # all of the crates again, because each runner starts from a clean checkout. The key follows Cargo.lock when it is committed.
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: p2p-core
+          # p2p-core, and uniffi-bindgen, which is its own workspace with its own target folder.
+          workspaces: |
+            p2p-core
+            p2p-core/uniffi-bindgen
 
       # No fallback: a missing libmpv fails the job here, not later in a build without video.
       - name: Build, test, package
