@@ -91,5 +91,16 @@ fun Modifier.attachedAmbient(reachDp: Float = 0f): Modifier {
             ),
             size = Size(size.width, band),
         )
+        if (reachDp > 0f) {
+            val reachPx = reachDp.dp.toPx()
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(glow.copy(alpha = AmbientTuning.WIDE_REACH_ALPHA), Color.Transparent),
+                    startX = 0f,
+                    endX = reachPx,
+                ),
+                size = Size(reachPx, band),
+            )
+        }
     }
 }

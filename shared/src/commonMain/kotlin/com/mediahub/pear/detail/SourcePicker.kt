@@ -1,44 +1,31 @@
 package com.mediahub.pear.detail
 
-import com.mediahub.pear.model.StreamSize
-import com.mediahub.pear.shell.ContextMenuRequest
-import com.mediahub.pear.shell.MenuAnchor
-import com.mediahub.pear.shell.clickOrMenu
-import com.mediahub.pear.shell.menuAnchor
-import androidx.compose.ui.graphics.Brush
-import com.mediahub.pear.p2p.p2pSource
-import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.draw.alpha
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,38 +33,49 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.addons.Pin
 import com.mediahub.pear.glass.GlassButton
+import com.mediahub.pear.glass.GlassSheet
 import com.mediahub.pear.glass.GlassSurface
 import com.mediahub.pear.meta.MdbRating
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.model.StreamItem
-import com.mediahub.pear.preview.DevChip
+import com.mediahub.pear.model.StreamSize
+import com.mediahub.pear.model.downloadUrl
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.net.attempt
-import com.mediahub.pear.shell.AppEnv
+import com.mediahub.pear.p2p.p2pSource
+import com.mediahub.pear.preview.DevChip
+import com.mediahub.pear.shell.ContextMenuRequest
 import com.mediahub.pear.shell.LocalAppEnv
-import com.mediahub.pear.shell.Route
 import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.Route
 import com.mediahub.pear.shell.SourcePickerRequest
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
 import com.mediahub.pear.theme.PearIcon
+import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
-import com.mediahub.pear.home.scaledBy
 import com.mediahub.pear.theme.weight
-import androidx.compose.animation.animateColorAsState
-import com.mediahub.pear.theme.PearMotion
-import com.mediahub.pear.model.downloadUrl
 
 /**
  * The source picker, drawn over the whole app by the shell. Phone: a bottom sheet ([SourceSheet]). Wide: a panel in the
@@ -233,8 +231,8 @@ private fun WideSourcePicker(
 }
 
 /**
- * The left two thirds: the episode's still fills the top two thirds of the pane, edge to edge. Its bottom fades into the dark,
- * and on that fade sit the show's logo, the episode's name, the MDBList ratings, the synopsis and the details (runtime, air date).
+ * The left two thirds: the episode's still fills the pane and dissolves smoothly into the window's glass blur.
+ * On that fade sit the show's logo, the episode's name, the MDBList ratings, the synopsis and the details (runtime, air date).
  */
 @Composable
 private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, modifier: Modifier) {
@@ -249,22 +247,56 @@ private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, 
     val synopsis = info?.overview?.takeIf { it.isNotBlank() } ?: request.item.description
     val details = listOfNotNull(formatEpisodeRuntime(info?.runtime), episodeAirsOn(info?.airDate)).joinToString(" · ")
     val dark = PearTheme.colors.background
-    BoxWithConstraints(modifier) {
+
+    BoxWithConstraints(
+        modifier.clip(RoundedCornerShape(topStart = PearRadii.sheet, bottomStart = PearRadii.sheet)),
+    ) {
         val paneHeight = maxHeight
-        Box(Modifier.fillMaxWidth().height(paneHeight * 0.67f)) {
-            RemoteImage(image, Modifier.fillMaxSize())
+
+        // Image layer with feathered alpha masks (dissolving bottom & right borders into the glass blur)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    // Dissolve bottom edge smoothly to 0 alpha
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Black,
+                            0.25f to Color.Black,
+                            0.70f to Color.Transparent,
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                    // Dissolve right edge smoothly into the window before the divider
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            0f to Color.Black,
+                            0.45f to Color.Black,
+                            0.92f to Color.Transparent,
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+        ) {
+            RemoteImage(image, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         }
-        // Clear over the still, then dark over the lower part of the pane, where the text goes.
+
+        // Soft dark gradient overlay for text readability over the lower half
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
                     0f to Color.Transparent,
-                    0.2f to Color.Transparent,
-                    0.67f to dark.copy(alpha = 0.92f),
+                    0.20f to Color.Transparent,
+                    0.55f to dark.copy(alpha = 0.70f),
+                    0.80f to dark.copy(alpha = 0.95f),
                     1f to dark,
                 ),
             ),
         )
+
+        // Metadata & synopsis content
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth()
                 .heightIn(max = paneHeight * 0.62f)
@@ -318,7 +350,6 @@ private fun SourcesPane(
     modifier: Modifier,
 ) {
     val total = ordered.sumOf { it.second.size }
-    // Live: the switch in Settings changes these cards at once.
     val env = LocalAppEnv.current
     val p2pReady by env.data.p2p.canStream.collectAsState()
     val p2pOn by env.data.p2p.enabled.collectAsState()
@@ -398,7 +429,7 @@ private fun SourcesPane(
 }
 
 /**
- * One source, as a glass card: its name and size, a small download button for a direct link, the download's status, and the
+ * One source, as a card: its name and size, a small download button for a direct link, the download's status, and the
  * description. A left click picks it; a right click (or a long press) opens its menu.
  */
 @Composable
@@ -416,7 +447,6 @@ private fun SourceCard(
     val hovered by source.collectIsHoveredAsState()
     val anchor = remember { MenuAnchor() }
     val detail = stream.description ?: stream.title
-    // iOS draws a source row as a plain white fill (7%), lifted on hover; the picker around it is the glass.
     val fill by animateColorAsState(Color.White.copy(alpha = if (hovered) 0.11f else 0.07f), PearMotion.snappy<Color>(PearMotion.FAST))
     Box(
         Modifier.fillMaxWidth()

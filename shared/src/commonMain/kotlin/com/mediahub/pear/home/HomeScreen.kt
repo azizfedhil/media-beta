@@ -77,11 +77,12 @@ fun HomeScreen(
                                 rememberDraggableState { delta -> scope.launch { scroll.scrollBy(-delta) } },
                                 Orientation.Vertical,
                             )
-                            .verticalScroll(scroll)
-                            .padding(top = 18.dp, bottom = bottomInset + 40.dp),
+                            .verticalScroll(scroll),
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().attachedAmbient().padding(start = 14.dp),
+                            Modifier.fillMaxWidth()
+                                .attachedAmbient(AmbientTuning.WIDE_REACH_DP)
+                                .padding(start = 14.dp, top = 18.dp, bottom = bottomInset + 40.dp),
                             verticalArrangement = Arrangement.spacedBy(28.dp),
                         ) {
                             FeedRows(model, onSelectTitle, onSeeAll)

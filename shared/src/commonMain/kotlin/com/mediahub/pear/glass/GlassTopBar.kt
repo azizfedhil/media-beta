@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
-import androidx.compose.ui.text.font.FontWeight
-import com.mediahub.pear.theme.weight
 
 /** How far the soft edge under the bar reaches below it, in dp. */
 private const val EDGE_DP = 60f
@@ -35,21 +33,35 @@ fun GlassTopBar(
     val page = PearTheme.colors.background
     val endInset = if (LocalWideLayout.current) 0.dp else 58.dp
     Box(
-        modifier.fillMaxWidth().padding(end = endInset).drawBehind {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(page.copy(alpha = 0.92f), page.copy(alpha = 0f)),
-                    startY = 0f,
-                    endY = size.height + EDGE_DP.dp.toPx(),
-                ),
-                size = Size(size.width, size.height + EDGE_DP.dp.toPx()),
-            )
-        },
+        Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            page,
+                            page.copy(alpha = 0.95f),
+                            page.copy(alpha = 0.85f),
+                            Color.Transparent,
+                        ),
+                        startY = 0f,
+                        endY = size.height,
+                    ),
+                    size = size,
+                )
+            }
+            .padding(bottom = EDGE_DP.dp),
     ) {
-        GlassBar(Modifier.fillMaxWidth(), contentPadding = 10.dp) {
-            if (onBack != null) GlassButton(onBack, symbol = "chevron.left", size = 38.dp)
-            PearText(title, style = PearTheme.type.headline, maxLines = 1, modifier = Modifier.weight(1f))
-            trailing()
+        Box(
+            modifier
+                .fillMaxWidth()
+                .padding(end = endInset),
+        ) {
+            GlassBar(Modifier.fillMaxWidth(), contentPadding = 10.dp) {
+                if (onBack != null) GlassButton(onBack, symbol = "chevron.left", size = 38.dp)
+                PearText(title, style = PearTheme.type.headline, maxLines = 1, modifier = Modifier.weight(1f))
+                trailing()
+            }
         }
     }
 }

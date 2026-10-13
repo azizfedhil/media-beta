@@ -132,7 +132,8 @@ fun AdaptiveShell(
                     ) {
                         if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
                         ShellOverlays(shell, shell.showProfiles) { shell.showProfiles = it }
-                        if (!playerOnTop) ProfileAvatarButton(
+                        val isSubPage = shell.currentNav().canGoBack
+                        if (!playerOnTop && !isSubPage) ProfileAvatarButton(
                             profile = env.data.profiles.active,
                             onClick = { shell.showProfiles = true },
                             modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
