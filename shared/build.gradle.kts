@@ -1,3 +1,5 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
@@ -86,7 +88,7 @@ val buildP2pCore by tasks.registering(Exec::class) {
 }
 
 // UniFFI's output, kept so a failed check can report what the generator said (CI runs don't show it otherwise).
-val bindgenOutput = java.io.ByteArrayOutputStream()
+val bindgenOutput = ByteArrayOutputStream()
 
 // The library as UniFFI reads it. Linux builds libp2p_core.so, and UniFFI names the Kotlin module after the file, so the
 // copy drops the "lib" prefix: the module is p2p_core on every OS, which is the package the desktop code imports. The app
