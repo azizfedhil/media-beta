@@ -1,25 +1,29 @@
-# Bundled libmpv
+# Files bundled into the desktop app
 
-Pear plays video through libmpv, and the installer bundles it. Users never install or copy it.
+This folder holds what the packaging copies into the installed app: the Rust P2P engine, `p2p_core`. It is copied into the
+app's resources folder, where the app finds it.
 
-The library is **not stored in the repository**. It's ~100 MB, and git is the wrong place for it.
-CI fetches it at build time (see `.github/workflows/desktop-ci.yml`):
+libmpv is **not** bundled. How it reaches each platform:
 
-| Platform | Source | Placed at |
-| --- | --- | --- |
-| Windows (64-bit) | mpv-dev LGPL x86_64, release `2026-10-11-d94d095814`, SHA-256 pinned in the workflow | `windows-x64/libmpv-2.dll` |
-| Linux (64-bit) | distribution package `libmpv2` | `linux-x64/libmpv.so.2` |
+| Platform | Where libmpv comes from |
+| --- | --- |
+| Windows (64-bit) | The installer fetches it, checks its SHA-256, and puts it at `%LOCALAPPDATA%\Pear\native\libmpv-2.dll`. The app does the same at launch if the file is missing or does not match the pin. It sits outside the app folder, so an update keeps it. |
+| Linux (64-bit) | The system's libmpv. The RPM is meant to require `mpv-libs` (Fedora, from RPM Fusion) or `libmpv2` (Debian, Ubuntu). That requirement is not wired yet; see `docs/desktop/packaging.md`. |
 
-Everything in a platform's folder is copied into the installed app's resources folder, which the player searches first.
-`checkLibmpv` (in `desktopApp/build.gradle.kts`) fails any `createDistributable` or `package*` task whose file is missing,
-so an installer can't go out without the library.
+## What goes in each folder
 
-## Building locally
+- `windows-x64/p2p_core.dll`: built by Gradle (`gradle :shared:buildP2pCore`), and by CI on every run.
+- `linux-x64/libp2p_core.so`: the same, for Linux.
 
-Copy the DLL into `windows-x64/` (or the .so into `linux-x64/`) before `gradle :desktopApp:createDistributable`.
-Running from source (`gradle :desktopApp:run`) searches these folders too. The files are ignored by git (`.gitignore`).
+Everything in a platform's folder is copied into the installed app. **Do not put libmpv here.** A copy left over from an
+earlier build would be bundled, and the installer would stop fetching the pinned one. Delete any `libmpv*` file from this
+folder before packaging. The `.gitignore` already ignores binaries here, so none are committed.
 
-## Licence
+## The pin
 
-The Windows library is an LGPL build. Shipping it inside the installer still means the LGPL terms apply: include the
-licence text, and offer the libmpv source for the version you ship. Check the release notes before each release.
+The libmpv the installer fetches is pinned by its SHA-256, in two places that must agree:
+
+- `desktopApp/installer/libmpv.pin.iss` (from `libmpv.pin.example.iss`), read by the installer;
+- `LibmpvSetup.SHA256` in `shared/src/desktopMain/.../player/mpv/LibmpvSetup.kt`, read by the app.
+
+A test in `shared` fails if they differ. Get the hash with `python tools/inspect_binary.py <file>`.

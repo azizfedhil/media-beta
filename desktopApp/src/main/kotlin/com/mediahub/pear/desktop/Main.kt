@@ -3,6 +3,9 @@ package com.mediahub.pear.desktop
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -13,6 +16,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.mediahub.pear.App
 import com.mediahub.pear.data.desktopStorage
 import com.mediahub.pear.net.desktopNetwork
+import com.mediahub.pear.player.mpv.LibmpvSetupGate
 import com.mediahub.pear.glass.BatteryWatch
 import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.NativeTitleBar
@@ -80,18 +84,32 @@ fun main(args: Array<String>) = application {
         }
     }
 
+    val appIcon = remember { loadAppIcon() }
     Window(
         onCloseRequest = { AppExit.runAll(); storage.flush(); exitApplication() },
         title = "Pear.",
         state = windowState,
+        icon = appIcon,
     ) {
         window.minimumSize = Dimension(360, 600)
         SideEffect { awtWindow[0] = window }
         BatteryWatch()
         NativeTitleBar(window)
         RememberWindowGeometry(window, windowState, storage.prefs)
-        App(windowControl = control, storage = storage, network = network)
+        // Windows: waits for libmpv (fetched on first run, or again if it went missing) before the app starts.
+        LibmpvSetupGate {
+            App(windowControl = control, storage = storage, network = network)
+        }
     }
+}
+
+/**
+ * The Pear icon for the title bar and the taskbar, from `src/main/resources/pear.png` (made by tools/make_icons.py).
+ * Null if the file is not in the build: the window then keeps the default icon, and the app still starts.
+ */
+private fun loadAppIcon(): Painter? {
+    val stream = Thread.currentThread().contextClassLoader?.getResourceAsStream("pear.png") ?: return null
+    return runCatching { stream.use { BitmapPainter(loadImageBitmap(it)) } }.getOrNull()
 }
 
 private fun heldInFullscreen(window: java.awt.Window): Boolean =

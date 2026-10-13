@@ -1,3 +1,5 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.composeMultiplatform)
@@ -11,37 +13,48 @@ dependencies {
 
 val packagingResources = layout.projectDirectory.dir("packaging/resources")
 
+// The version the app shows is pearVersion (set by CI from the git tag; 0.0.1-Alpha by default). The installers need a
+// numeric version: Windows' version resource and RPM accept only numbers. So the packages get MAJOR.MINOR.PATCH, and
+// the "-Alpha" part stays in the app and in the installer's display text.
+val pearVersion: String = providers.gradleProperty("pearVersion").orNull ?: "0.0.1-Alpha"
+val pearNumericVersion: String = Regex("""^\d+\.\d+\.\d+""").find(pearVersion)?.value
+    ?: throw GradleException("pearVersion must start with MAJOR.MINOR.PATCH (for example 0.0.1-Alpha), got '$pearVersion'.")
+
+// The icon: one .ico for the exe, the installer and the shortcuts (Windows), and one .png for the window and the Linux
+// launcher. Both come from tools/make_icons.py. Without them the build still works, with Java's default icon.
+val iconIco = file("packaging/icons/pear.ico")
+val iconPng = file("src/main/resources/pear.png")
+if (!iconIco.isFile || !iconPng.isFile) {
+    logger.warn("Pear's icon is not in the build ($iconIco, $iconPng). Run tools/make_icons.py to add it.")
+}
+
 compose.desktop {
     application {
         mainClass = "com.mediahub.pear.desktop.MainKt"
         nativeDistributions {
             packageName = "Pear"
-            packageVersion = "1.0.0" // packaging placeholder; the real scheme is decided in Phase 6
-            includeAllModules = true
-            // libmpv is bundled: each platform's folder is copied into the app's resources, where the player looks first.
+            packageVersion = pearNumericVersion
+            includeAllModules = true // a jlink module list is the next size cut (task 8)
+
+            // Only the Rust P2P engine (p2p_core) is bundled from here. libmpv is not: Windows gets it from the
+            // installer, into %LOCALAPPDATA%\Pear\native, and the Linux RPM requires the distribution's mpv-libs.
             appResourcesRootDir.set(packagingResources)
+
+            // Linux ships as an RPM (run :desktopApp:packageRpm). Windows ships as the app image, which the Inno Setup
+            // script wraps (see desktopApp/installer/pear.iss), so it needs no target format of its own.
+            targetFormats(TargetFormat.Rpm)
+
+            windows {
+                if (iconIco.isFile) iconFile.set(iconIco)
+            }
+
+            linux {
+                packageName = "pear"
+                appCategory = "AudioVideo"
+                menuGroup = "Video"
+                rpmPackageVersion = pearNumericVersion
+                if (iconPng.isFile) iconFile.set(iconPng)
+            }
         }
     }
-}
-
-// Fails the packaging early, with the reason, when the libmpv for the OS being packaged isn't in place.
-val checkLibmpv by tasks.registering {
-    val os = System.getProperty("os.name").orEmpty().lowercase()
-    val folder = packagingResources
-    doLast {
-        val (sub, file) = when {
-            "win" in os -> "windows-x64" to "libmpv-2.dll"
-            "linux" in os -> "linux-x64" to "libmpv.so.2"
-            else -> return@doLast
-        }
-        val lib = folder.dir(sub).file(file).asFile
-        check(lib.isFile) {
-            "libmpv is not bundled: $lib is missing. Put the 64-bit libmpv for $sub there " +
-                "(see desktopApp/packaging/resources/README.md) and build again."
-        }
-    }
-}
-
-tasks.matching { it.name.startsWith("createDistributable") || it.name.startsWith("package") }.configureEach {
-    dependsOn(checkLibmpv)
 }

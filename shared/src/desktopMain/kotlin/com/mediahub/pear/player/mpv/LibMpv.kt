@@ -98,8 +98,10 @@ interface LibMpv : Library {
  * 1. `PEAR_LIBMPV`: the full path of the library file.
  * 2. `PEAR_LIBMPV_DIR`: a folder that holds it.
  * 3. The folder of an installed app (`compose.application.resources.dir`).
- * 4. `native/<platform>` in the project, from the project root or from `desktopApp/` (see `desktopApp/native/README.md`).
- * 5. The system's own search: PATH on Windows, the dynamic loader's search path on Linux.
+ * 4. Windows only: `%LOCALAPPDATA%\Pear\native`, where the installer puts libmpv. It is outside the app folder, so an
+ *    update leaves it in place.
+ * 5. `native/<platform>` in the project, from the project root or from `desktopApp/` (see `desktopApp/native/README.md`).
+ * 6. The system's own search: PATH on Windows, the dynamic loader's search path on Linux.
  *
  * The last error from the first attempt that failed is kept, because it's the useful one: a 32-bit DLL, or a
  * dependency missing next to it, shows up there and not as "not found".
@@ -132,13 +134,13 @@ object MpvNativeLoader {
         Windows(
             listOf("libmpv-2.dll", "mpv-2.dll", "libmpv.dll"),
             "windows-x64",
-            "This copy of Pear is missing its bundled libmpv. Reinstall Pear. (Building from source: see " +
-                "desktopApp/packaging/resources/README.md.)",
+            "Pear's libmpv is missing. Run the Pear installer again to restore it (it is kept in " +
+                "%LOCALAPPDATA%\\Pear\\native). Building from source: see desktopApp/packaging/resources/README.md.",
         ),
         Linux(
             listOf("libmpv.so.2", "libmpv.so.1", "libmpv.so"),
             "linux-x64",
-            "Reinstall Pear, or install libmpv (for example: sudo apt install libmpv2).",
+            "Install libmpv: Fedora `sudo dnf install mpv-libs` (from RPM Fusion), Ubuntu/Debian `sudo apt install libmpv2`.",
         ),
         Other(
             listOf("libmpv.2.dylib", "libmpv.dylib", "libmpv.so.2", "libmpv.so"),
@@ -186,7 +188,7 @@ object MpvNativeLoader {
                 tryFile(file.absolutePath)?.let { return Result(it, searched, lookedFor, null) }
             }
         }
-        for (name in SYSTEM_NAMES) {
+        for (name in systemNames(platform)) {
             try {
                 return Result(Native.load(name, LibMpv::class.java), searched, lookedFor, null)
             } catch (_: Throwable) {
@@ -196,12 +198,23 @@ object MpvNativeLoader {
         return Result(null, searched, lookedFor, fileError)
     }
 
-    private fun searchDirectories(platform: Platform): List<File> {
+    private fun searchDirectories(platform: Platform): List<File> =
+        searchDirectories(platform, env = { System.getenv(it) }, property = { System.getProperty(it) })
+
+    /**
+     * The folders to search, in order. It depends only on its inputs, not on the process, so the order can be tested.
+     */
+    internal fun searchDirectories(
+        platform: Platform,
+        env: (String) -> String?,
+        property: (String) -> String?,
+    ): List<File> {
         val dirs = ArrayList<File>()
-        System.getenv("PEAR_LIBMPV_DIR")?.takeIf { it.isNotBlank() }?.let { dirs.add(File(it)) }
-        System.getProperty("compose.application.resources.dir")?.let { dirs.add(File(it)) }
-        val user = File(System.getProperty("user.dir").orEmpty().ifEmpty { "." })
-        // Source runs: the copy the packaging bundles, then the older native/ folders.
+        env("PEAR_LIBMPV_DIR")?.takeIf { it.isNotBlank() }?.let { dirs.add(File(it)) }
+        property("compose.application.resources.dir")?.let { dirs.add(File(it)) }
+        if (platform == Platform.Windows) windowsNativeFolder(env)?.let { dirs.add(it) }
+        val user = File(property("user.dir").orEmpty().ifEmpty { "." })
+        // Source runs: the copies a developer has put in the packaging folder, then the older native/ folders.
         for (base in listOfNotNull(user, user.parentFile)) {
             dirs.add(File(base, "desktopApp/packaging/resources/${platform.folder}"))
             dirs.add(File(base, "packaging/resources/${platform.folder}"))
@@ -210,4 +223,17 @@ object MpvNativeLoader {
         }
         return dirs.distinctBy { it.absolutePath }
     }
+
+    /** `%LOCALAPPDATA%\Pear\native`, the folder that holds libmpv on Windows. Null when the variable is not set. */
+    internal fun windowsNativeFolder(env: (String) -> String?): File? {
+        val local = env("LOCALAPPDATA")?.takeIf { it.isNotBlank() } ?: return null
+        return File(File(local, "Pear"), "native")
+    }
+
+    /**
+     * The names to ask the system's loader for, in order. A distribution's runtime package ships only the versioned
+     * soname (`libmpv.so.2`: Ubuntu's libmpv2, Fedora's mpv-libs). The unversioned `libmpv.so` comes with the -dev package.
+     */
+    internal fun systemNames(platform: Platform): List<String> =
+        if (platform == Platform.Linux) listOf("libmpv.so.2", "libmpv.so.1") + SYSTEM_NAMES else SYSTEM_NAMES
 }
