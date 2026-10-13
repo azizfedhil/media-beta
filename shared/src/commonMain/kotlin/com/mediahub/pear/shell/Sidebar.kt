@@ -50,6 +50,16 @@ import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.delay
 import androidx.compose.animation.animateColorAsState
 import com.mediahub.pear.theme.PearMotion
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import com.mediahub.pear.detail.openSourceChooser
+import com.mediahub.pear.history.HistoryEntry
+import com.mediahub.pear.model.upgradeTmdbStill
+import com.mediahub.pear.net.RemoteImage
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 internal fun Sidebar(
@@ -239,20 +249,160 @@ private fun BrandBadge(title: String) {
     }
 }
 
+/** How many titles the sidebar's Continue Watching lists. Its header opens the whole page, which lists the rest. */
+private const val SIDEBAR_CONTINUE_ROWS = 3
+
 /**
- * Continue Watching and Recently Watched, under the catalogues. They open as a catalogue does, so selection, Back and
- * tab switching work the same way. No header of their own.
+ * Continue Watching and Recently Watched, under the catalogues. Continue Watching lists the most recent titles in progress,
+ * each with how far it has got; its header opens the whole page. Both open as a catalogue does, so selection, Back and tab
+ * switching work the same way.
  */
 @Composable
 private fun HistoryRows(selectedId: String?, onPick: (CatalogueItem) -> Unit) {
-    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        ShortcutRow(HistoryShortcuts.continueWatching, "play.fill", selectedId == HistoryShortcuts.continueWatching.id) {
+    val env = LocalAppEnv.current
+    val recent = env.data.history.continueEntries.sortedByDescending { it.updated }.take(SIDEBAR_CONTINUE_ROWS)
+    Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        ContinueHeader(selected = selectedId == HistoryShortcuts.continueWatching.id) {
             onPick(HistoryShortcuts.continueWatching)
         }
+        recent.forEach { entry -> ContinueSidebarRow(entry) }
         ShortcutRow(HistoryShortcuts.recentlyWatched, "clock", selectedId == HistoryShortcuts.recentlyWatched.id) {
             onPick(HistoryShortcuts.recentlyWatched)
         }
     }
+}
+
+/** "Continue Watching" as a section label, with a chevron that says it opens a page. Lit while that page is open. */
+@Composable
+private fun ContinueHeader(selected: Boolean, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    val color by animateColorAsState(
+        when {
+            selected -> Color.White
+            hovered -> Color.White.copy(alpha = 0.85f)
+            else -> Color.White.copy(alpha = 0.5f)
+        },
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    Row(
+        Modifier.fillMaxWidth()
+            .hoverable(source)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
+            .padding(start = 14.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PearText(
+            "Continue Watching",
+            style = PearTheme.type.subheadline.weight(FontWeight.Medium),
+            color = color,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        PearIcon("chevron.right", size = 12.dp, tint = color)
+    }
+}
+
+/**
+ * One title in progress: its still, its name, how far it has got, and a menu button. A click resumes it through the source
+ * chooser, as Continue Watching does on Home. The menu takes it off the list, or opens its page.
+ */
+@Composable
+private fun ContinueSidebarRow(entry: HistoryEntry) {
+    val env = LocalAppEnv.current
+    val scope = rememberCoroutineScope()
+    val source = remember { MutableInteractionSource() }
+    val anchor = remember { MenuAnchor() }
+    val hovered by source.collectIsHoveredAsState()
+    val bg by animateColorAsState(
+        if (hovered) Color.White.copy(alpha = 0.08f) else Color.Transparent,
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    val se = entry.seasonEpisode
+
+    fun openDetails() {
+        env.shell.currentNav().push(Route.Detail(entry.item, se?.season, se?.episode))
+    }
+
+    fun resume() {
+        scope.launch {
+            if (!openSourceChooser(env, entry.item, se?.season, se?.episode, entry.episodeTitle, entry.thumb)) openDetails()
+        }
+    }
+
+    fun openMenu() {
+        env.shell.openContextMenu(
+            ContextMenuRequest(
+                anchor.rect(),
+                listOf(
+                    ContextMenuItem("Remove from Continue Watching", "xmark.circle", destructive = true) {
+                        env.data.history.remove(entry.id)
+                    },
+                ) + titleMenuItems(env, entry.item, onDetails = { openDetails() }),
+            ),
+        )
+    }
+
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(PearRadii.sm))
+            .background(bg)
+            .hoverable(source)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .menuAnchor(anchor)
+            .clickable(interactionSource = source, indication = null, onClick = { resume() })
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier.size(width = 48.dp, height = 40.dp)
+                .clip(RoundedCornerShape(PearRadii.xs))
+                .background(PearTheme.colors.fill),
+        ) {
+            RemoteImage(upgradeTmdbStill(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            PearText(entry.item.name, style = PearTheme.type.footnote.weight(FontWeight.SemiBold), maxLines = 1)
+            PearText(
+                continueSubtitle(entry),
+                style = PearTheme.type.caption,
+                color = Color.White.copy(alpha = 0.55f),
+                maxLines = 1,
+            )
+            Box(
+                Modifier.fillMaxWidth()
+                    .padding(top = 2.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(PearRadii.pill))
+                    .background(Color.White.copy(alpha = 0.25f)),
+            ) {
+                Box(
+                    Modifier.fillMaxHeight()
+                        .fillMaxWidth(entry.progress.toFloat().coerceAtLeast(0.05f))
+                        .background(Color(0xFF8B6EF5)),
+                )
+            }
+        }
+        Box(
+            Modifier.size(22.dp)
+                .clip(CircleShape)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable(onClick = { openMenu() }),
+            contentAlignment = Alignment.Center,
+        ) {
+            PearIcon("ellipsis", size = 16.dp, tint = Color.White.copy(alpha = 0.6f), contentDescription = "More")
+        }
+    }
+}
+
+/** "S6 · E1 · 42%" for an episode, "2001 · 63%" for a film: what the sidebar shows under a title. */
+private fun continueSubtitle(entry: HistoryEntry): String {
+    val percent = (entry.progress * 100).roundToInt()
+    val se = entry.seasonEpisode
+    val where = if (se != null) "S${se.season} · E${se.episode}" else entry.item.year?.toString()
+    return listOfNotNull(where, "$percent%").joinToString(" · ")
 }
 
 /** A row styled exactly as [CatalogueRow], with a symbol in its circle instead of a brand badge. */
