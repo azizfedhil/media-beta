@@ -54,6 +54,7 @@ import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import androidx.compose.animation.animateColorAsState
 import com.mediahub.pear.glass.GlassTuning
+import androidx.compose.ui.unit.sp
 
 
 /**
@@ -121,6 +122,8 @@ internal fun PlayerCircleButton(
     tint: Color? = null,
     enabled: Boolean = true,
     contentDescription: String? = null,
+    /** A small numeral drawn over the icon: the "10" of the skip buttons. */
+    numeral: String? = null,
 ) {
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
@@ -141,7 +144,10 @@ internal fun PlayerCircleButton(
         Box(
             Modifier.fillMaxSize().background(fill),
             contentAlignment = Alignment.Center,
-        ) { PearIcon(symbol, size = icon, tint = Color.White) }
+        ) {
+            PearIcon(symbol, size = icon, tint = Color.White)
+            numeral?.let { PearText(it, style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(fontSize = 9.sp), color = Color.White, maxLines = 1) }
+        }
     }
 }
 

@@ -71,6 +71,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.Role
 import com.mediahub.pear.theme.PearMotion
+import com.mediahub.pear.shell.SwatchGrid
 
 /** The Settings sections. The wide layout shows one at a time beside a rail; the phone layout shows them all in one column. */
 private enum class SettingsSection(val title: String) {
@@ -137,26 +138,11 @@ fun SettingsScreen(
             SettingsSection.Appearance -> SettingsGroup(title = "Appearance") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     PearText("Accent colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
-                    ChipFlow {
-                        Accents.presets.forEach { p ->
-                            val col = Accents.parseHex(p.hex) ?: Color.Gray
-                            Box(
-                                Modifier.size(34.dp).clip(CircleShape).background(col).clickable { theme.setAccent(p.hex) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (theme.accentHex.equals(p.hex, ignoreCase = true)) {
-                                    PearIcon("checkmark", size = 16.dp, tint = Accents.contrastingForeground(col))
-                                }
-                            }
-                        }
-                        Box(
-                            Modifier.size(34.dp).clip(CircleShape).background(Color.White).border(1.dp, Color.Gray, CircleShape)
-                                .clickable { theme.setAccent(Accents.SYSTEM) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (theme.isSystemAccent) PearIcon("checkmark", size = 16.dp, tint = Color.Black)
-                        }
-                    }
+                    SwatchGrid(
+                        colors = Accents.presets.map { Accents.parseHex(it.hex) ?: Color.Gray } + Color.White,
+                        selectedIndex = if (theme.isSystemAccent) Accents.presets.size else Accents.presets.indexOfFirst { theme.accentHex.equals(it.hex, ignoreCase = true) },
+                        onSelect = { i -> theme.setAccent(if (i == Accents.presets.size) Accents.SYSTEM else Accents.presets[i].hex) },
+                    )
                 }
                 SettingsDivider()
                 SettingsRow(

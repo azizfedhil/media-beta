@@ -5,7 +5,7 @@ Spec: `RootView` in MediaHubApp.swift and `SidebarShell` in `Features/WideLayout
 ## Layouts
 - **Expanded** (window >= 640 dp): the iPad sidebar. Width 250 dp from 1000 dp, 212 dp from 780 dp, icon-only 76 dp below. Header with avatar, name and
   clock; the five destinations in iPad order (Search, Home, Explore, Settings, Library); "Catalogues" list (hidden in the icon-only form). Selected row
-  is filled with the accent and uses `onAccent`. Same sizes, radii and opacities as the Swift code.
+  is white with black text. The iOS sidebar uses the accent instead; the white is a choice that can be reverted. Same sizes, radii and opacities as the Swift code.
 - **Compact** (narrower): the iPhone tab bar: a floating glass capsule with Home, Explore, Library, Settings, and Search as a separate round glass
   button, like the iOS 26 `TabView`. Pages scroll under it and blur through it (`LocalBottomInset` tells pages how much to pad).
 - 640 dp is my choice for "iPad regular size class"; change `Breakpoints.expandedMinWidth` if it feels wrong.

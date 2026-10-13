@@ -17,7 +17,7 @@ Code: `shared/.../home/HeroBanners.kt` (both heroes, the text, the animation), `
 - **Blend and glow.** The artwork fades into the page along iOS's eased curve (smoothstep). The ambient glow behind the hero is the average colour of the hero's own image, tuned as iOS tunes it (`AmbientTone`). It is drawn inside the scrolling content, so it moves with the hero, and on the wide layout it reaches further right (`AmbientTuning`). See `shell.md`, "Home glow".
 - **Detail page.** The wide detail page reads its glow from the same large image its poster draws, the same way Home does, so the colour matches the picture.
 - **Synopsis.** Three lines on both layouts, with More and Less when the text is cut short. Opening one pauses the carousel, so the page does not move under the reader; moving to another page closes it (`expandedId` in `HeroCarousel` and `WideHeroPanel`).
-- **Wide fade.** A short fade into black across the lower half of the panel keeps the title, ratings and synopsis readable.
+- **Wide fade.** The readability scrim is inside the artwork's layer, so it dissolves with the art and leaves no hard edge at the panel. It starts at half the height and darkens to 0.7 at the bottom, or 0.9 while a synopsis is open.
 - **Details button and type pill.** The background comes before the padding, so the fill covers the padding too. The Details button keeps the theme accent (decided). The type pill is iOS's white 18% capsule with no border.
 
 ## Not done

@@ -168,6 +168,8 @@ private fun HeroArt(
     active: Boolean,
     scroll: ScrollState?,
     fadeSides: Boolean,
+    /** Where the darkening starts, as a fraction of the height. */
+    scrimStart: Float = 0.45f,
     /** How dark the bottom of the artwork gets. It deepens while a synopsis is open, so the text reads over it. */
     scrimEnd: Float = 0.6f,
     modifier: Modifier = Modifier,
@@ -204,7 +206,7 @@ private fun HeroArt(
             RemoteImage(url, Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value })
             Box(
                 Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = scrimEnd)),
+                    Brush.verticalGradient(scrimStart to Color.Transparent, 1f to Color.Black.copy(alpha = scrimEnd)),
                 ),
             )
         }
@@ -439,13 +441,10 @@ fun WideHeroPanel(
                         active = i == index.intValue,
                         scroll = scroll,
                         fadeSides = true,
+                        // The readability scrim is inside the artwork's layer, so it dissolves with the art.
+                        scrimStart = 0.5f,
+                        scrimEnd = if (expandedId == item.id) 0.9f else 0.7f,
                         modifier = Modifier.fillMaxSize(),
-                    )
-                    // A short fade into the bottom, so the title, ratings and synopsis read over the artwork.
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = if (expandedId == item.id) 0.9f else 0.7f)),
-                        ),
                     )
                     HeroInfo(
                         modifier = Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 40.dp, bottom = 74.dp),

@@ -27,7 +27,7 @@ Code: `shared/.../player/ui/` (overlay, pieces, pure rules) and `shell/PlayerScr
 | --- | --- | --- |
 | off | any | **Flat**: the iOS flat fills (circle black 0.4 / accent 0.75, capsule 0.55, card 0.88) |
 | on | paused, loading, error | **Blur**: the app's glass style (Haze) |
-| on | playing | **Tint**: black tint + hairline edge, no blur, unless `desktop.playerBlurWhilePlaying` is on, then **Blur** |
+| on | playing | **Tint**: black tint, no blur, unless `desktop.playerBlurWhilePlaying` is on, then **Blur** |
 
 The app-wide glass mode set to Flat also means Tint in the player. Settings -> Playback has the "Liquid Glass controls" switch and, under it, "Blur controls while playing" (desktop only, default off until the numbers are measured; see `phase0-decisions.md`).
 
@@ -169,9 +169,9 @@ Code: `player/ui/SkipRules.kt` (the rules, pure), `player/ui/SkipOverlay.kt` (th
 ### Not compiled
 As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest --tests "*SkipRules*" --tests "*NextPill*" --tests "*UpNext*" --tests "*IntroClient*"` first, then `gradle :desktopApp:run` for the list above.
 
-## Outlines (brand pass)
+## No outlines (player)
 
-The player's tint edge (`PLAYER_OUTLINE`) is half as strong as before. The blur look draws no outline: Frosted and Flat never draw one, and Glass draws an outline only where a surface asks for it (`border = true`), through its own edge.
+The player has no outline. Its surfaces draw no rim and no tint edge, so the look is the glass and the veil alone (`GlassTuning`). The brand pass's hairline edge was removed in the UI pass.
 
 ## Pill, full screen and folding (brand pass 2)
 
@@ -448,3 +448,7 @@ Not done yet: panel widths are still fixed (360 and 340 dp at desktop scale), an
 ## Veil (Track C)
 
 The neutral player surfaces (the controls, the pill and the panels) carry a white veil under their glass: 13% for controls, 8% for panels (`PLAYER_CONTROL_VEIL`, `PLAYER_CARD_VEIL` in `PlayerSurfaces.kt`). It makes the player read lighter than the page behind it, as the iOS player does. The 13% comes from the iOS pause circle measured about 26 L above its backdrop. Confirm on a real screenshot before trusting the numbers.
+
+## Skip buttons
+
+The skip buttons draw a small "10" over the icon, as the iOS skip glyph has it (`PlayerCircleButton`'s `numeral`).

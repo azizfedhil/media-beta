@@ -437,7 +437,7 @@ private fun Transport(engine: PlayerEngine, state: PlaybackState, onPlayPause: (
     val waiting = isWaiting(state)
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(38.dp), verticalAlignment = Alignment.CenterVertically) {
         PlayerCircleButton(
-            "gobackward.10", size = 50.dp, icon = 21.dp, contentDescription = "Back 10 seconds",
+            "gobackward", size = 50.dp, icon = 21.dp, numeral = "10", contentDescription = "Back 10 seconds",
             onClick = { engine.seek(SeekMath.skipped(engine.positionSeconds.value, -10.0, engine.durationSeconds.value)) },
         )
         Box(contentAlignment = Alignment.Center) {
@@ -451,7 +451,7 @@ private fun Transport(engine: PlayerEngine, state: PlaybackState, onPlayPause: (
             if (waiting) PlayerSpinner(diameter = 36.dp)
         }
         PlayerCircleButton(
-            "goforward.10", size = 50.dp, icon = 21.dp, contentDescription = "Forward 10 seconds",
+            "goforward", size = 50.dp, icon = 21.dp, numeral = "10", contentDescription = "Forward 10 seconds",
             onClick = { engine.seek(SeekMath.skipped(engine.positionSeconds.value, 10.0, engine.durationSeconds.value)) },
         )
     }
