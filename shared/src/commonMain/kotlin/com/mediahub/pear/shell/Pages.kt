@@ -26,6 +26,8 @@ import com.mediahub.pear.downloads.DownloadsScreen
 import com.mediahub.pear.explore.ExploreScreen
 import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassTopBar
+import com.mediahub.pear.history.ContinueWatchingScreen
+import com.mediahub.pear.history.RecentlyWatchedScreen
 import com.mediahub.pear.home.CatalogGridScreen
 import com.mediahub.pear.home.HomeScreen
 import com.mediahub.pear.library.LibraryScreen
@@ -96,11 +98,22 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
                 },
             )
         }
-        is Route.Catalogue -> CatalogGridScreen(
-            row = route.row,
-            onBack = { if (!nav.pop()) env.shell.back() },
-            onSelectTitle = { item -> nav.push(Route.Detail(item)) },
-        )
+        is Route.Catalogue -> when (route.id) {
+            // The sidebar's history pages have their own screens. Any other catalogue is the grid it always was.
+            HistoryShortcuts.CONTINUE_WATCHING_ID -> ContinueWatchingScreen(
+                onBack = { if (!nav.pop()) env.shell.back() },
+                onSelectTitle = { item, season, episode -> nav.push(Route.Detail(item, season, episode)) },
+            )
+            HistoryShortcuts.RECENTLY_WATCHED_ID -> RecentlyWatchedScreen(
+                onBack = { if (!nav.pop()) env.shell.back() },
+                onSelectTitle = { item -> nav.push(Route.Detail(item)) },
+            )
+            else -> CatalogGridScreen(
+                row = route.row,
+                onBack = { if (!nav.pop()) env.shell.back() },
+                onSelectTitle = { item -> nav.push(Route.Detail(item)) },
+            )
+        }
         is Route.Demo -> DemoPage(route, nav)
         is Route.Detail -> DetailScreen(
             item = route.item,

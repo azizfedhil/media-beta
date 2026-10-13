@@ -84,6 +84,7 @@ internal fun Sidebar(
 
             if (!iconsOnly) {
                 CatalogueList(catalogues, shell.catalogue?.id) { shell.selectCatalogue(it) }
+                HistoryRows(shell.catalogue?.id) { shell.selectCatalogue(it) }
             }
             Spacer(Modifier.weight(1f))
         }
@@ -235,6 +236,60 @@ private fun BrandBadge(title: String) {
         } else {
             PearIcon("film.stack", size = 11.dp, tint = Color.White)
         }
+    }
+}
+
+/**
+ * Continue Watching and Recently Watched, under the catalogues. They open as a catalogue does, so selection, Back and
+ * tab switching work the same way. No header of their own.
+ */
+@Composable
+private fun HistoryRows(selectedId: String?, onPick: (CatalogueItem) -> Unit) {
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        ShortcutRow(HistoryShortcuts.continueWatching, "play.fill", selectedId == HistoryShortcuts.continueWatching.id) {
+            onPick(HistoryShortcuts.continueWatching)
+        }
+        ShortcutRow(HistoryShortcuts.recentlyWatched, "clock", selectedId == HistoryShortcuts.recentlyWatched.id) {
+            onPick(HistoryShortcuts.recentlyWatched)
+        }
+    }
+}
+
+/** A row styled exactly as [CatalogueRow], with a symbol in its circle instead of a brand badge. */
+@Composable
+private fun ShortcutRow(item: CatalogueItem, symbol: String, isSelected: Boolean, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    val bg by animateColorAsState(
+        when {
+            isSelected -> Color.White
+            hovered -> Color.White.copy(alpha = 0.08f)
+            else -> Color.Transparent
+        },
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    val fg by animateColorAsState(if (isSelected) Color.Black else Color.White.copy(alpha = 0.85f), PearMotion.snappy<Color>(PearMotion.FAST))
+
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(PearRadii.sm))
+            .background(bg)
+            .hoverable(source)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // The symbol takes the row's colour, so it stays visible on the selected white pill.
+        Box(Modifier.size(22.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+            PearIcon(symbol, size = 11.dp, tint = fg)
+        }
+        PearText(
+            item.title,
+            style = PearTheme.type.footnote.weight(if (isSelected) FontWeight.Bold else FontWeight.Medium),
+            color = fg,
+            maxLines = 1,
+        )
     }
 }
 
