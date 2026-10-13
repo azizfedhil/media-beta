@@ -31,7 +31,9 @@ import com.mediahub.pear.player.AspectMode
 import com.mediahub.pear.player.EpisodeSupport
 import com.mediahub.pear.player.PlaybackProgress
 import com.mediahub.pear.player.PlaybackSnapshot
+import com.mediahub.pear.player.KeepAwakeRules
 import com.mediahub.pear.player.PlaybackState
+import com.mediahub.pear.player.createKeepAwake
 import com.mediahub.pear.player.media.MediaCommand
 import com.mediahub.pear.player.media.MediaEffect
 import com.mediahub.pear.player.media.MediaMetadata
@@ -452,6 +454,12 @@ fun PlayerScreen(
             canGoNext = nextEp != null,
         )
     }
+
+    // The screen stays awake while the stream opens or plays, and not while paused or after a failure (Batch 4.6c; iOS: the
+    // idle timer). Created with the player and released with it, so the system's timers come back when the player closes.
+    val keepAwake = remember(engine) { createKeepAwake() }
+    DisposableEffect(keepAwake) { onDispose { keepAwake.release() } }
+    LaunchedEffect(keepAwake, state, error) { keepAwake.setAwake(KeepAwakeRules.wanted(state, error)) }
 
     // Adds an online file to this file and plays it (`useOnline` in PlayerView.swift). The engine reads it into the track
     // list; the new track is the one whose title is the source name and that wasn't there before.

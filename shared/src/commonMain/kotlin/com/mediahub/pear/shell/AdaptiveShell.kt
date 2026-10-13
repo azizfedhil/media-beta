@@ -62,7 +62,8 @@ fun AdaptiveShell(
     BoxWithConstraints(
         modifier.fillMaxSize().background(Color(0xFF09090B))
             .focusRequester(focus).focusable()
-            .onPreviewKeyEvent { handleShellKey(it, shell) },
+            .onPreviewKeyEvent { handleShellKey(it, shell) }
+            .mouseBack(shell),
     ) {
         val windowWidth = maxWidth
         val mode = layoutModeFor(windowWidth, shell.layoutOverride)

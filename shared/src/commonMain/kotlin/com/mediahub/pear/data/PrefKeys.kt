@@ -57,6 +57,16 @@ object PrefKeys {
 
     /** Desktop only: episode cards on two rows in the wide layout (the phone layout is always one row). */
     const val DESKTOP_EPISODES_TWO_ROWS = "desktop.episodesTwoRows"
+
+    /**
+     * Desktop only: the window as it was last left (Batch 4.6c). Mode is `WindowMode`'s name; the geometry is in dp and is
+     * the floating window's, kept while the window is maximized or full screen. Not in a backup: the window belongs to the machine.
+     */
+    const val DESKTOP_WINDOW_MODE = "desktop.window.mode"
+    const val DESKTOP_WINDOW_X = "desktop.window.x"
+    const val DESKTOP_WINDOW_Y = "desktop.window.y"
+    const val DESKTOP_WINDOW_WIDTH = "desktop.window.width"
+    const val DESKTOP_WINDOW_HEIGHT = "desktop.window.height"
 }
 
 /** Secret names, kept outside [PrefStore] (iOS keeps them in the keychain). */

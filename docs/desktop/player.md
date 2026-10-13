@@ -393,3 +393,33 @@ Prevent the screen saver and sleep during playback, remember the window state, a
 
 ### Not compiled
 As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (new common tests: `MediaSessionRulesTest`, `MediaKeysTest`; new desktop test: `MediaVirtualKeysTest`), then `gradle :desktopApp:run`. The Compose key names (`Key.MediaPlayPause`, `Key.MediaPlay`, `Key.MediaPause`, `Key.MediaStop`, `Key.MediaNext`, `Key.MediaPrevious`) and the JNA user32 signatures are the parts to check first if the build fails.
+
+## Keep awake and the mouse back button (Batch 4.6c)
+
+Code: `shared/.../player/KeepAwake.kt` (the interface and `KeepAwakeRules.wanted`), `desktopMain/.../player/KeepAwake.desktop.kt`, `WindowsKeepAwake.kt`, `LinuxKeepAwake.kt`, `shared/.../shell/BackButton.kt` (the mouse back button, attached to the shell root in `AdaptiveShell`), `shell/PlayerScreen.kt` (the wiring). Spec: `updateIdleTimer` in PlayerView.swift for the keep-awake. The back button has no iOS counterpart.
+
+### Keep awake
+- **The rule** is the iOS one: `isIdleTimerDisabled = !isPaused && error == nil`. So the screen stays awake while the stream opens, buffers or plays, and not while paused, after the end, or after a failure. Losing the error ends the hold at once.
+- **Windows**: `SetThreadExecutionState` with `ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED`, cleared with `ES_CONTINUOUS` alone. The state belongs to the thread that set it, so every call is made from the UI thread (the thread that runs the player's effects).
+- **Linux**: a systemd-logind inhibitor, `systemd-inhibit --what=idle:sleep --mode=block cat`. `cat` waits on a pipe from Pear, so the inhibitor holds exactly as long as the pipe is open. Stopping closes the pipe. A crash closes it too, so the inhibitor never outlives Pear.
+- **Released** when the player closes (`DisposableEffect`), so the system's own timers come back when the film ends.
+- **Not covered:** systems without systemd (Linux without `systemd-inhibit` holds nothing), and macOS (not a target).
+
+### Differences from iOS
+1. iOS holds the screen during Loading, as the rule says; so does this. An Ended player lets the screen sleep (iOS may do the same, depending on whether its model sets paused at the end; not checked).
+2. Sleep is held as well as the screen, because the plan asked for it. iOS only keeps the screen on, which is most of what this does on Windows.
+
+### The mouse back button
+- Pressing the back button (the thumb button, Windows' XButton1) runs the same action as Escape: a full-screen player leaves full screen first, then the screen goes back. So the back button, Escape and Alt+Left all agree.
+- It reads the Initial pass at the shell root, so it sees the press before any screen does, and consumes nothing. A press counts once; holding it does not repeat.
+- The forward button does nothing.
+
+### Check it
+1. Play a film with Windows' display sleep set to 1 minute: the screen stays on. Pause: after the timer, the screen sleeps. Resume: it stays on again.
+2. Linux (GNOME or KDE): play a film with the screen blank timer at 1 minute. The screen does not blank. Pause, wait: it does. `systemd-inhibit --list` shows "Pear" while playing and not while paused.
+3. Close the player: the system's sleep timers come back at once. Quit Pear while playing: the Linux inhibitor goes with it (the list no longer shows it).
+4. Mouse back button in the shell: goes back a page, as Alt+Left does.
+5. Mouse back button in a full-screen player: leaves full screen; the next press closes the player.
+
+### Not compiled
+As before, no Gradle here. Run `gradle :shared:build` first (new common tests: `KeepAwakeRulesTest`, `WindowMemoryRulesTest`, `BackButtonEdgeTest`; new desktop test: `LinuxKeepAwakeTest`), then `gradle :desktopApp:run`. Check first if the build fails: `PointerButtons.isBackPressed` (the back button's flag in Compose's pointer API), the `Double.dp` extension, and the `rememberWindowState` parameter names.

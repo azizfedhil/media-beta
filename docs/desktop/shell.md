@@ -96,3 +96,26 @@ is shared between the two passes a scale of 1x when the layout is compact.
 - Glass rule (desktop): chips, source cards, the hero's Details button and the phone source rows are glass. Every glass surface
   falls back to flat only while the PC is on low battery (`PowerStatus.lowBattery`, read every 30 s by `BatteryWatch`: Windows
   through `GetSystemPowerStatus`, Linux through `/sys/class/power_supply`).
+
+## Window memory (Batch 4.6c)
+
+Code: `shared/.../shell/WindowMemory.kt` (the rules and the settings, common, unit tested), `desktopMain/.../shell/WindowMemoryTracker.kt` (restore at launch, the watcher), `desktopApp/.../Main.kt` (opens the window from the saved state and attaches the watcher). Keys: `desktop.window.*` in `PrefKeys` (desktop only; left out of a settings backup, since a window belongs to the machine). No iOS counterpart.
+
+- **What is kept.** The mode (Windowed, Maximized or Full screen) and the floating window's place and size, in dp. A maximized or full-screen window keeps the floating geometry from before it was maximized, so un-maximizing after a restart returns to the size the user chose.
+- **When it is written.** A move or a resize is written 400 ms after the last one (a Swing timer: restarting it is the debounce), and on the way out, before the settings are flushed (`AppExit`, which the window's close button runs).
+- **How it opens.** The size is fitted inside the primary screen. A saved place is used only when the window's title bar, at its centre, lies on a screen; otherwise the window is centred (a monitor was unplugged, say). The mode is restored as it was: a window closed full screen opens full screen.
+- **Sanity limits.** A saved size under 200 x 300 dp, or over 20 000, is dropped. The window's own minimum (360 x 600 px) is in pixels, so it is smaller in dp on a scaled screen; the limits catch garbage, not small windows.
+
+### Notes
+1. The phone-sized window toggle (Settings → Developer) changes the floating size, so it is remembered too. Leave the app in phone size and it opens in phone size.
+2. Each screen is scaled by its own factor when its bounds are read. A window dragged between screens with different scaling can be a little off when it reopens; that is accepted.
+
+### Check it
+1. Move and resize the window, close Pear, reopen: same place and size.
+2. Maximize, close, reopen: maximized. Restore it: it returns to the size from before the maximize.
+3. Close in full screen (in the player, or the window's full screen): it opens in full screen; Escape leaves it.
+4. Unplug a second monitor the window was on (or move the saved place off-screen by editing `settings.json`): the window opens centred on a screen.
+5. Settings backup: export and import it; the window keys are not in the file.
+
+### Not compiled
+Run `gradle :shared:build` first (new common test: `WindowMemoryRulesTest`), then `gradle :desktopApp:run`. If it fails, check `rememberWindowState`'s parameter names and `WindowPosition.Absolute` first.

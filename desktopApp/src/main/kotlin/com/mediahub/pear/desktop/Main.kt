@@ -15,6 +15,9 @@ import com.mediahub.pear.net.desktopNetwork
 import com.mediahub.pear.glass.BatteryWatch
 import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.NativeTitleBar
+import com.mediahub.pear.shell.RememberWindowGeometry
+import com.mediahub.pear.shell.WindowMemory
+import com.mediahub.pear.shell.restoredWindow
 import com.mediahub.pear.shell.WindowControl
 import com.mediahub.pear.shell.WindowMode
 import kotlinx.coroutines.delay
@@ -34,7 +37,13 @@ fun main(args: Array<String>) = application {
     // HTTP (OkHttp), the answer cache and the permanent TMDB facts (see docs/desktop/metadata.md).
     val network = remember { desktopNetwork() }
 
-    val windowState = rememberWindowState(size = DpSize(1280.dp, 800.dp))
+    // The window as it was last left (Batch 4.6c): its size and place, and whether it was maximized or full screen.
+    val opening = remember { restoredWindow(WindowMemory.read(storage.prefs)) }
+    val windowState = rememberWindowState(
+        placement = opening.placement,
+        position = opening.position,
+        size = opening.size,
+    )
     val control = remember {
         object : WindowControl {
             override val size: DpSize get() = windowState.size
@@ -71,6 +80,7 @@ fun main(args: Array<String>) = application {
         window.minimumSize = Dimension(360, 600) // small enough for the phone layout
         BatteryWatch()
         NativeTitleBar(window) // the window's own title bar, dark to match the app (Windows)
+        RememberWindowGeometry(window, windowState, storage.prefs)
         App(windowControl = control, storage = storage, network = network)
     }
 }
