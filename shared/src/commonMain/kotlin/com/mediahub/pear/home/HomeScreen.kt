@@ -80,9 +80,11 @@ fun HomeScreen(
                             )
                             .verticalScroll(scroll)
                             .padding(top = 18.dp, bottom = bottomInset + 40.dp),
-                        verticalArrangement = Arrangement.spacedBy(28.dp),
                     ) {
-                        FeedRows(model, onSelectTitle, onSeeAll)
+                        // The pane's glow scrolls with its rows, as iOS draws it on the feed.
+                        Column(Modifier.fillMaxWidth().attachedAmbient(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                            FeedRows(model, onSelectTitle, onSeeAll)
+                        }
                     }
                 }
             }
@@ -95,18 +97,20 @@ fun HomeScreen(
                 Modifier.fillMaxSize()
                     .verticalScroll(scroll)
                     .padding(bottom = bottomInset + 32.dp),
-                verticalArrangement = Arrangement.spacedBy(26.dp),
             ) {
-                if (model.hero.isNotEmpty()) {
-                    HeroCarousel(
-                        items = model.hero,
-                        onSelectTitle = { onSelectTitle(it, null, null) },
-                        scroll = scroll,
-                    )
-                } else {
-                    Spacer(Modifier.height(40.dp))
+                // The glow sits behind the hero and the rows, so it scrolls with them.
+                Column(Modifier.fillMaxWidth().attachedAmbient(), verticalArrangement = Arrangement.spacedBy(26.dp)) {
+                    if (model.hero.isNotEmpty()) {
+                        HeroCarousel(
+                            items = model.hero,
+                            onSelectTitle = { onSelectTitle(it, null, null) },
+                            scroll = scroll,
+                        )
+                    } else {
+                        Spacer(Modifier.height(40.dp))
+                    }
+                    FeedRows(model, onSelectTitle, onSeeAll)
                 }
-                FeedRows(model, onSelectTitle, onSeeAll)
             }
         }
     }

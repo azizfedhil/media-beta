@@ -118,3 +118,11 @@ Code: `shared/.../shell/WindowMemory.kt` (the rules and the settings, common, un
 
 ### Not compiled
 Run `gradle :shared:build` first (new common test: `WindowMemoryRulesTest`), then `gradle :desktopApp:run`. If it fails, check `rememberWindowState`'s parameter names and `WindowPosition.Absolute` first.
+
+## Home glow (iOS parity)
+
+- **Colour.** The glow is the average colour of the hero image the page draws (`heroAmbientFor`), tuned as iOS tunes it (`AmbientTone`): hue kept, saturation `min(1, s * 1.3 + 0.08)`, brightness held between 0.35 and 0.62. Nothing is guessed from the title. Until a hero's colour is known, the theme accent is used, as iOS does.
+- **Placement.** Home draws the glow inside its scrolling content (`attachedAmbient`): a 1100 dp band behind the hero and the rows, so it moves with them. On the wide layout the band is behind the feed pane, not the sidebar, so the sidebar stays solid.
+- **Fade.** The colour fades over 0.9 s on an ease-in-out curve, as iOS's `easeInOut(duration: 0.9)`.
+- **Detail pages** keep the fixed glow behind the page (`AmbientWash`). They have no scrolling hero of this kind.
+- **Not yet done:** the detail page still samples the poster (`DetailScreen.kt`, `rememberDominantColor`), so its glow can still differ from the hero image.

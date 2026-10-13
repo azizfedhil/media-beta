@@ -71,6 +71,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.min
 import androidx.compose.animation.animateContentSize
+import com.mediahub.pear.shell.LocalHttp
 
 /** Computes a cinematic ambient hue from the title (the fallback when the artwork has no dominant colour). */
 fun fallbackHeroAmbientColor(title: String): Color {
@@ -123,13 +124,18 @@ private fun rememberHeroIndex(count: Int, intervalMillis: Long, paused: Boolean)
     return index
 }
 
-/** Sets the ambient glow behind the page from the artwork's colour (the title's hue when the artwork has none). */
+/**
+ * Sets the glow from the hero image's own colour, as iOS does (`HomeView.updateTint`). [url] is the image the page draws. While
+ * it loads, the last colour stays; nothing is guessed from the title.
+ */
 @Composable
-private fun HeroAmbient(item: MetaPreview) {
+private fun HeroAmbient(url: String?) {
     val env = LocalAppEnv.current
-    val dominant = rememberDominantColor(item.posterUrl ?: item.backdropUrl)
-    LaunchedEffect(item.name, dominant) {
-        env.shell.heroAmbientColor = dominant ?: fallbackHeroAmbientColor(item.name)
+    val http = LocalHttp.current
+    LaunchedEffect(url) {
+        val colour = url?.let { heroAmbientFor(http, it) } ?: return@LaunchedEffect
+        env.shell.heroAmbientColor = colour
+        env.shell.heroAmbientKnown = true
     }
 }
 
@@ -349,7 +355,7 @@ fun HeroCarousel(
     val index = rememberHeroIndex(items.size, intervalMillis = 7_000L, paused = expandedId != null)
     LaunchedEffect(index.intValue) { expandedId = null }
     val current = items.getOrElse(index.intValue) { items.first() }
-    HeroAmbient(current)
+    HeroAmbient(current.heroUrl(false) ?: current.backdropUrl ?: current.posterUrl)
 
     Box(modifier.fillMaxWidth().height(PhoneHeroHeight)) {
         AnimatedContent(
@@ -406,7 +412,7 @@ fun WideHeroPanel(
     val index = rememberHeroIndex(items.size, intervalMillis = 8_000L, paused = expandedId != null)
     LaunchedEffect(index.intValue) { expandedId = null }
     val current = items.getOrElse(index.intValue) { items.first() }
-    HeroAmbient(current)
+    HeroAmbient(current.largePosterUrl() ?: current.backdropUrl)
 
     val panelWidth = WideHeroWidth * (1f - collapse).coerceIn(0f, 1f)
     Box(modifier.fillMaxHeight().width(panelWidth).clipToBounds()) {

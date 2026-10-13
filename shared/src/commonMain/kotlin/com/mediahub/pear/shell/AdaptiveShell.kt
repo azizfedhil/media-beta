@@ -52,6 +52,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.graphics.graphicsLayer
 import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearTransitions
+import androidx.compose.animation.core.CubicBezierEasing
 
 @Composable
 fun AdaptiveShell(
@@ -91,11 +92,11 @@ fun AdaptiveShell(
         // The player takes the whole window: no sidebar or tab bar over the picture.
         val playerOnTop = shell.currentNav().top is Route.Player
 
-        // Ambient glow from the hero poster. Only Home and a title's detail page have a hero (they set the colour), so only
-        // they show the glow. Elsewhere it fades out, and the glass there is not tinted by a poster. iOS draws its glow on Home only.
+        // The fixed glow behind the page is for a title's detail page only. Home draws its own, inside its scrolling content
+        // (`attachedAmbient`), as iOS does, so the sidebar is never tinted by it. Elsewhere the glow fades out.
         val topRoute = shell.currentNav().top
-        val heroPage = topRoute is Route.Detail || (topRoute is Route.Root && topRoute.tab == AppTab.Home)
-        val animatedAmbient by animateColorAsState(shell.heroAmbientColor, tween(1800))
+        val heroPage = topRoute is Route.Detail
+        val animatedAmbient by animateColorAsState(shell.heroAmbientColor, tween(900, easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)))
         val ambientStrength by animateFloatAsState(if (heroPage) 1f else 0f, tween(1800))
 
         CompositionLocalProvider(LocalWideLayout provides (mode == LayoutMode.Expanded)) {
