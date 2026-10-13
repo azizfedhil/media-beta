@@ -44,6 +44,9 @@ interface P2PPlatform {
 
     /** `p2p-*` folders left in [cacheDir] (a crash or a kill can leave some; a clean stop leaves none). */
     fun leftoverCacheEntries(): Int
+
+    /** Deletes those folders. Only run when no engine is loaded. Returns how many were removed. */
+    fun removeLeftovers(): Int = 0
 }
 
 /** The platform's engine support. Desktop: `desktopMain/p2p`. */

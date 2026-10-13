@@ -96,4 +96,12 @@ class P2PEngineTest {
         assertFailsWith<P2PFailure.Unavailable> { engine.open(source) }
         assertFalse(engine.status().engineLoaded)
     }
+
+    @Test
+    fun removingLeftoversNeverLoadsTheEngine() = runTest {
+        val platform = FakePlatform()
+        val engine = P2PEngine(platform)
+        assertEquals(0, engine.removeLeftovers())
+        assertTrue(platform.created.isEmpty())
+    }
 }

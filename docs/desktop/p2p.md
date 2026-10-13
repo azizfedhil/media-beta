@@ -105,3 +105,37 @@ common test: `P2PServiceTest`), then `gradle :desktopApp:run`.
 ### Not compiled
 As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (`P2PStreamTest` and
 `P2PServiceTest` are common tests), then `gradle :desktopApp:run`.
+
+## Batch 4.5d: lifecycle and cleanup
+
+- **The engine's life, in full.** It is created by the first stream the user opens, and it is stopped when the user leaves
+  that stream: the player's close, back, or the window's close (`requestStop`). A link played after a torrent stops the
+  engine too. So an engine is never left running without a stream the user is watching, and the switch in Settings never
+  stops one.
+- **The window's close** (`App.kt`, `AppExit`). Before the process exits, the close runs a hook that stops the engine and
+  waits for it, up to five seconds (`stopBlocking`). A stop that was only requested could be cut off by the exit.
+- **Leftovers.** The engine removes the `p2p-*` folders of a previous crash or kill when it next starts. The app also
+  removes them at launch (`removeLeftovers`), whether or not P2P is on, so nothing of P2P stays on disk between runs.
+- **Zero footprint with P2P off.** No engine is created, the native library is not loaded, and no socket is opened. A test
+  checks that a switched-off service creates no engine (`P2PServiceTest`).
+- **Not ported from iOS, by design.**
+  - *Idle timeout.* iOS ends a paused stream after 15 minutes. Here a paused stream runs until the user leaves it, because
+    the rule for this batch is that only leaving ends it. An idle engine never exists, since leaving always stops it, so
+    there is nothing for a timeout to end.
+  - *Background teardown.* iOS ends a stream that is not playing when the app goes to the background. A desktop window that
+    is minimised is not the user leaving the stream, so the stream carries on.
+  - *Network change.* This desktop can't detect a change of network (see 4.5b), so there is no event to react to.
+
+### Check it
+1. Stream a torrent, then close the window while it plays. Right after: no `p2p-*` folder in the cache, and no listening
+   socket on the engine's port (`netstat -ano` on Windows, `ss -ltnp` on Linux) once the app has exited.
+2. Stream a torrent, leave the player, and open the P2P check screen: "Engine loaded: no".
+3. Start the app with a `p2p-*` folder left over in the cache (copy one in by hand). It is gone after launch.
+4. With P2P off, nothing P2P runs: no engine line in the check screen, and the task list shows no extra threads from the
+   engine.
+5. Stream a torrent, then play a direct link from the same episode list: the engine stops when the link starts.
+
+### Not compiled
+As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (new common tests:
+`P2PServiceTest.aSwitchedOffServiceNeverCreatesAnEngine` and `P2PEngineTest.removingLeftoversNeverLoadsTheEngine`), then
+`gradle :desktopApp:run`.

@@ -121,4 +121,14 @@ class P2PServiceTest {
         assertEquals(streams, s.gate(streams))
         assertEquals(1, network.readyCalls)
     }
+
+    @Test
+    fun aSwitchedOffServiceNeverCreatesAnEngine() = runTest {
+        val platform = ServicePlatform()
+        val s = service(platform = platform)
+        s.setEnabled(true)
+        s.setEnabled(false)
+        assertTrue(platform.natives.isEmpty(), "zero footprint: no engine until a stream is opened")
+        assertFalse(s.engine.status().engineLoaded)
+    }
 }

@@ -176,7 +176,8 @@ fun PlayerScreen(
         val torrent = current.p2p
         p2pError = null
         if (torrent == null) {
-            data.p2p.engine.stopStream()
+            // Leaving a torrent for a link: the user has left that stream, so the engine goes with it (4.5d).
+            data.p2p.engine.requestStop()
             engine.load(current.url, current.headers, startPositionSeconds = loadAt)
             return@LaunchedEffect
         }

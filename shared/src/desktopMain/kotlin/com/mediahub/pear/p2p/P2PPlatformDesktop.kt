@@ -31,6 +31,12 @@ internal object DesktopP2PPlatform : P2PPlatform {
 
     override fun leftoverCacheEntries(): Int =
         File(cacheDir).listFiles()?.count { it.name.startsWith("p2p-") } ?: 0
+
+    override fun removeLeftovers(): Int {
+        val leftovers = File(cacheDir).listFiles()?.filter { it.name.startsWith("p2p-") } ?: return 0
+        leftovers.forEach { it.deleteRecursively() }
+        return leftovers.size
+    }
 }
 
 actual fun p2pPlatform(): P2PPlatform = DesktopP2PPlatform

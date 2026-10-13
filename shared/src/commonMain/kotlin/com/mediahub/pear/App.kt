@@ -1,5 +1,6 @@
 package com.mediahub.pear
 
+import com.mediahub.pear.shell.AppExit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -34,6 +35,13 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
     val shell = remember { ShellState() }
     val env = remember(data) { AppEnv(theme, glass, shell, data, devTools) }
     LaunchedEffect(data.profiles.activeID) { data.switchProfile(data.profiles.activeID) }
+    // The P2P engine ends with the window: the close runs this hook before the process exits, and waits for the stop (4.5d).
+    DisposableEffect(data) {
+        val unregister = AppExit.register { data.p2p.engine.stopBlocking() }
+        onDispose { unregister() }
+    }
+    // Leftovers of an earlier crash or kill go at launch, whether or not P2P is on: nothing of P2P stays on disk between runs.
+    LaunchedEffect(data) { data.p2p.engine.removeLeftovers() }
     PearTheme(theme) {
         CompositionLocalProvider(
             LocalAppEnv provides env,

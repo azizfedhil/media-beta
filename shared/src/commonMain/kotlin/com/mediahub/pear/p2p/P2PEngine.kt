@@ -75,6 +75,19 @@ class P2PEngine(private val platform: P2PPlatform) {
     /** `p2p-*` folders left behind by an earlier crash or kill, for the status line. */
     fun leftoverCacheEntries(): Int = platform.leftoverCacheEntries()
 
+    /**
+     * Removes the folders a crash or kill left in the cache. Run at launch: no engine is loaded then, so nothing of a previous
+     * session is still in use.
+     */
+    suspend fun removeLeftovers(): Int = withContext(dispatcher) { platform.removeLeftovers() }
+
+    /**
+     * [stop], but waits for it (up to [timeoutMillis]). For the app's exit, where the process ends right after the hook.
+     */
+    fun stopBlocking(timeoutMillis: Long = 5_000) {
+        blockingUntil(timeoutMillis) { stop() }
+    }
+
     /** Creates the engine, unless a stop arrived while it was being created: then it is closed and the open is cancelled. */
     private suspend fun createEngine(gen: Int): P2PNative {
         val created = withContext(dispatcher) { platform.createNative(platform.cacheDir) }
