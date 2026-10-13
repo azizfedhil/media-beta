@@ -4,6 +4,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEvent
@@ -13,6 +14,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 
 /** How far a press may move before it counts as a drag (along a row, say) rather than a click. */
 private const val CLICK_SLOP_PX = 12f
+
+/**
+ * Whether the right (secondary) mouse button is the one that went down in [event]. The pointer API exposes this only on
+ * some platforms, so each platform answers it (see `ClicksDesktop.kt`).
+ */
+internal expect fun isSecondaryButtonDown(event: PointerEvent): Boolean
 
 /**
  * A left click runs [onClick]; a right click runs [onMenu]. Both fire on release. A press that moves past the slop is a
@@ -31,7 +38,7 @@ fun Modifier.clickOrMenu(
             // The first press (not a move or hover) says which button went down.
             var down: PointerEvent = awaitPointerEvent()
             while (down.type != PointerEventType.Press) down = awaitPointerEvent()
-            val fromSecondary = down.buttons.isSecondaryPressed
+            val fromSecondary = isSecondaryButtonDown(down)
             val start = down.changes.first().position
             val press = PressInteraction.Press(start)
             source?.tryEmit(press)
