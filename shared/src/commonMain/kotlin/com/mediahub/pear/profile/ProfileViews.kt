@@ -1,28 +1,28 @@
 package com.mediahub.pear.profile
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -33,40 +33,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.data.Profile
-import com.mediahub.pear.data.ProfileStore
-import com.mediahub.pear.glass.GlassButton
-import com.mediahub.pear.glass.GlassCard
-import com.mediahub.pear.glass.GlassSheet
+import com.mediahub.pear.glass.FlatSheet
+import com.mediahub.pear.glass.GlassSurface
 import com.mediahub.pear.net.RemoteImage
-import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.PearButtonStyle
+import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.shell.PearCircleButton
+import com.mediahub.pear.shell.SwatchGrid
 import com.mediahub.pear.shell.TextInput
 import com.mediahub.pear.theme.Accents
 import com.mediahub.pear.theme.PearIcon
+import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
-import androidx.compose.animation.core.animateFloatAsState
-import com.mediahub.pear.theme.PearMotion
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import com.mediahub.pear.glass.FlatSheet
-import com.mediahub.pear.shell.PearCircleButton
-import com.mediahub.pear.shell.PearCapsuleButton
-import com.mediahub.pear.shell.PearButtonStyle
-import com.mediahub.pear.shell.SwatchGrid
 
 @Composable
 fun ProfileAvatar(
@@ -112,7 +103,7 @@ fun ProfileAvatar(
 
 /**
  * The profile avatar as a button: it opens "Who's watching?" (the sidebar header in the wide layout, the top-right
- * corner in the phone layout, both as on iOS).
+ * corner in the phone layout, both as on iOS). Backed by a glass circle surface matching iOS `.glassEffect`.
  */
 @Composable
 fun ProfileAvatarButton(
@@ -124,16 +115,18 @@ fun ProfileAvatarButton(
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val ring by animateFloatAsState(if (hovered) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))
-    Box(
-        modifier
-            .size(size)
-            .clip(CircleShape)
+    GlassSurface(
+        modifier = modifier
+            .size(size + 10.dp)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
             .border(2.dp, PearTheme.colors.accent.copy(alpha = 0.7f * ring), CircleShape),
+        shape = CircleShape,
     ) {
-        ProfileAvatar(profile, size = size)
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            ProfileAvatar(profile, size = size)
+        }
     }
 }
 
@@ -142,16 +135,14 @@ private const val WIDE_PANEL_WIDTH_DP = 380
 
 /**
  * "Who's watching?" over the whole app, opened from the avatar. A tap outside the sheet closes it, as the iOS sheet
- * does. The sheet itself swallows taps so that touching it doesn't close it.
- *
- * Phone layout ([sidebarWidth] null): a bottom sheet. Wide layout: a floating panel just right of the sidebar, under
- * its avatar, the way a popover comes from its button. A bottom sheet across a wide window looked lost there.
+ * does.
  */
 @Composable
 fun ProfileSheetOverlay(
     onDismiss: () -> Unit,
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenSimkl: () -> Unit = {},
     sidebarWidth: Dp? = null,
 ) {
     val swallow = remember { MutableInteractionSource() }
@@ -164,6 +155,7 @@ fun ProfileSheetOverlay(
                 onDismiss = onDismiss,
                 onOpenProfileDetail = onOpenProfileDetail,
                 onOpenDownloads = onOpenDownloads,
+                onOpenSimkl = onOpenSimkl,
                 modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
                     .clickable(interactionSource = swallow, indication = null) {},
             )
@@ -177,6 +169,7 @@ fun ProfileSheetOverlay(
                     onDismiss = onDismiss,
                     onOpenProfileDetail = onOpenProfileDetail,
                     onOpenDownloads = onOpenDownloads,
+                    onOpenSimkl = onOpenSimkl,
                     floating = true,
                     modifier = Modifier.width(WIDE_PANEL_WIDTH_DP.dp)
                         .clickable(interactionSource = swallow, indication = null) {},
@@ -186,8 +179,6 @@ fun ProfileSheetOverlay(
     }
 }
 
-/** "Who's watching?" sheet dialog. [floating] is the wide layout's panel (a card, smaller avatars). */
-/** A card on the flat sheet: a step lighter than the sheet, so the two don't merge. Same shape as the glass cards. */
 @Composable
 private fun SheetCard(
     modifier: Modifier = Modifier,
@@ -214,6 +205,7 @@ fun ProfileSheet(
     onDismiss: () -> Unit,
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenSimkl: () -> Unit = {},
     modifier: Modifier = Modifier,
     floating: Boolean = false,
 ) {
@@ -222,7 +214,6 @@ fun ProfileSheet(
     var isManaging by remember { mutableStateOf(false) }
     var editingProfile by remember { mutableStateOf<Profile?>(null) }
     var isCreatingNew by remember { mutableStateOf(false) }
-    // Five items (four profiles and Add) fit a floating panel only at the smaller size.
     val avatarSize = if (floating) 56.dp else 72.dp
     val avatarGap = if (floating) 14.dp else 18.dp
 
@@ -293,9 +284,32 @@ fun ProfileSheet(
                             PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
                         }
                     }
+
+                    // Simkl account link card
+                    SheetCard(
+                        onClick = {
+                            onDismiss()
+                            onOpenSimkl()
+                        },
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.size(36.dp).clip(CircleShape).background(PearTheme.colors.fillSubtle), contentAlignment = Alignment.Center) {
+                                PearIcon("arrow.triangle.2.circlepath", size = 20.dp, tint = PearTheme.colors.accent)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                PearText("Simkl", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+                                PearText(
+                                    if (env.data.simkl.isConnected) "Connected" else "Log in to sync your library",
+                                    style = PearTheme.type.caption,
+                                    color = if (env.data.simkl.isConnected) Color(0xFF34C759) else PearTheme.colors.textSecondary,
+                                )
+                            }
+                            PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
+                        }
+                    }
                 }
 
-                // Grid of Profiles. Scrolls sideways when there are more than fit.
+                // Horizontal Profile List
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(avatarGap),
@@ -353,7 +367,6 @@ fun ProfileSheet(
                     }
                 }
 
-                // Footnote & Manage Button
                 PearText(
                     "Each profile keeps its own watch history and library on this device.",
                     style = PearTheme.type.caption,
@@ -395,7 +408,6 @@ fun ProfileEditor(
             PearCircleButton(onClick = onDismiss, symbol = "xmark", size = 32.dp)
         }
 
-        // Preview Avatar
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             ProfileAvatar(
                 profile = Profile(profile?.id ?: "draft", name.ifEmpty { "?" }, colorHex, symbol, simklIdentity),
@@ -405,7 +417,6 @@ fun ProfileEditor(
 
         TextInput(name, { if (it.length <= 20) name = it }, "Profile name")
 
-        // Color Presets
         PearText("Colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
         SwatchGrid(
             colors = Accents.presets.map { Accents.parseHex(it.hex) ?: Color.Gray },
@@ -413,7 +424,6 @@ fun ProfileEditor(
             onSelect = { colorHex = Accents.presets[it].hex },
         )
 
-        // Symbol Choices
         PearText("Icon symbol", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             symbols.forEach { s ->
@@ -432,7 +442,6 @@ fun ProfileEditor(
             }
         }
 
-        // Save & Delete buttons
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (profile != null) {
                 PearCapsuleButton(

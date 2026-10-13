@@ -43,6 +43,10 @@ sealed interface Route {
     data object BackupCheck : Route
     data object PlayerCheck : Route
     data object P2PCheck : Route
+    data object About : Route
+    data object Onboarding : Route
+    data object SimklLogin : Route
+    data object ThemePreview : Route
 }
 
 /**

@@ -1,18 +1,18 @@
 package com.mediahub.pear.detail
 
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,38 +20,39 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import com.mediahub.pear.shell.DragLazyGrid
-import com.mediahub.pear.shell.DragLazyRow
-import com.mediahub.pear.shell.WideScale
-import com.mediahub.pear.shell.rememberPref
-import com.mediahub.pear.data.PrefKeys
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.glass.GlassButton
-import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.history.EpisodeItem
 import com.mediahub.pear.history.LibraryStatus
 import com.mediahub.pear.home.CatalogRowView
+import com.mediahub.pear.home.heroAmbientFor
 import com.mediahub.pear.meta.MdbRating
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
@@ -62,35 +63,29 @@ import com.mediahub.pear.model.Video
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.net.attempt
 import com.mediahub.pear.preview.DevChip
-import com.mediahub.pear.shell.LocalAppEnv
-import com.mediahub.pear.shell.LocalBottomInset
-import com.mediahub.pear.shell.LocalWideLayout
-import com.mediahub.pear.shell.SourcePickerRequest
-import com.mediahub.pear.theme.PearIcon
-import com.mediahub.pear.theme.PearRadii
-import com.mediahub.pear.theme.PearText
-import com.mediahub.pear.theme.PearTheme
-import com.mediahub.pear.theme.weight
-import com.mediahub.pear.home.fallbackHeroAmbientColor
-import com.mediahub.pear.net.rememberDominantColor
-import com.mediahub.pear.shell.FadedPoster
 import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.ContextMenuItem
 import com.mediahub.pear.shell.ContextMenuRequest
-import com.mediahub.pear.shell.MenuAnchor
-import com.mediahub.pear.shell.menuAnchor
+import com.mediahub.pear.shell.DragLazyGrid
+import com.mediahub.pear.shell.DragLazyRow
+import com.mediahub.pear.shell.FadedPoster
 import com.mediahub.pear.shell.FeedCollapse
-import kotlin.math.max
+import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import com.mediahub.pear.theme.PearMotion
-import com.mediahub.pear.home.heroAmbientFor
 import com.mediahub.pear.shell.LocalHttp
+import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.SourcePickerRequest
+import com.mediahub.pear.shell.WideScale
+import com.mediahub.pear.shell.menuAnchor
+import com.mediahub.pear.shell.rememberPref
+import com.mediahub.pear.theme.PearIcon
+import com.mediahub.pear.theme.PearMotion
+import com.mediahub.pear.theme.PearText
+import com.mediahub.pear.theme.PearTheme
+import com.mediahub.pear.theme.weight
+import kotlin.math.max
 
 @Composable
 fun DetailScreen(
@@ -117,13 +112,24 @@ fun DetailScreen(
     var selectedEpisode by remember { mutableIntStateOf(startEpisode ?: 1) }
     var episodes by remember { mutableStateOf<List<EpisodeItem>>(emptyList()) }
 
-
-    // Library and watched states
     val isWatched = env.data.history.entry(item.id)?.isTitleWatched == true
     val isInLibrary = env.data.library.entry(item.id) != null
 
+    // Ambient tone for both layouts
+    val http = LocalHttp.current
+    val artUrl = item.largePosterUrl() ?: item.backdropUrl ?: item.posterUrl
+    LaunchedEffect(artUrl) {
+        val colour = artUrl?.let { heroAmbientFor(http, it) } ?: return@LaunchedEffect
+        env.shell.heroAmbientColor = colour
+        env.shell.heroAmbientKnown = true
+    }
+    DisposableEffect(item.id) {
+        onDispose {
+            env.shell.heroAmbientKnown = false
+        }
+    }
+
     LaunchedEffect(item.id) {
-        // Resolve IMDb ID if needed
         if (imdbId.isEmpty() && env.data.meta.tmdb.hasKey) {
             val tmdbNum = item.id.removePrefix("tmdb:").toIntOrNull()
             if (tmdbNum != null) {
@@ -131,7 +137,6 @@ fun DetailScreen(
             }
         }
 
-        // Details & Recommendations
         if (env.data.meta.tmdb.hasKey) {
             details = attempt { env.data.meta.tmdb.details(item.id, item.type) }
             val recs = attempt { env.data.meta.tmdb.recommendations(item.id, item.type) } ?: emptyList()
@@ -140,14 +145,11 @@ fun DetailScreen(
             logoUrl = attempt { env.data.meta.tmdb.logo(item.id, item.type) }
         }
 
-        // Ratings from MDBList
         if (env.data.meta.mdblist.hasKey && imdbId.isNotEmpty()) {
             ratings = env.data.meta.mdblist.ratings(imdbId, item.type)
         }
     }
 
-    // The picker is drawn over the whole app by the shell (see ShellOverlays), not here: a sheet inside the page would
-    // sit in the blur source and come out transparent.
     fun openSourcePicker() {
         if (imdbId.isEmpty()) return
         env.shell.openSourcePicker(
@@ -165,16 +167,12 @@ fun DetailScreen(
         )
     }
 
-    // Load episodes when season changes
     LaunchedEffect(item.id, selectedSeason) {
         if (isSeries) {
             episodes = env.data.episodes.load(item.id, "series", selectedSeason) { imdbId.ifEmpty { null } }
         }
     }
 
-    // Wide layout: the poster column folds away as the page scrolls, and as any row on the page is dragged (the episode
-    // cards, More like this), the way Home's hero does. Rows report to LocalFeedCollapse; the page's scroll sets the
-    // vertical part here.
     val wideScroll = rememberScrollState()
     val feed = remember { FeedCollapse() }
     LaunchedEffect(wideScroll) {
@@ -185,105 +183,92 @@ fun DetailScreen(
 
     Box(modifier.fillMaxSize()) {
         if (isWide) {
-            // Split layout for wide screens
             CompositionLocalProvider(LocalFeedCollapse provides feed) {
-            Row(Modifier.fillMaxSize()) {
-                // Left column: the poster, frameless, dissolving into the page's colour wash. The colour is read from the
-                // same image the poster draws, as the Home hero does, not from the small list poster.
-                val http = LocalHttp.current
-                val artUrl = item.largePosterUrl() ?: item.backdropUrl
-                LaunchedEffect(artUrl) {
-                    val colour = artUrl?.let { heroAmbientFor(http, it) } ?: return@LaunchedEffect
-                    env.shell.heroAmbientColor = colour
-                    env.shell.heroAmbientKnown = true
-                }
-                Box(Modifier.width(posterWidth).fillMaxHeight().clipToBounds()) {
-                Box(
-                    Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(440.dp).fillMaxHeight()
-                        .graphicsLayer { alpha = (1f - fold * 1.3f).coerceIn(0f, 1f) },
-                ) {
-                    FadedPoster(item.largePosterUrl() ?: item.backdropUrl, Modifier.fillMaxSize())
+                Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.width(posterWidth).fillMaxHeight().clipToBounds()) {
+                        Box(
+                            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(440.dp).fillMaxHeight()
+                                .graphicsLayer { alpha = (1f - fold * 1.3f).coerceIn(0f, 1f) },
+                        ) {
+                            FadedPoster(item.largePosterUrl() ?: item.backdropUrl, Modifier.fillMaxSize())
 
-                    Column(
-                        Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 60.dp, bottom = 40.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        DetailHeaderInfo(item, details, ratings, logoUrl)
-                        DetailActionBar(
-                            item = item,
-                            isSeries = isSeries,
-                            season = selectedSeason,
-                            episode = selectedEpisode,
-                            isWatched = isWatched,
-                            isInLibrary = isInLibrary,
-                            onPlay = { openSourcePicker() },
-                            onToggleLibrary = {
-                                if (isInLibrary) env.data.library.remove(item.id)
-                                else env.data.library.set(item, LibraryStatus.PlanToWatch)
-                            },
-                            onToggleWatched = {
-                                if (isWatched) env.data.history.unmarkWatched(item.id)
-                                else env.data.history.markWatched(item)
-                            },
-                        )
-                    }
+                            Column(
+                                Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 60.dp, bottom = 40.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                DetailHeaderInfo(item, details, ratings, logoUrl)
+                                DetailActionBar(
+                                    item = item,
+                                    isSeries = isSeries,
+                                    season = selectedSeason,
+                                    episode = selectedEpisode,
+                                    isWatched = isWatched,
+                                    isInLibrary = isInLibrary,
+                                    onPlay = { openSourcePicker() },
+                                    onToggleLibrary = {
+                                        if (isInLibrary) env.data.library.remove(item.id)
+                                        else env.data.library.set(item, LibraryStatus.PlanToWatch)
+                                    },
+                                    onToggleWatched = {
+                                        if (isWatched) env.data.history.unmarkWatched(item.id)
+                                        else env.data.history.markWatched(item)
+                                    },
+                                )
+                            }
 
-                    // Back button top leading
-                    GlassButton(
-                        onClick = onBack,
-                        symbol = "chevron.left",
-                        size = 38.dp,
-                        modifier = Modifier.padding(16.dp).align(Alignment.TopStart),
-                    )
-                }
-                }
-
-                // Right column: Seasons, Episodes, Trailers, Recommendations, About Details
-                Box(Modifier.weight(1f).fillMaxHeight()) {
-                    Column(
-                        Modifier.fillMaxSize()
-                            .verticalScroll(wideScroll)
-                            .padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(28.dp),
-                    ) {
-                        if (isSeries) {
-                            SeasonsAndEpisodesSection(
-                                item = item,
-                                imdbId = imdbId,
-                                details = details,
-                                selectedSeason = selectedSeason,
-                                selectedEpisode = selectedEpisode,
-                                episodes = episodes,
-                                onSelectSeason = { selectedSeason = it; selectedEpisode = 1 },
-                                onSelectEpisode = { ep ->
-                                    selectedEpisode = ep.id
-                                    openSourcePicker()
-                                },
-                                isEpisodeWatched = { epId ->
-                                    env.data.history.isWatched(selectedSeason, epId, item.id)
-                                },
+                            GlassButton(
+                                onClick = onBack,
+                                symbol = "chevron.left",
+                                size = 38.dp,
+                                modifier = Modifier.padding(16.dp).align(Alignment.TopStart),
                             )
                         }
+                    }
 
-                        if (trailers.isNotEmpty()) {
-                            TrailersSection(trailers)
+                    Box(Modifier.weight(1f).fillMaxHeight()) {
+                        Column(
+                            Modifier.fillMaxSize()
+                                .verticalScroll(wideScroll)
+                                .padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(28.dp),
+                        ) {
+                            if (isSeries) {
+                                SeasonsAndEpisodesSection(
+                                    item = item,
+                                    imdbId = imdbId,
+                                    details = details,
+                                    selectedSeason = selectedSeason,
+                                    selectedEpisode = selectedEpisode,
+                                    episodes = episodes,
+                                    onSelectSeason = { selectedSeason = it; selectedEpisode = 1 },
+                                    onSelectEpisode = { ep ->
+                                        selectedEpisode = ep.id
+                                        openSourcePicker()
+                                    },
+                                    isEpisodeWatched = { epId ->
+                                        env.data.history.isWatched(selectedSeason, epId, item.id)
+                                    },
+                                )
+                            }
+
+                            if (trailers.isNotEmpty()) {
+                                TrailersSection(trailers)
+                            }
+
+                            if (similar.isNotEmpty()) {
+                                CatalogRowView(
+                                    row = CatalogRow("similar-${item.id}", "More like this", similar),
+                                    onSelectTitle = onSelectTitle,
+                                    onSeeAll = {},
+                                )
+                            }
+
+                            AboutDetailsSection(details, isSeries)
                         }
-
-                        if (similar.isNotEmpty()) {
-                            CatalogRowView(
-                                row = CatalogRow("similar-${item.id}", "More like this", similar),
-                                onSelectTitle = onSelectTitle,
-                                onSeeAll = {},
-                            )
-                        }
-
-                        AboutDetailsSection(details, isSeries)
                     }
                 }
-            }
             }
         } else {
-            // Stacked layout for compact / phone screens
             val bottomInset = LocalBottomInset.current
             Column(
                 Modifier.fillMaxSize()
@@ -291,7 +276,6 @@ fun DetailScreen(
                     .padding(bottom = bottomInset + 32.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                // Top Hero Backdrop
                 Box(Modifier.fillMaxWidth().height(360.dp)) {
                     RemoteImage(item.backdropUrl ?: item.posterUrl, Modifier.fillMaxSize())
                     Box(
@@ -389,8 +373,6 @@ fun DetailScreen(
     }
 }
 
-// MARK: Header Info & Action Bar
-
 @Composable
 private fun DetailHeaderInfo(
     item: MetaPreview,
@@ -444,14 +426,12 @@ private fun DetailActionBar(
             modifier = Modifier.weight(1f),
         )
 
-        // Bookmark / Library toggle: a neutral glass circle, as on iOS.
         GlassButton(
             onClick = onToggleLibrary,
             symbol = if (isInLibrary) "bookmark.fill" else "bookmark",
             size = 44.dp,
         )
 
-        // Watched toggle: the check takes the accent when the title is watched; the glass stays neutral.
         GlassButton(
             onClick = onToggleWatched,
             symbol = if (isWatched) "checkmark.circle.fill" else "checkmark.circle",
@@ -461,11 +441,6 @@ private fun DetailActionBar(
     }
 }
 
-/**
- * The Play button, drawn as iOS draws its prominent action (`glassProminent` in the accent): a solid accent capsule as
- * tall as the round buttons beside it, with the play symbol and the label in the theme's `onAccent`. Hover lightens it a
- * step, and a press shrinks it a little on a spring.
- */
 @Composable
 private fun PlayButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = PearTheme.colors
@@ -485,7 +460,6 @@ private fun PlayButton(label: String, onClick: () -> Unit, modifier: Modifier = 
             .clickable(interactionSource = source, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        // The hover sheen: white laid over the accent, so the fill stays the accent colour.
         Box(Modifier.matchParentSize().background(Color.White.copy(alpha = sheen)))
         Row(
             Modifier.padding(horizontal = 20.dp),
@@ -497,8 +471,6 @@ private fun PlayButton(label: String, onClick: () -> Unit, modifier: Modifier = 
         }
     }
 }
-
-// MARK: Seasons & Episodes
 
 @Composable
 private fun SeasonsAndEpisodesSection(
@@ -515,8 +487,6 @@ private fun SeasonsAndEpisodesSection(
     val env = LocalAppEnv.current
     val seasons = details?.seasons?.filter { (it.episodeCount ?: 1) > 0 } ?: (1..1).map { SeasonInfo(it, "Season 1", it) }
 
-    // Wide layout only: episode cards are a third bigger and can sit on two rows. The phone layout is always one row
-    // at the normal size.
     val isWide = LocalWideLayout.current
     val scale = if (isWide) WideScale.CARD else 1f
     val twoRows = rememberPref(env.data.prefs, PrefKeys.DESKTOP_EPISODES_TWO_ROWS) {
@@ -535,13 +505,11 @@ private fun SeasonsAndEpisodesSection(
             }
         }
 
-        // Season pills
         DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(seasons) { s ->
                 val num = s.seasonNumber
                 val anchor = remember { MenuAnchor() }
                 Box(Modifier.menuAnchor(anchor)) {
-                    // A left click selects the season; a right click opens its menu.
                     DevChip(
                         s.title,
                         selectedSeason == num,
@@ -559,10 +527,8 @@ private fun SeasonsAndEpisodesSection(
             }
         }
 
-        // Episode carousel
         if (episodes.isNotEmpty()) {
             if (isWide && twoRows) {
-                // Two rows: the grid is given the height of two cards and the gap between them.
                 DragLazyGrid(
                     rows = 2,
                     modifier = Modifier.fillMaxWidth().height((292f * scale).dp * 2f + 16.dp),
@@ -607,10 +573,6 @@ private fun SeasonsAndEpisodesSection(
     }
 }
 
-/**
- * A season's menu (`seasonMenu` in DetailView.swift): show it, and mark it watched or unmark it. A season is watched
- * when everything up to its last episode is.
- */
 private fun seasonMenuItems(
     env: AppEnv,
     item: MetaPreview,
@@ -641,8 +603,6 @@ private fun seasonMenuItems(
     )
 }
 
-// MARK: Trailers
-
 @Composable
 private fun TrailersSection(trailers: List<Video>) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -654,8 +614,6 @@ private fun TrailersSection(trailers: List<Video>) {
         }
     }
 }
-
-// MARK: About Metadata Rows
 
 @Composable
 private fun AboutDetailsSection(details: TmdbDetails?, isSeries: Boolean) {

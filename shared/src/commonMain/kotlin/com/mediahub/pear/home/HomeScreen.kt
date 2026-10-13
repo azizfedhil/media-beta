@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -21,9 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.BuiltinRows
@@ -35,7 +36,6 @@ import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
 import com.mediahub.pear.shell.LocalWideLayout
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.fillMaxWidth
 
 @Composable
 fun HomeScreen(
@@ -61,7 +61,7 @@ fun HomeScreen(
         }
         val fold by animateFloatAsState(fc.progress, tween(140))
         CompositionLocalProvider(LocalFeedCollapse provides fc) {
-            Row(modifier.fillMaxSize().attachedAmbient()) {
+            Row(modifier.fillMaxSize()) {
                 if (model.hero.isNotEmpty()) {
                     WideHeroPanel(
                         items = model.hero,
@@ -81,7 +81,7 @@ fun HomeScreen(
                             .padding(top = 18.dp, bottom = bottomInset + 40.dp),
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().padding(start = 14.dp),
+                            Modifier.fillMaxWidth().attachedAmbient().padding(start = 14.dp),
                             verticalArrangement = Arrangement.spacedBy(28.dp),
                         ) {
                             FeedRows(model, onSelectTitle, onSeeAll)
@@ -92,13 +92,16 @@ fun HomeScreen(
         }
     } else {
         val scroll = rememberScrollState()
-        Box(modifier.fillMaxSize().attachedAmbient()) {
+        Box(modifier.fillMaxSize()) {
             Column(
                 Modifier.fillMaxSize()
                     .verticalScroll(scroll)
                     .padding(bottom = bottomInset + 32.dp),
             ) {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(26.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().attachedAmbient(),
+                    verticalArrangement = Arrangement.spacedBy(26.dp),
+                ) {
                     if (model.hero.isNotEmpty()) {
                         HeroCarousel(
                             items = model.hero,

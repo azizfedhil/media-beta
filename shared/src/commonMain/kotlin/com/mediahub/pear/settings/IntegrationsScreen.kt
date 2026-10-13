@@ -27,6 +27,7 @@ import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.TextInput
+import com.mediahub.pear.simkl.SimklConnectControls
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
@@ -89,6 +90,20 @@ fun IntegrationsScreen(
                 }
                 PearText("Aggregates ratings from IMDb, Rotten Tomatoes, Metacritic, and Letterboxd.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
                 TextInput(mdbKey, { mdbKey = it; prefs.setString(PrefKeys.MDBLIST_KEY, it.trim()) }, "MDBList API key")
+            }
+
+            // Simkl Section
+            GlassCard(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    PearText("Simkl", style = PearTheme.type.headline)
+                    if (env.data.simkl.isConnected) StatusCheckBadge("Connected")
+                }
+                PearText(
+                    "Syncs your library, scrobbles playback, and imports watchlist. Tap Connect to Simkl, then enter the code at simkl.com/pin.",
+                    style = PearTheme.type.footnote,
+                    color = PearTheme.colors.textSecondary,
+                )
+                SimklConnectControls()
             }
 
             // Media Servers Card (Jellyfin & Plex)

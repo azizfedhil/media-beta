@@ -47,6 +47,7 @@ import com.mediahub.pear.settings.OnboardingScreen
 import com.mediahub.pear.settings.PlayerControlsSettingsScreen
 import com.mediahub.pear.settings.SettingsScreen
 import com.mediahub.pear.settings.SubtitleSettingsScreen
+import com.mediahub.pear.simkl.SimklLoginScreen
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
@@ -97,7 +98,6 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         }
         is Route.Catalogue -> CatalogGridScreen(
             row = route.row,
-            // A catalogue opened from the sidebar is the root of its own stack: back from it leaves the catalogue.
             onBack = { if (!nav.pop()) env.shell.back() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
         )
@@ -143,6 +143,9 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
             onBack = { nav.pop() },
         )
         Route.About -> AboutScreen(
+            onBack = { nav.pop() },
+        )
+        Route.SimklLogin -> SimklLoginScreen(
             onBack = { nav.pop() },
         )
         Route.Onboarding -> OnboardingScreen(
