@@ -75,8 +75,9 @@ is shared between the two passes a scale of 1x when the layout is compact.
 - The source picker is `ShellState.sourcePicker`, opened by the detail page (`openSourcePicker`) and drawn by `SourcePickerOverlay`.
   Phone: the bottom sheet (`SourceSheet`). Wide: a centred panel, about 84% of the window (up to 980 x 720 dp), with the sources as
   a grid of cards and the add-on filter across the top.
-- The ambient colour is drawn behind the app in both layouts (`AmbientWash`). The phone hero takes the poster's colour as the wide
-  hero does; the title's hue is the fallback.
+- The ambient colour (`AmbientWash`) is drawn behind the app in both layouts, but only on the two pages that have a hero: Home and a
+  title's detail page. Elsewhere it fades out (`ambientStrength`, 1.8 s), so the glass on those pages is not tinted by a poster. iOS draws
+  its glow on Home only. The phone hero takes the poster's colour as the wide hero does; the title's hue is the fallback.
 
 ## Native title bar (Windows)
 

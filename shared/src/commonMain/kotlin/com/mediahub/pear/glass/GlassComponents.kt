@@ -47,7 +47,7 @@ fun GlassBar(
     contentPadding: Dp = 12.dp,
     content: @Composable RowScope.() -> Unit,
 ) {
-    GlassSurface(modifier, shape, sheen = PearTheme.colors.card, border = true) {
+    GlassSurface(modifier, shape, wash = PearTheme.colors.panel, border = true) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = contentPadding, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -86,7 +86,7 @@ fun GlassButton(
         shape = RoundedCornerShape(percent = 50),
         wash = tint?.copy(alpha = 0.55f),
         highlight = hovered && enabled,
-        sheen = if (tint == null) PearTheme.colors.button else null,
+        border = true,
     ) {
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = if (label != null) 16.dp else 0.dp),
@@ -139,11 +139,11 @@ fun GlassCard(
     val interactive = if (onClick == null) Modifier else
         Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand).clickable(interactionSource = source, indication = null, onClick = onClick)
     val c = PearTheme.colors
-    // Always lifted off the page (highlight, the card's accent wash and a border in every glass mode), so a card on a black
-    // page is a visible surface. Hovering a clickable card lifts it a step more.
+    // Always lifted off the page (a neutral highlight, the dark panel wash and an edge in every glass mode), so a card on a
+    // black page is a visible surface. Hovering a clickable card lifts it a step more.
     GlassSurface(
         modifier.then(interactive), shape,
-        wash = c.panel, highlight = true, sheen = c.card, border = true,
+        wash = c.panel, highlight = true, border = true,
     ) {
         if (hovered && onClick != null) Box(Modifier.matchParentSize().background(c.fillSubtle))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
@@ -153,7 +153,7 @@ fun GlassCard(
 /** Dropdown / context menu panel. Place it where the menu should open; positioning is the caller's job. */
 @Composable
 fun GlassMenu(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg), sheen = PearTheme.colors.menu) {
+    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg), wash = PearTheme.colors.panel, border = true) {
         Column(Modifier.padding(6.dp), content = content)
     }
 }
@@ -192,7 +192,7 @@ fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, content
     } else {
         RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)
     }
-    GlassSurface(modifier, shape, sheen = c.sheen) {
+    GlassSurface(modifier, shape, wash = c.panel, border = floating) {
         Column(Modifier.padding(horizontal = 20.dp).padding(top = if (floating) 20.dp else 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!floating) Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)

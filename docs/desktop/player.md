@@ -310,8 +310,9 @@ As before, the authoring environment has no Gradle or Kotlin compiler. Run `grad
   (`DevChip(compact = true)`). The subtitle line is unscaled too, so it matches the preview in the panel.
 - **Margins** (`PlayerOverlay.kt`). 72 dp at the sides and 44 dp at the bottom. The floating panels line up with the pill's
   right edge. `PLAYER_PANEL_CLEARANCE` is derived from the bottom margin, and the subtitle lift uses it.
-- **Contrast** (`PearColors.menu`). Menus and the player's cards take the accent layer, stronger than the glass sheen. The
-  hero's Details button is a solid accent pill with the accent's own text colour, in both hero layouts.
+- **Glass panels** (`PlayerSurfaces.kt`). The player's cards (speed, sources, subtitles, audio, display, info card) are glass with no
+  gradient, as on iOS. The blur look puts the neutral `PearColors.panel` wash under them, the same as the page cards, so their text
+  reads over the picture. The hero's Details button is a solid accent pill with the accent's own text colour, in both hero layouts.
 
 ### Check it
 1. Open a title: while the stream opens, the pear. loader plays on black. It moves smoothly (no 30 fps cap).
@@ -320,7 +321,9 @@ As before, the authoring environment has no Gradle or Kotlin compiler. Run `grad
 3. Open the Subtitles panel: the chips wrap and the labels are smaller. The preview's line size matches the line in the picture.
 4. The margins: the pill sits about 72 dp from the right and 44 dp from the bottom. Open a floating panel: its right edge
    lines up with the pill.
-5. The context menu and the player's cards have a visible accent colour. The hero's Details button is a solid accent pill.
+5. While a video plays, open the speed, sources, subtitles and audio panels: each is glass that shows the picture through it,
+   with no coloured gradient. The selected track or source is marked with a check mark, not a coloured row.
+6. The hero's Details button is a solid accent pill.
 
 ### Not compiled
 As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first, then `gradle :desktopApp:run`.

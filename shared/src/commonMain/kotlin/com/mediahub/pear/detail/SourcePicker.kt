@@ -373,9 +373,8 @@ private fun SourceCard(stream: StreamItem, isPinned: Boolean, playable: Boolean,
             .pointerHoverIcon(PointerIcon.Hand)
             .then(if (playable) Modifier.clickable(interactionSource = source, indication = null, onClick = onClick) else Modifier),
         RoundedCornerShape(PearRadii.card),
-        wash = if (isPinned) c.accent.copy(alpha = 0.3f) else null,
         highlight = hovered,
-        sheen = c.sheen,
+        border = true,
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

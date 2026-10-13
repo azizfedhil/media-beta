@@ -11,7 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -72,8 +71,9 @@ private fun flatColor(c: PearColors, wash: Color?): Color {
 
 /**
  * The base of every glass component. Draws blur, glass or a flat tint according to [GlassStore.mode],
- * clipped to [shape]. Outside a [GlassScene] it falls back to flat. [wash] is an extra colour on top
- * (for example the accent at 55%, like the tinted player buttons in Swift).
+ * clipped to [shape]. Outside a [GlassScene] it falls back to flat. [wash] is a plain tint laid over the glass: the
+ * accent at 55% for a selected or active control (like the tinted player buttons in Swift), or the neutral panel wash.
+ * Glass is never painted with a gradient; that is the iOS look.
  */
 @Composable
 fun GlassSurface(
@@ -83,11 +83,10 @@ fun GlassSurface(
     highlight: Boolean = false,
     /** Scales the border's alpha: 1 is the theme outline, 0.5 is half as strong (the player's surfaces). Frosted and Flat only. */
     outlineStrength: Float = 1f,
-    /** A gradient drawn over the glass, under the content. Gives the surface its colour (the accent sheen). */
-    sheen: Brush? = null,
     /**
      * Draws the theme outline in Glass and Clear too (Frosted and Flat always have it). Glass makes its own edge from what is
-     * behind it, so over a black page it has none; pages' cards and bars ask for this so they keep a visible edge.
+     * behind it, so over a black page it has none; floating cards, bars, buttons and menus ask for this so they keep a visible
+     * edge.
      */
     border: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
@@ -120,7 +119,6 @@ fun GlassSurface(
         GlassMode.Flat -> Modifier.clip(shape).background(flatColor(c, wash)).border(1.dp, outline, shape)
     }
     Box(modifier.then(effect).then(if (highlight) Modifier.background(c.fillSubtle) else Modifier)) {
-        if (sheen != null) Box(Modifier.matchParentSize().clip(shape).background(sheen))
         content()
     }
 }

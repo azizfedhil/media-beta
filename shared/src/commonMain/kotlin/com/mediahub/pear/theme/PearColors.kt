@@ -45,34 +45,12 @@ class PearColors(
     val gradient: Brush get() = Brush.horizontalGradient(listOf(accent, accent2))
 
     /**
-     * The accent gradient, faint. Sits behind menus, cards, buttons and sheets so they stand off a black background,
-     * the way the iOS cards and menus take the accent. Glass only tints the blur; this is what gives it colour.
+     * The neutral wash of the glass surfaces: the sidebar, the bars, cards, menus and sheets, and the player's panels. It is
+     * dark in dark mode (the player is always dark) and the light surface colour in light mode, so text stays readable over
+     * the picture. It is never the accent: glass takes no accent gradient (the iOS glass does not either), and the accent
+     * appears on selected and active controls alone.
      */
-    val sheen: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.34f), accent2.copy(alpha = 0.12f)))
-
-    /**
-     * The dark wash under the sidebar and under every card. On its own it is close to black, so cards add [card] and a border
-     * on top of it (see GlassCard).
-     */
-    val panel: Color get() = Color(0xFF0D0D11).copy(alpha = 0.55f)
-
-    /**
-     * Menus and cards (the context menu, the player's panels): the accent, strong enough to read as a coloured box over the
-     * dark glass. Stronger than [sheen], which is for the glass boxes of the pages.
-     */
-    val menu: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.42f), accent2.copy(alpha = 0.16f)))
-
-    /**
-     * The face of a card or a bar on a page. Pages sit on a near-black background, and glass over black has nothing to blur,
-     * so a card drawn as glass alone vanishes. This is a quiet accent wash (a little stronger in dark mode, where it has to
-     * lift a black page) that, with the card's border, makes the card read as a surface.
-     */
-    val card: Brush get() = Brush.linearGradient(
-        listOf(accent.copy(alpha = if (isDark) 0.20f else 0.10f), accent2.copy(alpha = if (isDark) 0.07f else 0.04f)),
-    )
-
-    /** Untinted buttons: a clear accent fill, so a button stands off its backdrop. */
-    val button: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.6f), accent2.copy(alpha = 0.3f)))
+    val panel: Color get() = if (isDark) Color(0xFF0D0D11).copy(alpha = 0.55f) else Color(0xFFF2F2F7).copy(alpha = 0.55f)
 
     /** Name and colour of every token, for the theme preview screen. */
     fun swatches(): List<Pair<String, Color>> = listOf(

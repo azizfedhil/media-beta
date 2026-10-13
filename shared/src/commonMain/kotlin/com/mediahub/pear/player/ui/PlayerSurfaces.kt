@@ -72,6 +72,7 @@ private val Pill = RoundedCornerShape(percent = 50)
  * blur (a Haze glass surface), tint (cheap, for moving video) or flat (glass switched off).
  * The flat fills are the ones PlayerView.swift uses when "Liquid Glass controls" is off
  * (circle 0.4 black or the tint at 0.75, capsule 0.55, card 0.88).
+ * No surface takes a gradient: the glass shows through, as it does on iOS.
  */
 @Composable
 internal fun PlayerSurface(
@@ -81,18 +82,16 @@ internal fun PlayerSurface(
     tint: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    // Cards (the player's panels) take the accent layer, so they read as coloured boxes over the picture, as the menus do.
-    val sheen = if (kind == SurfaceKind.Card) PearTheme.colors.menu else null
-    val layered: @Composable BoxScope.() -> Unit = {
-        if (sheen != null) Box(Modifier.matchParentSize().clip(shape).background(sheen))
-        content()
-    }
     when (LocalPlayerLook.current) {
-        PlayerLook.Blur -> GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), outlineStrength = PLAYER_OUTLINE, content = layered)
+        PlayerLook.Blur -> {
+            // Cards take the neutral panel wash, the same dark as the page cards, so their text reads over the picture.
+            val wash = if (kind == SurfaceKind.Card) PearTheme.colors.panel else tint?.copy(alpha = 0.55f)
+            GlassSurface(modifier, shape, wash = wash, outlineStrength = PLAYER_OUTLINE, content = content)
+        }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            Box(modifier.clip(shape).background(fill).border(1.dp, Color.White.copy(alpha = 0.14f * PLAYER_OUTLINE), shape), content = layered)
+            Box(modifier.clip(shape).background(fill).border(1.dp, Color.White.copy(alpha = 0.14f * PLAYER_OUTLINE), shape), content = content)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {
@@ -100,7 +99,7 @@ internal fun PlayerSurface(
                 SurfaceKind.Capsule -> Color.Black.copy(alpha = 0.55f)
                 SurfaceKind.Card -> Color.Black.copy(alpha = 0.88f)
             }
-            Box(modifier.clip(shape).background(fill), content = layered)
+            Box(modifier.clip(shape).background(fill), content = content)
         }
     }
 }

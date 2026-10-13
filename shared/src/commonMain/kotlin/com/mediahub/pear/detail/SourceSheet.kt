@@ -199,7 +199,7 @@ private fun SourceItemRow(
         Modifier.fillMaxWidth().alpha(if (playable) 1f else 0.45f)
             .then(if (playable) Modifier.clickable(onClick = onClick) else Modifier),
         shape,
-        wash = if (isPinned) PearTheme.colors.accent.copy(alpha = 0.3f) else null,
+        border = true,
     ) {
     Row(
         Modifier.fillMaxWidth().padding(12.dp),

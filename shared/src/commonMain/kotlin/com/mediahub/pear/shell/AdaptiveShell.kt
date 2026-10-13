@@ -87,8 +87,12 @@ fun AdaptiveShell(
         // The player takes the whole window: no sidebar or tab bar over the picture.
         val playerOnTop = shell.currentNav().top is Route.Player
 
-        // Ambient glow background derived from the hero poster
+        // Ambient glow from the hero poster. Only Home and a title's detail page have a hero (they set the colour), so only
+        // they show the glow. Elsewhere it fades out, and the glass there is not tinted by a poster. iOS draws its glow on Home only.
+        val topRoute = shell.currentNav().top
+        val heroPage = topRoute is Route.Detail || (topRoute is Route.Root && topRoute.tab == AppTab.Home)
         val animatedAmbient by animateColorAsState(shell.heroAmbientColor, tween(1800))
+        val ambientStrength by animateFloatAsState(if (heroPage) 1f else 0f, tween(1800))
 
         CompositionLocalProvider(LocalWideLayout provides (mode == LayoutMode.Expanded)) {
             if (mode == LayoutMode.Expanded) {
@@ -103,7 +107,7 @@ fun AdaptiveShell(
                     store = glass,
                     modifier = Modifier.fillMaxSize(),
                     background = {
-                        AmbientWash(animatedAmbient)
+                        AmbientWash(animatedAmbient, ambientStrength)
                         ShellPages(shell, Modifier.fillMaxSize().padding(start = if (playerOnTop) 0.dp else sidebarW))
                     },
                 ) {
@@ -120,7 +124,7 @@ fun AdaptiveShell(
                 }
             } else {
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
-                    GlassScene(glass, Modifier.fillMaxSize(), background = { AmbientWash(animatedAmbient); ShellPages(shell, Modifier.fillMaxSize()) }) {
+                    GlassScene(glass, Modifier.fillMaxSize(), background = { AmbientWash(animatedAmbient, ambientStrength); ShellPages(shell, Modifier.fillMaxSize()) }) {
                         if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
                         ShellOverlays(shell, showProfiles) { showProfiles = it }
                         if (!playerOnTop) ProfileAvatarButton(
@@ -199,16 +203,19 @@ private fun KeepAlive(shown: Boolean, content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** One soft colour wash over the whole page, from the hero's poster: strongest behind the hero, dissolving to near-black. */
+/**
+ * One soft colour wash over the whole page, from the hero's poster: strongest behind the hero, dissolving to near-black.
+ * [strength] (0 to 1) fades the colour in and out; the dark base at the bottom is always drawn, so other pages keep their look.
+ */
 @Composable
-private fun AmbientWash(color: Color) {
+private fun AmbientWash(color: Color, strength: Float) {
     Box(
         Modifier.fillMaxSize().drawBehind {
             drawRect(
                 Brush.radialGradient(
-                    0f to color.copy(alpha = 0.75f),
-                    0.40f to color.copy(alpha = 0.38f),
-                    0.75f to color.copy(alpha = 0.12f),
+                    0f to color.copy(alpha = 0.75f * strength),
+                    0.40f to color.copy(alpha = 0.38f * strength),
+                    0.75f to color.copy(alpha = 0.12f * strength),
                     1f to Color.Transparent,
                     center = Offset(size.width * 0.30f, size.height * 0.38f),
                     radius = maxOf(size.width, size.height) * 1.0f,
@@ -216,7 +223,7 @@ private fun AmbientWash(color: Color) {
             )
             drawRect(
                 Brush.verticalGradient(
-                    0f to color.copy(alpha = 0.20f),
+                    0f to color.copy(alpha = 0.20f * strength),
                     0.55f to Color.Transparent,
                     1f to Color.Black.copy(alpha = 0.55f),
                 ),
