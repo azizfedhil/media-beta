@@ -29,15 +29,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.library.LibrarySourceControls
-import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.shell.SegmentedControl
+import com.mediahub.pear.shell.SettingsDivider
+import com.mediahub.pear.shell.SettingsGroup
+import com.mediahub.pear.shell.SettingsRow
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
@@ -47,11 +52,16 @@ import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.round
 
-/** The widest the profile page gets in the wide layout. Wider windows get empty space on the sides, not stretched cards. */
+/** The widest the profile page gets in either layout. Wider windows get empty space on the sides, not stretched cards. */
 private const val MAX_CONTENT_WIDTH_DP = 1120
 
-/** Two columns need at least this much room; a narrow wide window keeps one column. */
-private const val TWO_COLUMNS_MIN_DP = 760
+/** The two-column layout needs this much content width. Narrower windows, and the phone, stack every section in one column. */
+private const val TWO_COLUMNS_MIN_DP = 900
+
+/** The gap between cards and sections, as on the Home page. */
+private val GUTTER: Dp = 20.dp
+
+private val SERVICE_ON = Color(0xFF34C759)
 
 @Composable
 fun ProfileDetailScreen(
@@ -73,86 +83,58 @@ fun ProfileDetailScreen(
     val activeProfile = env.data.profiles.active
     val wide = LocalWideLayout.current
 
-    // The page's sections. The same cards are used in both layouts; only where they sit changes.
+    // The page's sections. Both layouts use the same ones; the wide layout puts them in a different order.
     @Composable
-    fun HeaderSection() {
-        Column(
-            Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            ProfileAvatar(activeProfile, size = 96.dp)
-            PearText(activeProfile.name, style = PearTheme.type.title.weight(FontWeight.Bold))
-            val titleCount = stats.titles.count { it.status != StatTitleStatus.Planned }
-            PearText(
-                text = if (titleCount == 0) "Nothing watched yet" else "$titleCount titles watched or in progress",
-                style = PearTheme.type.subheadline,
-                color = PearTheme.colors.textSecondary,
-            )
+    fun Header() {
+        val titleCount = stats.titles.count { it.status != StatTitleStatus.Planned }
+        val summary = if (titleCount == 0) "Nothing watched yet" else "$titleCount titles watched or in progress"
+        if (wide) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                ProfileAvatar(activeProfile, size = 88.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PearText(activeProfile.name, style = PearTheme.type.title.weight(FontWeight.Bold), maxLines = 1)
+                    PearText(summary, style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
+                }
+                PearCapsuleButton(label = "Downloads", symbol = "arrow.down.circle", onClick = onNavigateDownloads)
+            }
+        } else {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProfileAvatar(activeProfile, size = 96.dp)
+                PearText(activeProfile.name, style = PearTheme.type.title.weight(FontWeight.Bold))
+                PearText(summary, style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
+            }
         }
     }
 
     @Composable
-    fun IntegrationsSection() {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PearIcon("puzzlepiece.extension.fill", size = 18.dp, tint = PearTheme.colors.accent)
-                    PearText("Integrations", style = PearTheme.type.headline)
-                }
-                DevChip("Manage", false, onClick = onNavigateIntegrations)
+    fun Tiles() {
+        val shows = stats.titles.count { it.isSeries && it.episodes > 0 }
+        val episodesCaption = "across $shows ${if (shows == 1) "show" else "shows"}"
+        if (wide) {
+            // One row of four, equal width.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(GUTTER)) {
+                StatTile("Watching", "eye.fill", stats.count(StatTitleStatus.Watching), splitCaption(stats, StatTitleStatus.Watching), Modifier.weight(1f))
+                StatTile("Saved", "bookmark.fill", stats.count(StatTitleStatus.Planned), splitCaption(stats, StatTitleStatus.Planned), Modifier.weight(1f))
+                StatTile("Completed", "checkmark.circle.fill", stats.count(StatTitleStatus.Completed), splitCaption(stats, StatTitleStatus.Completed), Modifier.weight(1f))
+                StatTile("Episodes seen", "play.rectangle.fill", stats.episodesSeen, episodesCaption, Modifier.weight(1f))
             }
-
-            val integrations = listOf(
-                "TMDB" to (env.data.meta.tmdb.hasKey),
-                "TheTVDB" to (env.data.meta.tvdb.hasKey),
-                "MDBList" to (env.data.meta.mdblist.hasKey),
-                "Simkl" to (env.data.simkl.isConnected),
-                "TheIntroDB" to (env.data.intro.isEnabled),
-                "OpenSubtitles" to (env.data.subtitles.isEnabled),
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                integrations.forEach { (name, on) ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(
-                            Modifier.size(24.dp).clip(CircleShape).background(if (on) Color(0xFF34C759).copy(alpha = 0.2f) else PearTheme.colors.fill),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            PearIcon(if (on) "checkmark" else "circle.dashed", size = 12.dp, tint = if (on) Color(0xFF34C759) else PearTheme.colors.textTertiary)
-                        }
-                        PearText(name, style = PearTheme.type.caption2, color = if (on) PearTheme.colors.textPrimary else PearTheme.colors.textSecondary)
-                    }
+        } else {
+            // Two by two on the phone, so each tile keeps room for its title.
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatTile("Watching", "eye.fill", stats.count(StatTitleStatus.Watching), splitCaption(stats, StatTitleStatus.Watching), Modifier.weight(1f))
+                    StatTile("Saved", "bookmark.fill", stats.count(StatTitleStatus.Planned), splitCaption(stats, StatTitleStatus.Planned), Modifier.weight(1f))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatTile("Completed", "checkmark.circle.fill", stats.count(StatTitleStatus.Completed), splitCaption(stats, StatTitleStatus.Completed), Modifier.weight(1f))
+                    StatTile("Episodes seen", "play.rectangle.fill", stats.episodesSeen, episodesCaption, Modifier.weight(1f))
                 }
             }
         }
     }
 
     @Composable
-    fun LibrarySection() {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PearIcon("books.vertical.fill", size = 18.dp, tint = PearTheme.colors.accent)
-                PearText("Library", style = PearTheme.type.headline)
-            }
-            LibrarySourceControls()
-        }
-    }
-
-    @Composable
-    fun TilesSection() {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatTile("Watching", "eye.fill", stats.count(StatTitleStatus.Watching), splitCaption(stats, StatTitleStatus.Watching), Modifier.weight(1f))
-            StatTile("Saved", "bookmark.fill", stats.count(StatTitleStatus.Planned), splitCaption(stats, StatTitleStatus.Planned), Modifier.weight(1f))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatTile("Completed", "checkmark.circle.fill", stats.count(StatTitleStatus.Completed), splitCaption(stats, StatTitleStatus.Completed), Modifier.weight(1f))
-            val shows = stats.titles.count { it.isSeries && it.episodes > 0 }
-            StatTile("Episodes seen", "play.rectangle.fill", stats.episodesSeen, "across $shows ${if (shows == 1) "show" else "shows"}", Modifier.weight(1f))
-        }
-    }
-
-    @Composable
-    fun WatchTimeSection() {
+    fun WatchTime() {
         // The same card as the iOS profile: the total in days, hours and minutes, then shows, movies and the daily average.
         val minutes = stats.totalMinutes
         val days = minutes / 1440.0
@@ -187,12 +169,14 @@ fun ProfileDetailScreen(
                 color = Color.White.copy(alpha = 0.75f),
             )
             Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.25f)))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                MiniStat("Shows", durationText(stats.minutes(StatKind.Shows)))
-                MiniStat("Movies", durationText(stats.minutes(StatKind.Movies)))
+            // Three stats share the card's width, and their labels wrap, so none is pushed off a narrow window.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MiniStat("Shows", durationText(stats.minutes(StatKind.Shows)), Modifier.weight(1f))
+                MiniStat("Movies", durationText(stats.minutes(StatKind.Movies)), Modifier.weight(1f))
                 MiniStat(
                     if (daily != null && !daily.second) "Avg / day (est.)" else "Avg / day",
                     daily?.let { durationText(it.first) } ?: "–",
+                    Modifier.weight(1f),
                 )
             }
             daily?.let { (_, tracked) ->
@@ -207,15 +191,16 @@ fun ProfileDetailScreen(
     }
 
     @Composable
-    fun TasteSection() {
+    fun Taste() {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            // The title, then the kind of title it is about, as a segmented control under it.
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 PearText("Your taste", style = PearTheme.type.title3.weight(FontWeight.Bold))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StatKind.entries.forEach { k ->
-                        DevChip(k.label, selectedKind == k) { selectedKind = k }
-                    }
-                }
+                SegmentedControl(
+                    labels = StatKind.entries.map { it.label },
+                    selectedIndex = StatKind.entries.indexOf(selectedKind),
+                    onSelect = { selectedKind = StatKind.entries[it] },
+                )
             }
 
             // Favourite genres: always shown, with the reason when there is nothing yet (as on iOS).
@@ -236,8 +221,8 @@ fun ProfileDetailScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         genres.forEach { s ->
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    PearText(s.id, style = PearTheme.type.footnote)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    PearText(s.id, style = PearTheme.type.footnote, modifier = Modifier.weight(1f), maxLines = 1)
                                     PearText("${s.percent.toInt()}%", style = PearTheme.type.footnote.weight(FontWeight.SemiBold))
                                 }
                                 val fraction = (s.percent / 100.0).toFloat().coerceIn(0.02f, 1f)
@@ -267,8 +252,8 @@ fun ProfileDetailScreen(
                     PearText("Older or newer?", style = PearTheme.type.headline)
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         era.buckets.forEach { b ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                PearText(b.id, style = PearTheme.type.footnote)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                PearText(b.id, style = PearTheme.type.footnote, modifier = Modifier.weight(1f), maxLines = 1)
                                 PearText("${b.percent.toInt()}%", style = PearTheme.type.footnote.weight(FontWeight.SemiBold))
                             }
                         }
@@ -282,7 +267,7 @@ fun ProfileDetailScreen(
     }
 
     @Composable
-    fun WhenSection() {
+    fun WhenYouWatch() {
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             PearText("When you watch", style = PearTheme.type.headline)
             val parts = stats.dayParts
@@ -295,12 +280,59 @@ fun ProfileDetailScreen(
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
                             PearIcon(part.symbol, size = 16.dp, tint = PearTheme.colors.accent)
-                            PearText(part.id, style = PearTheme.type.caption2.weight(FontWeight.SemiBold))
+                            PearText(part.id, style = PearTheme.type.caption2.weight(FontWeight.SemiBold), maxLines = 1)
                             PearText("${part.percent.toInt()}%", style = PearTheme.type.caption2, color = PearTheme.colors.textSecondary)
                         }
                     }
                 }
             }
+        }
+    }
+
+    @Composable
+    fun Integrations() {
+        // The services as a list: a name, whether it is connected, and a Manage button for the page where they are set up.
+        val integrations = listOf(
+            "TMDB" to env.data.meta.tmdb.hasKey,
+            "TheTVDB" to env.data.meta.tvdb.hasKey,
+            "MDBList" to env.data.meta.mdblist.hasKey,
+            "Simkl" to env.data.simkl.isConnected,
+            "TheIntroDB" to env.data.intro.isEnabled,
+            "OpenSubtitles" to env.data.subtitles.isEnabled,
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                PearText("Integrations", style = PearTheme.type.title3.weight(FontWeight.Bold))
+                PearCapsuleButton(label = "Manage", onClick = onNavigateIntegrations)
+            }
+            SettingsGroup {
+                integrations.forEachIndexed { i, (name, on) ->
+                    if (i > 0) SettingsDivider()
+                    SettingsRow(
+                        title = name,
+                        subtitle = if (on) "Connected" else "Not set",
+                        trailing = {
+                            Box(
+                                Modifier.size(24.dp).clip(CircleShape).background(if (on) SERVICE_ON.copy(alpha = 0.2f) else PearTheme.colors.fill),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                PearIcon(if (on) "checkmark" else "circle.dashed", size = 12.dp, tint = if (on) SERVICE_ON else PearTheme.colors.textTertiary)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    fun Library() {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PearIcon("books.vertical.fill", size = 18.dp, tint = PearTheme.colors.accent)
+                PearText("Library", style = PearTheme.type.headline)
+            }
+            LibrarySourceControls()
         }
     }
 
@@ -315,29 +347,32 @@ fun ProfileDetailScreen(
         ) {
             BoxWithConstraints(Modifier.widthIn(max = MAX_CONTENT_WIDTH_DP.dp).fillMaxWidth()) {
                 if (wide && maxWidth >= TWO_COLUMNS_MIN_DP.dp) {
-                    // Who you are and what you have on the left; how much and what you like on the right.
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Top) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                            HeaderSection()
-                            IntegrationsSection()
-                            LibrarySection()
-                            TilesSection()
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                            WatchTimeSection()
-                            TasteSection()
-                            WhenSection()
+                    // Who and how much across the top; then what you watch and like on the left (7), and when, the
+                    // connections and the library on the right (5).
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(GUTTER)) {
+                        Header()
+                        Tiles()
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(GUTTER), verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(7f), verticalArrangement = Arrangement.spacedBy(GUTTER)) {
+                                WatchTime()
+                                Taste()
+                            }
+                            Column(Modifier.weight(5f), verticalArrangement = Arrangement.spacedBy(GUTTER)) {
+                                WhenYouWatch()
+                                Integrations()
+                                Library()
+                            }
                         }
                     }
                 } else {
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        HeaderSection()
-                        IntegrationsSection()
-                        LibrarySection()
-                        TilesSection()
-                        WatchTimeSection()
-                        TasteSection()
-                        WhenSection()
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(GUTTER)) {
+                        Header()
+                        Tiles()
+                        WatchTime()
+                        Taste()
+                        WhenYouWatch()
+                        Integrations()
+                        Library()
                     }
                 }
             }
@@ -352,19 +387,19 @@ private fun StatTile(title: String, symbol: String, value: Int, caption: String,
     GlassCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             PearIcon(symbol, size = 16.dp, tint = PearTheme.colors.accent)
-            PearText(title, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+            PearText(title, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), modifier = Modifier.weight(1f, fill = false), maxLines = 2)
         }
-        PearText(value.toString(), style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 32.sp))
+        PearText(value.toString(), style = PearTheme.type.largeTitle.weight(FontWeight.Black).copy(fontSize = 32.sp), maxLines = 1)
         PearText(caption, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
     }
 }
 
-/** A stat in the watch-time card: the value, and its label under it. */
+/** A stat in the watch-time card: the value, and its label under it. Labels wrap; values stay on one line. */
 @Composable
-private fun MiniStat(title: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        PearText(value, style = PearTheme.type.title3.weight(FontWeight.Bold), color = Color.White)
-        PearText(title, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.7f))
+private fun MiniStat(title: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        PearText(value, style = PearTheme.type.title3.weight(FontWeight.Bold), color = Color.White, maxLines = 1)
+        PearText(title, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.7f), maxLines = 2)
     }
 }
 

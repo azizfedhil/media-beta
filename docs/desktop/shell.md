@@ -138,3 +138,9 @@ Run `gradle :shared:build` first (new common test: `WindowMemoryRulesTest`), the
 - **Phone.** The same sections in one column under the top bar, as before.
 - **Controls.** Toggles are `PearSwitch` on `SettingsRow`s, inside `SettingsGroup`s with `SettingsDivider`s between rows. The layout override is a `SegmentedControl`. Swatches and dev chips wrap in a `ChipFlow`. The manual skip button is a `PearStepper`. The P2P confirmation is a `FlatSheet`.
 - **Not changed.** `library/LibrarySourceControls.kt` (Track E lists it, but its chip layout is unchanged in this pass) and every preference key, so settings still save and load as before.
+
+## Profile page layout (Track D)
+
+- **Wide** (content width 900 dp or more, capped at 1120 dp). The header band (avatar, name, the title count, and a Downloads button) runs across the top, then a row of four equal stat tiles. Below, two columns in a 7:5 split: the left holds the watch-time card, then your taste (a segmented control picks the kind of title, then the genres and the era); the right holds when you watch, the integrations as a list with a Manage button, then the library source. Gutters are 20 dp.
+- **Narrow** (phone, or a window under 900 dp). One column: header, stat tiles two by two, watch time, taste, when you watch, integrations, library. The watch-time stats share the row and their labels wrap, so none is pushed off a 320 dp window.
+- **Not yet done:** a "Switch profile" action in the header. The profile switcher lives in the app shell, and this page has no callback for it.
