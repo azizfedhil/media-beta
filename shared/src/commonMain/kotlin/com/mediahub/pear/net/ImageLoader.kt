@@ -51,6 +51,13 @@ object ImageMemoryCache {
     }
 
     private fun sizeOf(bitmap: ImageBitmap): Long = bitmap.width.toLong() * bitmap.height * 4L
+
+    /** Forget everything. Tests use it so one test's images can't answer for another's (a cached hit skips the request). */
+    @Synchronized
+    fun clear() {
+        cache.clear()
+        bytes = 0L
+    }
 }
 
 /**
@@ -131,10 +138,10 @@ fun ImagePlaceholder(modifier: Modifier = Modifier) {
  */
 suspend fun loadRemoteBitmap(http: Http, url: String): ImageBitmap? {
     ImageMemoryCache.get(url)?.let { return it }
-    val loaded = withContext(Dispatchers.Default) {
-        val bytes = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)).body }
-        bytes?.let { decodeImageBitmap(it) }
-    } ?: return null
+    // Runs on the caller's context, not Dispatchers.Default: callers that must know whether an image arrived wait on
+    // this call, and tests drive it through a virtual-time scheduler that cannot see work moved to a real dispatcher.
+    val loaded = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)).body }
+        ?.let { decodeImageBitmap(it) } ?: return null
     ImageMemoryCache.put(url, loaded)
     return loaded
 }
