@@ -29,3 +29,13 @@ The first Windows CI build that got past the binding check failed in `compileKot
 - `P2PPlatformDesktop` passed UniFFI's `u64` values (`ULong`) where the app's stream and stats types take `Long`. Converted with `toLong()`.
 
 Compose APIs were not checked against a compiled build here. If the next run reports more of this kind, the same check applies: a member of a receiver is used without an import, and an extension property is used without its import.
+
+## Why the crates compile every run, and the cache
+
+Each CI run starts from a clean checkout, so `p2p-core/target` and the cargo registry don't exist and cargo rebuilds all
+of the crates (about 4 minutes on Windows). A retry after a later failure rebuilds them for the same reason. Gradle's build
+cache does not cover this: `buildP2pCore` is an `Exec` task, and `Exec` outputs are not cached. The workflow now restores
+the cargo cache with `Swatinem/rust-cache`. Committing `p2p-core/Cargo.lock` makes the cache key stable across runs.
+
+- `BackButton` (4.6c) now reads the back button through AWT (`BackButton.desktop.kt`), the same route as the right-click
+  check in `ClicksDesktop.kt`, instead of a Compose pointer API that doesn't exist in this version.

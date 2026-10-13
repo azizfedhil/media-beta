@@ -71,6 +71,12 @@ jobs:
       # Kotlin bindings, so cargo must be on the PATH before the build step.
       - uses: dtolnay/rust-toolchain@stable
 
+      # Keeps the cargo registry and p2p-core's target folder between runs. Without it every run downloads and compiles
+      # all of the crates again, because each runner starts from a clean checkout. The key follows Cargo.lock when it is committed.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: p2p-core
+
       # No fallback: a missing libmpv fails the job here, not later in a build without video.
       - name: Build, test, package
         run: gradle :shared:build :desktopApp:createDistributable --console=plain
