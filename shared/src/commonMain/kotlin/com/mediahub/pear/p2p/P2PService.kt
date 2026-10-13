@@ -42,11 +42,13 @@ class P2PService(
 
     fun canStreamNow(): Boolean = _enabled.value && network.allowed.value
 
-    /** The switch. Off ends any stream and closes the engine. */
+    /**
+     * The switch. Off stops torrent sources from playing at once. A stream already playing carries on: the engine stops only
+     * when the user leaves that stream (the player does that), never because of the switch.
+     */
     fun setEnabled(on: Boolean) {
         _enabled.value = on
         prefs.setBool(PrefKeys.P2P_ENABLED, on)
-        if (!on) engine.requestStop()
     }
 
     fun setWifiOnly(on: Boolean) {

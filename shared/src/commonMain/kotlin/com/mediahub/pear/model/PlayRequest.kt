@@ -13,4 +13,6 @@ data class PlayRequest(
     val thumb: String? = null,
     val sourceAddonID: String? = null,
     val sourceSignature: String? = null,
+    /** The torrent to open through the P2P engine, when the stream is one. Null for a link. */
+    val p2p: P2PSource? = null,
 )

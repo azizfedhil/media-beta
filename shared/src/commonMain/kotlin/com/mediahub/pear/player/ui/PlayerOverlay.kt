@@ -112,6 +112,10 @@ fun PlayerOverlay(
     onToggleFullscreen: () -> Unit,
     /** Full screen is on: the way out stays on screen, whatever the controls are doing. */
     fullscreen: Boolean = false,
+    /** A torrent is being opened through the engine: the loader shows, as it does for a link that is opening. */
+    p2pOpening: Boolean = false,
+    /** The torrent's status line (peers, speed, progress), under the loader or the buffering spinner. */
+    p2pStatus: String? = null,
     modifier: Modifier = Modifier,
     openedAt: Double? = null,
     panel: PlayerPanel? = null,
@@ -215,12 +219,20 @@ fun PlayerOverlay(
             CompositionLocalProvider(LocalDensity provides base) { subtitles(visible) }
 
             // The stream is opening: the pear. loader on black, with the close button, as on iOS (launchOverlay).
-            val opening = state == PlaybackState.Loading && errorMessage == null
-            if (opening) LoadingScreen(onClose = onClose)
+            val opening = (state == PlaybackState.Loading || p2pOpening) && errorMessage == null
+            if (opening) LoadingScreen(onClose = onClose, status = p2pStatus)
 
             // Waiting for data while the controls are hidden: just a spinner.
             if (isWaiting(state) && errorMessage == null && !visible && !opening) {
                 PlayerSpinner(Modifier.align(Alignment.Center), diameter = 44.dp)
+                p2pStatus?.let {
+                    PearText(
+                        it,
+                        modifier = Modifier.align(Alignment.Center).padding(top = 60.dp),
+                        style = PearTheme.type.footnote,
+                        color = Color.White.copy(alpha = 0.7f),
+                    )
+                }
             }
 
             AnimatedVisibility(
@@ -274,13 +286,21 @@ fun PlayerOverlay(
  * on the frame clock, so it draws at the display's rate; iOS locks it to 30 fps, the desktop doesn't need to.
  */
 @Composable
-private fun BoxScope.LoadingScreen(onClose: () -> Unit) {
+private fun BoxScope.LoadingScreen(onClose: () -> Unit, status: String? = null) {
     Box(Modifier.fillMaxSize().background(Color.Black))
     PearAnimation(
         PearMode.Loader,
         Modifier.align(Alignment.Center).widthIn(max = 340.dp).padding(horizontal = 24.dp),
         speed = 2.0,
     )
+    status?.let {
+        PearText(
+            it,
+            modifier = Modifier.align(Alignment.Center).padding(top = 140.dp),
+            style = PearTheme.type.footnote,
+            color = Color.White.copy(alpha = 0.7f),
+        )
+    }
     PlayerCircleButton(
         "xmark", size = 42.dp, icon = 16.dp, onClick = onClose,
         modifier = Modifier.align(Alignment.TopStart).padding(start = PLAYER_SIDE_MARGIN, top = 16.dp),

@@ -1,5 +1,6 @@
 package com.mediahub.pear.player
 
+import com.mediahub.pear.p2p.p2pSource
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.addons.Pin
 import com.mediahub.pear.addons.PinnedSources
@@ -106,7 +107,7 @@ object SourceChooser {
 
     /** The request for [episode] through [stream]. Keeps the title, the logo and the IMDb id; takes the episode's still. */
     fun request(current: PlayRequest, season: Int, episode: EpisodeItem, addon: Addon, stream: StreamItem): PlayRequest? {
-        val url = stream.url ?: return null
+        val url = stream.url ?: stream.p2pSource()?.let { "p2p://${it.infoHash}" } ?: return null
         return PlayRequest(
             url = url,
             headers = stream.requestHeaders,
@@ -118,6 +119,7 @@ object SourceChooser {
             episodeTitle = episode.name,
             logo = current.logo,
             thumb = episode.image ?: current.item.backdropUrl,
+            p2p = stream.p2pSource(),
             sourceAddonID = addon.id,
             sourceSignature = stream.signature,
         )

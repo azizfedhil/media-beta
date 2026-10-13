@@ -1,5 +1,9 @@
 package com.mediahub.pear.shell
 
+import kotlinx.coroutines.CancellationException
+import com.mediahub.pear.p2p.p2pStatusLine
+import com.mediahub.pear.p2p.p2pSource
+import com.mediahub.pear.p2p.P2PFailure
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -114,7 +118,8 @@ fun PlayerScreen(
         }
     }
     // Save and scrobble `stop` once. Safe to call from every way out: the close button, back, a window close, dispose.
-    val leave = remember(progress, snapshot) { { progress.finish(nowPlaying.value, snapshot()) } }
+    // Leaving the stream ends it, and the engine with it: the engine runs only for a stream the user is watching.
+    val leave = remember(progress, snapshot) { { progress.finish(nowPlaying.value, snapshot()); data.p2p.engine.requestStop() } }
 
     DisposableEffect(engine, leave) {
         val unregister = AppExit.register(leave) // the window's close button exits the process without disposing
@@ -162,14 +167,44 @@ fun PlayerScreen(
     var performance by remember { mutableStateOf(false) }
     LaunchedEffect(engine, aspect) { engine.setAspectMode(aspect) }
 
-    val isP2P = current.url.startsWith("p2p://")
+    // A torrent opens through the P2P engine first: the engine starts if it isn't running and resolves the file, then mpv
+    // reads the loopback URL it returns. A link ends any torrent still streaming; the engine stays loaded and idle.
+    var p2pOpening by remember(request) { mutableStateOf(false) }
+    var p2pError by remember(request) { mutableStateOf<String?>(null) }
+    var p2pStatus by remember(request) { mutableStateOf<String?>(null) }
     LaunchedEffect(engine, current.url) {
-        if (!isP2P) engine.load(current.url, current.headers, startPositionSeconds = loadAt)
+        val torrent = current.p2p
+        p2pError = null
+        if (torrent == null) {
+            data.p2p.engine.stopStream()
+            engine.load(current.url, current.headers, startPositionSeconds = loadAt)
+            return@LaunchedEffect
+        }
+        p2pOpening = true
+        try {
+            if (!data.p2p.enabled.value) throw P2PFailure.Disabled
+            if (!data.p2p.canStreamNow()) throw P2PFailure.NetworkBlocked
+            val stream = data.p2p.engine.open(torrent)
+            p2pOpening = false
+            engine.load(stream.url, emptyMap(), startPositionSeconds = loadAt)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            p2pOpening = false
+            p2pError = e.message ?: "Peer-to-peer playback failed."
+        }
+    }
+    // The status line for a torrent (peers, speed, progress), read once a second. Nothing for a link.
+    LaunchedEffect(current.url) {
+        while (true) {
+            p2pStatus = if (current.p2p != null) p2pStatusLine(data.p2p.engine.status().stats) else null
+            delay(1_000)
+        }
     }
 
     val state by engine.state.collectAsState()
     val engineError by engine.errorMessage.collectAsState()
-    val error = if (isP2P) "Peer-to-peer playback isn't connected yet. Pick a direct or debrid source for now." else engineError
+    val error = p2pError ?: engineError
 
     val glassOn = rememberPref(prefs, PrefKeys.PLAYER_GLASS) { it.bool(PrefKeys.PLAYER_GLASS, true) }
     // Glass while the video plays is on by default (the Settings switch turns it off if the machine can't keep up).
@@ -334,14 +369,14 @@ fun PlayerScreen(
 
     // Same episode, different stream: the position carries over and the saved progress is kept (`selectSource`).
     fun switchSource(addon: Addon, stream: StreamItem) {
-        val url = stream.url ?: return
+        val url = stream.url ?: stream.p2pSource()?.let { "p2p://${it.infoHash}" } ?: return
         if (isCurrentSource(current.sourceAddonID, current.sourceSignature, addon, stream)) {
             panel = null
             return
         }
         progress.pausedOrBackgrounded(current, snapshot()) // bank the stream being left
         loadAt = engine.positionSeconds.value
-        current = current.withSource(url, stream.requestHeaders, addon.id, stream.signature)
+        current = current.withSource(url, stream.requestHeaders, addon.id, stream.signature, stream.p2pSource())
         panel = null
     }
 
@@ -433,6 +468,8 @@ fun PlayerScreen(
             onClose = { leave(); onBack() },
             onToggleFullscreen = { setFullscreen(!fullscreen) },
             fullscreen = fullscreen,
+            p2pOpening = p2pOpening,
+            p2pStatus = p2pStatus,
             modifier = modifier,
             openedAt = loadAt.takeIf { it > 0.0 },
             panel = panel,
@@ -538,13 +575,11 @@ fun PlayerScreen(
             },
             notice = notice,
             video = {
-                if (!isP2P) {
-                    VideoSurface(
-                        engine = engine,
-                        modifier = Modifier.fillMaxSize(),
-                        performanceMode = performance,
-                    )
-                }
+                VideoSurface(
+                    engine = engine,
+                    modifier = Modifier.fillMaxSize(),
+                    performanceMode = performance,
+                )
             },
         )
     }

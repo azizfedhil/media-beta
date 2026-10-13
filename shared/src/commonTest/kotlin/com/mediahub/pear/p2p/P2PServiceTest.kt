@@ -83,14 +83,16 @@ class P2PServiceTest {
     }
 
     @Test
-    fun theSwitchOffStopsTheEngineAtOnce() = runTest {
+    fun theSwitchOffKeepsAStreamThatIsAlreadyPlaying() = runTest {
         val platform = ServicePlatform()
         val s = service(platform = platform)
         s.setEnabled(true)
         s.engine.open(P2PSource("a".repeat(40)))
         s.setEnabled(false)
-        assertFalse(s.canStream.value)
-        assertTrue(platform.natives.single().closed, "the killswitch closes the engine")
+        assertFalse(s.canStream.value, "new torrent sources stop playing at once")
+        assertTrue(s.engine.status().engineLoaded, "the stream being watched carries on")
+        assertFalse(platform.natives.single().closed)
+        s.engine.stop() // what leaving the stream does
         assertFalse(s.engine.status().engineLoaded)
     }
 

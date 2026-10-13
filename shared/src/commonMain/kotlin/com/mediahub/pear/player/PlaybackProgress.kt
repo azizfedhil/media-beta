@@ -1,5 +1,6 @@
 package com.mediahub.pear.player
 
+import com.mediahub.pear.p2p.P2PSource
 import com.mediahub.pear.epochMillis
 import com.mediahub.pear.history.HistoryEntry
 import com.mediahub.pear.history.LocalLibrary
@@ -67,8 +68,13 @@ val PlayRequest.scrobbleTarget: ScrobbleTarget get() = ScrobbleTarget(imdb, seas
  * The same episode through another stream: keeps the title, key and artwork, takes the new source. The next
  * episode of a show prefers this source (4.3d), so the choice is remembered in the request itself, as on iOS.
  */
-fun PlayRequest.withSource(url: String, headers: Map<String, String>, addonID: String?, signature: String?): PlayRequest =
-    copy(url = url, headers = headers, sourceAddonID = addonID, sourceSignature = signature)
+fun PlayRequest.withSource(
+    url: String,
+    headers: Map<String, String>,
+    addonID: String?,
+    signature: String?,
+    p2p: P2PSource? = null,
+): PlayRequest = copy(url = url, headers = headers, sourceAddonID = addonID, sourceSignature = signature, p2p = p2p)
 
 /** What the player knows about playback right now. Read when a save happens, never held. */
 data class PlaybackSnapshot(val position: Double, val duration: Double, val playing: Boolean)

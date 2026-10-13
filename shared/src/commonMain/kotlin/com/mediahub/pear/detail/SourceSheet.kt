@@ -1,5 +1,6 @@
 package com.mediahub.pear.detail
 
+import com.mediahub.pear.p2p.p2pSource
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.alpha
 import com.mediahub.pear.glass.GlassSurface
@@ -156,6 +157,7 @@ fun SourceSheet(
                                             episodeTitle = episodeTitle,
                                             logo = logo,
                                             thumb = thumb,
+                                            p2p = stream.p2pSource(),
                                             sourceAddonID = addon.id,
                                             sourceSignature = stream.signature,
                                         ),

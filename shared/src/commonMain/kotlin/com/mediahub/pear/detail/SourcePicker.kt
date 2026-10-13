@@ -1,5 +1,6 @@
 package com.mediahub.pear.detail
 
+import com.mediahub.pear.p2p.p2pSource
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.Spacer
@@ -408,6 +409,7 @@ private fun sourcePlayRequest(r: SourcePickerRequest, addon: Addon, stream: Stre
     episodeTitle = r.episodeTitle,
     logo = r.logo,
     thumb = r.thumb,
+    p2p = stream.p2pSource(),
     sourceAddonID = addon.id,
     sourceSignature = stream.signature,
 )

@@ -42,6 +42,12 @@ sealed class P2PFailure(message: String) : Exception(message) {
 
     object NoVideo : P2PFailure("This torrent has no playable video file.")
 
+    /** Peer-to-peer streaming is switched off in Settings. */
+    object Disabled : P2PFailure("Peer-to-peer streaming is turned off in Settings.")
+
+    /** The network isn't one P2P may use (Wi-Fi only). */
+    object NetworkBlocked : P2PFailure("Peer-to-peer streaming is limited to Wi-Fi. Connect to Wi-Fi or change the setting.")
+
     /** Stopped while it was starting: not an error to show. */
     object Cancelled : P2PFailure("Stopped.")
 

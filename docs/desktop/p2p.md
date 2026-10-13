@@ -45,8 +45,9 @@ file to change.
 
 ## Batch 4.5b: the switch, the gate, and the source lists
 
-- **The switch** (`commonMain/p2p/P2PService.kt`, held by `AppData.p2p`). Off by default. `setEnabled(false)` is the
-  killswitch: it makes every torrent source unplayable at once and stops the engine (`requestStop`). The settings are saved
+- **The switch** (`commonMain/p2p/P2PService.kt`, held by `AppData.p2p`). Off by default. `setEnabled(false)` makes every
+  torrent source unplayable at once. It does not stop the engine: a stream already playing carries on until the user
+  leaves it (see 4.5c). The settings are saved
   under `p2p.enabled` and `p2p.wifiOnly`, and they are not in a settings backup, so a restored backup can't turn P2P on.
 - **Live state**. `canStream` is on and the network is allowed. The player, the source lists and the episode matcher all
   read it, so a change in Settings reaches an open source list at once.
@@ -68,10 +69,39 @@ file to change.
    why.
 2. Turn it on (the confirmation appears). The torrents are no longer dimmed. A click reports that playback isn't
    connected yet.
-3. Turn it off while the source list is open: the torrents dim at once, and the engine's test screen reports "Engine
-   loaded: no".
+3. Turn it off while the source list is open: the torrents dim at once. A stream already playing carries on until the user
+   leaves it; the switch never stops the engine by itself.
 4. Restart the app: the switch keeps its state. A backup restored onto a fresh install leaves P2P off.
 
 ### Not compiled
 As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (the P2P service has a
 common test: `P2PServiceTest`), then `gradle :desktopApp:run`.
+
+## Batch 4.5c: resolve and play
+
+- **Opening a torrent** (`shell/PlayerScreen.kt`). A torrent request carries its `P2PSource` (hash, trackers, and the file
+  Torrentio picked; `StreamItem.p2pSource()`). The player calls `engine.open` first. The loader shows while it opens, with
+  the status line under it (`p2pStatusLine`: peers, speed, progress), read once a second. When the engine returns the
+  loopback URL, mpv loads it. Seeking works because the engine answers HTTP range requests.
+- **Errors**. Switched off, or on a network that isn't allowed, the player says so before it tries. The engine's errors
+  appear in the same error card as a failed link: no peers, no video in the torrent, or any other failure.
+- **The engine's life** (the rule for this batch). The engine stops only when the user leaves the stream: the player's close,
+  back and window close all call `requestStop`. A link played after a torrent ends that stream (`stopStream`) and leaves
+  the engine idle. Switching torrent to torrent replaces the stream and keeps the engine. The P2P check screen also ends
+  its stream when left, since its stream is one the user started.
+- **Not yet** (4.5d). Idle timeouts, pausing into the background, network changes, power saving, and the cleanup of
+  temporary data after a crash.
+
+### Check it
+1. Turn P2P on. Play a torrent from a title: the loader shows the status line (finding peers, then peers and speed), then
+   the film plays. Seek forward and back.
+2. Pause, then leave the player: the engine stops (the P2P check screen reports `Engine loaded: no` and no `p2p-*` folder
+   remains in the cache).
+3. Play a torrent, turn P2P off in Settings (the player can't be reached from Settings, so close the player first and then
+   turn it off): nothing stops a stream still playing. Only leaving it does.
+4. Play a torrent that has no peers: the error card says "Couldn't find peers for this torrent. Try another source."
+5. Play a season pack: the file of the episode you picked plays, not the largest file.
+
+### Not compiled
+As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (`P2PStreamTest` and
+`P2PServiceTest` are common tests), then `gradle :desktopApp:run`.
