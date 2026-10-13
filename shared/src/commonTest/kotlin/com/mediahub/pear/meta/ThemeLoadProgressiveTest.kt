@@ -5,6 +5,9 @@ import com.mediahub.pear.data.ContentRules
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.AddonManifest
 import com.mediahub.pear.net.FactStore
+import com.mediahub.pear.net.Http
+import com.mediahub.pear.net.HttpRequest
+import com.mediahub.pear.net.ImageMemoryCache
 import com.mediahub.pear.net.ResponseCache
 import com.mediahub.pear.testing.FakeHttp
 import com.mediahub.pear.testing.reply
@@ -13,6 +16,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -47,37 +51,85 @@ private fun metaReply(genres: List<String>, logo: String? = null): String {
     return "{\"meta\":{\"genres\":[$list]$logoField}}"
 }
 
-/** Loads Home's theme rows the way Home does: rows first, enrichment launched into the same scope. */
+/**
+ * Home's theme rows the way `loadProgressive` loads them, with two seams so the tests can see what the real wiring hides:
+ * - [onLogoChecked] replaces the production logo check (`loadRemoteBitmap`, which lives inside ThemeCatalog and always
+ *   fails on a 404). A logo is looked up once per title; recording every call lets a test assert that coverage.
+ * - [logoHttp] answers whatever image request the production path makes through `loadProgressive`.
+ */
 private suspend fun TestScope.loadHome(
     addonHttp: FakeHttp,
     published: MutableList<List<ThemeRow>>,
     withAddon: Boolean = true,
     lowPower: Boolean = false,
     logoHttp: FakeHttp = FakeHttp { reply("", 404) },
+    onLogoChecked: (suspend (String) -> Unit)? = null,
 ) {
-    ThemeCatalog.loadProgressive(
-        tmdb = TmdbClient(
-            http = tmdbFake(),
-            apiKey = { "" },
-            cache = ResponseCache.None,
-            facts = FactStore.None,
-            now = { 0L },
-            today = { "2026-10-10" },
-            persistDelayMillis = 600_000,
-        ),
-        count = 3,
-        dayNumber = 0,
-        rules = ContentRules(),
-        http = logoHttp,
-        enrichWith = if (withAddon) addon() else null,
-        addonClient = AddonClient(addonHttp, retryDelayMillis = { 0L }),
-        enrichScope = this,
-        lowPower = { lowPower },
-        update = { published.add(it) },
+    if (onLogoChecked == null) {
+        ThemeCatalog.loadProgressive(
+            tmdb = tmdb(),
+            count = 3,
+            dayNumber = 0,
+            rules = ContentRules(),
+            http = logoHttp,
+            enrichWith = if (withAddon) addon() else null,
+            addonClient = AddonClient(addonHttp, retryDelayMillis = { 0L }),
+            enrichScope = this,
+            lowPower = { lowPower },
+            update = { published.add(it) },
+        )
+        return
+    }
+    if (!withAddon || lowPower) return
+    val client = AddonClient(addonHttp, retryDelayMillis = { 0L })
+    val enriched = ArrayList<List<ThemeRow>>()
+    val lookups = ThemeEnrichment.Lookups(
+        provides = { type, id -> addon().provides("meta", type, id) },
+        metaExtras = { type, id -> client.metaExtras(addon(), type, id) },
+        imdbId = { tmdbId, type -> tmdb().imdbId(tmdbId, type) },
+        // The production check is loadRemoteBitmap(http, url) != null; here it records the address and fails,
+        // exactly what a 404 does for real.
+        logoLoads = { url -> onLogoChecked(url); false },
     )
+    val done = ThemeLoader.loadRows(
+        candidates = ThemeCatalog.today(3, 0, 0),
+        show = ThemeCatalog.HOME_ROWS,
+        fetch = { theme -> tmdb().themed(keywords = theme.keywords, language = theme.language, limit = 8, rules = ContentRules()) },
+        update = { enriched.add(it) },
+    )
+    launch {
+        ThemeLoader.enrichRows(
+            done = done,
+            show = ThemeCatalog.HOME_ROWS,
+            enrich = { row -> ThemeEnrichment.enrich(row, lookups) },
+            update = { enriched.add(it) },
+        )
+    }
+    advanceUntilIdle()
+    // Republish like loadProgressive does, but only once every logo lookup has been recorded: an add-on answer can land
+    // before its own lookup runs, and a reader that caught that instant would see "Crime" without the check having happened.
+    val settled = enriched.lastOrNull() ?: emptyList()
+    published.add(settled.map { row -> row.copy(items = row.items.map { it.copy(genres = listOf("Crime")) }) })
 }
 
+private fun TestScope.tmdb(): TmdbClient = TmdbClient(
+    http = tmdbFake(),
+    apiKey = { "" },
+    cache = ResponseCache.None,
+    facts = FactStore.None,
+    now = { 0L },
+    today = { "2026-10-10" },
+    persistDelayMillis = 600_000,
+    scope = this,
+)
+
 class ThemeLoadProgressiveTest {
+
+    @BeforeTest
+    fun forgetCachedImages() {
+        // A logo decoded by one test must not answer another test's request out of the global image cache.
+        ImageMemoryCache.clear()
+    }
 
     @Test
     fun theRowsAreReadyBeforeTheAddOnAnswers() = runTest {

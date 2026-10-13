@@ -11,6 +11,7 @@ import com.mediahub.pear.net.Http
 import com.mediahub.pear.net.attempt
 import com.mediahub.pear.net.loadRemoteBitmap
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
@@ -18,6 +19,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Editorial theme collection metadata (spec: `Themerows.swift`). */
 data class ThemeDef(
@@ -182,7 +184,9 @@ object ThemeCatalog {
             provides = { type, id -> addon.provides("meta", type, id) },
             metaExtras = { type, id -> client.metaExtras(addon, type, id) },
             imdbId = { tmdbId, type -> tmdb.imdbId(tmdbId, type) },
-            logoLoads = { url -> loadRemoteBitmap(http, url) != null },
+            // Off enrichScope's thread: a logo check decodes an image, which is not main-thread work. Tests pass a
+            // scope backed by the virtual-time scheduler, so advanceUntilIdle() still waits for every lookup.
+            logoLoads = { url -> withContext(Dispatchers.Default) { loadRemoteBitmap(http, url) != null } },
         )
         enrichScope.launch {
             ThemeLoader.enrichRows(
