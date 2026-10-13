@@ -53,6 +53,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearTransitions
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 
 @Composable
 fun AdaptiveShell(
@@ -87,8 +89,6 @@ fun AdaptiveShell(
     ) {
         val windowWidth = maxWidth
         val mode = layoutModeFor(windowWidth, shell.layoutOverride)
-        // "Who's watching?" is opened from the avatar (sidebar in the wide layout, top corner in the phone layout).
-        var showProfiles by remember { mutableStateOf(false) }
         // The player takes the whole window: no sidebar or tab bar over the picture.
         val playerOnTop = shell.currentNav().top is Route.Player
 
@@ -123,18 +123,26 @@ fun AdaptiveShell(
                         shell = shell,
                         catalogues = catalogues,
                         profile = env.data.profiles.active,
-                        onProfileClick = { showProfiles = true },
+                        onProfileClick = { shell.showProfiles = true },
                     )
-                    ShellOverlays(shell, showProfiles, sidebarWidth = sidebarW) { showProfiles = it }
+                    ShellOverlays(shell, shell.showProfiles, sidebarWidth = sidebarW) { shell.showProfiles = it }
                 }
             } else {
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
                     GlassScene(glass, Modifier.fillMaxSize(), background = { AmbientWash(animatedAmbient, ambientStrength); ShellPages(shell, Modifier.fillMaxSize()) }) {
                         if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
-                        ShellOverlays(shell, showProfiles) { showProfiles = it }
+                        ShellOverlays(shell, shell.showProfiles) { shell.showProfiles = it }
+                        // A soft scrim under the avatar on Home, in the glow's colour, so the button reads over the hero.
+                        if (!playerOnTop && topRoute is Route.Root && topRoute.tab == AppTab.Home) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).fillMaxWidth(0.4f).height(96.dp).background(
+                                    Brush.verticalGradient(listOf(animatedAmbient.copy(alpha = 0.5f), Color.Transparent)),
+                                ),
+                            )
+                        }
                         if (!playerOnTop) ProfileAvatarButton(
                             profile = env.data.profiles.active,
-                            onClick = { showProfiles = true },
+                            onClick = { shell.showProfiles = true },
                             modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
                             size = 34.dp,
                         )

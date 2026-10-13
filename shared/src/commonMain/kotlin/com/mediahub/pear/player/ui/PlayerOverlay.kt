@@ -273,7 +273,8 @@ fun PlayerOverlay(
         // The window's shorter side picks the controls' scale and margins (playerMetrics). A 1080p fullscreen window keeps the
         // desktop look, which is the reference for this player. The video behind the controls is never scaled.
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val metrics = playerMetrics(minOf(maxWidth, maxHeight).value)
+            val fitted = playerMetrics(minOf(maxWidth, maxHeight).value)
+            val metrics = fitted.copy(availableWidthDp = maxWidth.value / fitted.scale - 2f * fitted.sideMarginDp)
             val base = LocalDensity.current
             val scaled = Density(base.density * metrics.scale, base.fontScale * metrics.scale)
             CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled, LocalPlayerMetrics provides metrics) {

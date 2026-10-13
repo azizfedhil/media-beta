@@ -91,7 +91,7 @@ val StreamItem.downloadUrl: String?
         val link = url?.trim()?.takeIf { it.startsWith("https://", ignoreCase = true) } ?: return null
         val path = link.substringAfter("://").substringBefore('#').substringBefore('?')
         val ext = path.substringAfterLast('/', "").substringAfterLast('.', "").lowercase()
-        return if (ext == "m3u8" || ext == "mpd") null else link
+        return if (ext in NOT_A_VIDEO_EXTENSIONS) null else link
     }
 
 /** The record of the title [id] when it is the download of the link [link]: this source's own download. */
@@ -105,3 +105,6 @@ fun List<DownloadRecord>.fromOtherSource(id: String, link: String?): DownloadRec
 /** Queued, running or done: another source of the same title waits until this download is deleted. */
 val DownloadState.blocksReplacement: Boolean
     get() = this == DownloadState.Queued || this == DownloadState.Downloading || this == DownloadState.Done
+
+/** Extensions that name a page, a playlist, a manifest or plain data, not a video file. A link with one is not downloadable. */
+private val NOT_A_VIDEO_EXTENSIONS = setOf("m3u8", "mpd", "html", "htm", "php", "json", "txt", "xml")

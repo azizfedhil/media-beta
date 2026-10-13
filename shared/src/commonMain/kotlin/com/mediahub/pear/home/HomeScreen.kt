@@ -35,6 +35,7 @@ import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
 import com.mediahub.pear.shell.LocalWideLayout
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.fillMaxWidth
 
 @Composable
 fun HomeScreen(

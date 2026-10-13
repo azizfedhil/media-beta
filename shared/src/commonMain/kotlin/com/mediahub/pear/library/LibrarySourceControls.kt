@@ -1,27 +1,23 @@
 package com.mediahub.pear.library
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.epochMillis
-import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.history.LibrarySource
-import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.shell.PearSwitch
+import com.mediahub.pear.shell.SegmentedControl
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
-import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.launch
 
 @Composable
@@ -34,23 +30,19 @@ fun LibrarySourceControls(modifier: Modifier = Modifier) {
     val source = prefs.source(connected)
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Segmented source picker
-        Row(
-            Modifier.clip(RoundedCornerShape(com.mediahub.pear.theme.PearRadii.pill))
-                .background(PearTheme.colors.fillSubtle)
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            DevChip("This device", source == LibrarySource.Local) {
-                prefs.choose(LibrarySource.Local)
-            }
-            DevChip("Simkl", source == LibrarySource.Simkl) {
-                if (connected) {
+        // Where the library lives: this device, or Simkl (only when Simkl is connected).
+        SegmentedControl(
+            labels = listOf("This device", "Simkl"),
+            selectedIndex = if (source == LibrarySource.Local) 0 else 1,
+            onSelect = { i ->
+                if (i == 0) {
+                    prefs.choose(LibrarySource.Local)
+                } else if (connected) {
                     prefs.choose(LibrarySource.Simkl)
                     scope.launch { simkl.sync() }
                 }
-            }
-        }
+            },
+        )
 
         if (connected) {
             val expl = if (source == LibrarySource.Local) {
@@ -66,9 +58,7 @@ fun LibrarySourceControls(modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PearText("Keep in sync automatically", style = PearTheme.type.subheadline)
-                DevChip(if (prefs.autoSync) "ON" else "OFF", prefs.autoSync) {
-                    prefs.setAutoSync(!prefs.autoSync)
-                }
+                PearSwitch(checked = prefs.autoSync, onCheckedChange = { prefs.setAutoSync(it) })
             }
 
             Row(
@@ -76,15 +66,17 @@ fun LibrarySourceControls(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                GlassButton(
+                PearCapsuleButton(
+                    label = if (prefs.isSyncing) "Syncing…" else "Sync now",
+                    symbol = "arrow.triangle.2.circlepath",
                     onClick = {
-                        scope.launch {
-                            prefs.sync(simkl, env.data.library, env.data.history, force = true)
+                        // A sync already running is not started again.
+                        if (!prefs.isSyncing) {
+                            scope.launch {
+                                prefs.sync(simkl, env.data.library, env.data.history, force = true)
+                            }
                         }
                     },
-                    symbol = "arrow.triangle.2.circlepath",
-                    label = if (prefs.isSyncing) "Syncing…" else "Sync now",
-                    enabled = !prefs.isSyncing,
                 )
 
                 prefs.report?.let { report ->

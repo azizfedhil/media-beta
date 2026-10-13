@@ -101,6 +101,8 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
     var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36))
     /** False until a hero's colour has been read. Home glows in the accent until then, as iOS does. */
     var heroAmbientKnown: Boolean by mutableStateOf(false)
+    /** Whether "Who's watching?" is open. The avatar, the sidebar and a profile page's Switch profile all set it. */
+    var showProfiles: Boolean by mutableStateOf(false)
 
     /** The source picker, if one is open. */
     var sourcePicker: SourcePickerRequest? by mutableStateOf(null)

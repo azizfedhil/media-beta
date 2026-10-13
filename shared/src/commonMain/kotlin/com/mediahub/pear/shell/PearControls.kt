@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.ui.semantics.Role
 import com.mediahub.pear.theme.PearRadii
+import com.mediahub.pear.theme.Accents
 
 /** How a [PearCapsuleButton] reads: neutral (the fill), the accent (solid), or destructive (red text on the fill). */
 enum class PearButtonStyle { Neutral, Accent, Destructive }
@@ -230,4 +231,27 @@ fun ChipFlow(modifier: Modifier = Modifier, content: @Composable FlowRowScope.()
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )
+}
+
+/**
+ * Colour swatches in a grid that wraps. The selected one carries a check in its own contrast colour. Used where a colour is
+ * picked from the accent presets.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun SwatchGrid(colors: List<Color>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    FlowRow(
+        modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        colors.forEachIndexed { i, col ->
+            Box(
+                Modifier.size(32.dp).clip(CircleShape).background(col).clickable { onSelect(i) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (i == selectedIndex) PearIcon("checkmark", size = 16.dp, tint = Accents.contrastingForeground(col))
+            }
+        }
+    }
 }

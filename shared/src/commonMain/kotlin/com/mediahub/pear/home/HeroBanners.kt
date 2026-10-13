@@ -168,6 +168,8 @@ private fun HeroArt(
     active: Boolean,
     scroll: ScrollState?,
     fadeSides: Boolean,
+    /** How dark the bottom of the artwork gets. It deepens while a synopsis is open, so the text reads over it. */
+    scrimEnd: Float = 0.6f,
     modifier: Modifier = Modifier,
 ) {
     val zoom = remember { Animatable(1f) }
@@ -202,7 +204,7 @@ private fun HeroArt(
             RemoteImage(url, Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value })
             Box(
                 Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.6f)),
+                    Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = scrimEnd)),
                 ),
             )
         }
@@ -356,6 +358,7 @@ fun HeroCarousel(
     LaunchedEffect(index.intValue) { expandedId = null }
     val current = items.getOrElse(index.intValue) { items.first() }
     HeroAmbient(current.heroUrl(false) ?: current.backdropUrl ?: current.posterUrl)
+    PrefetchHeroAmbient(items.map { it.heroUrl(false) ?: it.backdropUrl ?: it.posterUrl })
 
     Box(modifier.fillMaxWidth().height(PhoneHeroHeight)) {
         AnimatedContent(
@@ -371,6 +374,7 @@ fun HeroCarousel(
                     active = i == index.intValue,
                     scroll = scroll,
                     fadeSides = false,
+                    scrimEnd = if (expandedId == item.id) 0.85f else 0.6f,
                     modifier = Modifier.fillMaxSize(),
                 )
                 HeroInfo(
@@ -413,6 +417,7 @@ fun WideHeroPanel(
     LaunchedEffect(index.intValue) { expandedId = null }
     val current = items.getOrElse(index.intValue) { items.first() }
     HeroAmbient(current.largePosterUrl() ?: current.backdropUrl)
+    PrefetchHeroAmbient(items.map { it.largePosterUrl() ?: it.backdropUrl })
 
     val panelWidth = WideHeroWidth * (1f - collapse).coerceIn(0f, 1f)
     Box(modifier.fillMaxHeight().width(panelWidth).clipToBounds()) {
@@ -439,7 +444,7 @@ fun WideHeroPanel(
                     // A short fade into the bottom, so the title, ratings and synopsis read over the artwork.
                     Box(
                         Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.7f)),
+                            Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = if (expandedId == item.id) 0.9f else 0.7f)),
                         ),
                     )
                     HeroInfo(
@@ -461,5 +466,14 @@ fun WideHeroPanel(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp),
             )
         }
+    }
+}
+
+/** Reads the glow colour of every hero page in the background, so a page change shows its colour at once. */
+@Composable
+private fun PrefetchHeroAmbient(urls: List<String?>) {
+    val http = LocalHttp.current
+    LaunchedEffect(urls) {
+        urls.forEach { url -> url?.let { heroAmbientFor(http, it) } }
     }
 }

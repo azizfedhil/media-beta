@@ -311,7 +311,7 @@ As before, the authoring environment has no Gradle or Kotlin compiler. Run `grad
 - **Margins** (`PlayerOverlay.kt`). 72 dp at the sides and 44 dp at the bottom. The floating panels line up with the pill's
   right edge. `PLAYER_PANEL_CLEARANCE` is derived from the bottom margin, and the subtitle lift uses it.
 - **Glass panels** (`PlayerSurfaces.kt`). The player's cards (speed, sources, subtitles, audio, display, info card) are glass with no
-  gradient, as on iOS. The blur look puts a dark grey wash under them (`PLAYER_CARD_WASH`) and a light one under the controls (`PLAYER_CONTROL_WASH`), with a rim, as the iOS player's glass does. An active button keeps its accent tint. The hero's Details button is a solid accent pill with the accent's own text colour, in both hero layouts.
+  gradient, as on iOS. The blur look puts a white veil under them, 8% for the cards and 13% for the controls (`GlassTuning`), and no rim, as the iOS player's glass does. An active button keeps its accent tint. The hero's Details button is a solid accent pill with the accent's own text colour, in both hero layouts.
 
 ### Check it
 1. Open a title: while the stream opens, the pear. loader plays on black. It moves smoothly (no 30 fps cap).
@@ -437,3 +437,14 @@ The controls' scale and margins come from the window's shorter side, through `pl
 Change the two thresholds to move the blend. `PlayerMetricsTest` checks the 1080p reference, the phone case and that the blend never falls.
 
 Not done yet: panel widths are still fixed (360 and 340 dp at desktop scale), and compact layouts do not yet drop the desktop-only Fullscreen button from the pill.
+
+## Compact layout and panel widths (Phase 5)
+
+- **Compact** (a phone-sized window, at or below 420 dp on the shorter side, blending to desktop by 500 dp): the option pill leaves out the desktop-only Fullscreen button. Keyboard F and double-click still toggle fullscreen on desktop.
+- **Panel widths** are the width each panel asks for (360 dp, or 300 and 340 dp for some), narrowed to the room the window has (`panelWidthDp`, floor 220 dp). A 1080p fullscreen window has room for every panel at its desktop width, so nothing changes there.
+- **Controls breakpoint.** The title and the pill stack below 620 dp (measured in the scaled density) and sit side by side above it. iOS uses `ViewThatFits`, which stacks only when the row does not fit. The two agree at the phone sizes that matter: a portrait phone (about 390 dp) stacks, and a landscape phone (about 844 dp) keeps them side by side. A fit test could replace the fixed threshold later.
+- **Not done:** the iOS safe-area insets. A desktop window has none; they belong with the Android port.
+
+## Veil (Track C)
+
+The neutral player surfaces (the controls, the pill and the panels) carry a white veil under their glass: 13% for controls, 8% for panels (`PLAYER_CONTROL_VEIL`, `PLAYER_CARD_VEIL` in `PlayerSurfaces.kt`). It makes the player read lighter than the page behind it, as the iOS player does. The 13% comes from the iOS pause circle measured about 26 L above its backdrop. Confirm on a real screenshot before trusting the numbers.

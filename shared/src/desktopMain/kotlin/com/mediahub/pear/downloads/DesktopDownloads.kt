@@ -24,15 +24,27 @@ const val DOWNLOAD_USER_AGENT =
 
 /** Downloads as files in [dir], which is created when the first bytes arrive. */
 class FolderDownloadFiles(private val dir: File) : DownloadFiles {
+    /** One stream per file while its transfer runs: opened at the first piece, closed when the transfer stops. */
+    private val open = HashMap<String, FileOutputStream>()
+
     override fun size(name: String): Long = File(dir, name).takeIf { it.isFile }?.length() ?: 0L
 
-    /** Opens the file for each piece. Holding one stream per download would be faster; it is left for a later change. */
     override fun append(name: String, buffer: ByteArray, count: Int) {
-        dir.mkdirs()
-        FileOutputStream(File(dir, name), true).use { it.write(buffer, 0, count) }
+        synchronized(open) {
+            val stream = open[name] ?: run {
+                dir.mkdirs()
+                FileOutputStream(File(dir, name), true).also { open[name] = it }
+            }
+            stream.write(buffer, 0, count)
+        }
+    }
+
+    override fun close(name: String) {
+        synchronized(open) { open.remove(name)?.close() }
     }
 
     override fun delete(name: String) {
+        close(name)
         File(dir, name).delete()
     }
 }

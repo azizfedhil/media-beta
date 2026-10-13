@@ -53,7 +53,7 @@ import com.mediahub.pear.theme.PearMotion
 internal fun SpeedPanel(engine: PlayerEngine, onClose: () -> Unit, modifier: Modifier = Modifier) {
     val rate by engine.playbackRate.collectAsState()
     Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
-        PlayerSurface(Modifier.width(360.dp), SurfaceKind.Card) {
+        PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     PearText("Playback speed", style = PearTheme.type.title3.weight(FontWeight.SemiBold), color = Color.White)
@@ -116,7 +116,7 @@ internal fun SourcesPanel(
     var menuOpen by remember { mutableStateOf(false) }
 
     BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
-        PlayerSurface(Modifier.width(360.dp).heightIn(max = maxHeight), SurfaceKind.Card) {
+        PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp).heightIn(max = maxHeight), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     PearText("Sources", style = PearTheme.type.title3.weight(FontWeight.SemiBold), color = Color.White)
@@ -307,7 +307,7 @@ internal fun DisplayPanel(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
-        PlayerSurface(Modifier.width(300.dp), SurfaceKind.Card) {
+        PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(300f).dp), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     PearText("Display", style = PearTheme.type.title3.weight(FontWeight.SemiBold), color = Color.White)

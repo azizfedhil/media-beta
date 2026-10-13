@@ -95,13 +95,20 @@ fun ProfileDetailScreen(
                     PearText(activeProfile.name, style = PearTheme.type.title.weight(FontWeight.Bold), maxLines = 1)
                     PearText(summary, style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
                 }
-                PearCapsuleButton(label = "Downloads", symbol = "arrow.down.circle", onClick = onNavigateDownloads)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PearCapsuleButton(label = "Switch profile", onClick = { env.shell.showProfiles = true })
+                    PearCapsuleButton(label = "Downloads", symbol = "arrow.down.circle", onClick = onNavigateDownloads)
+                }
             }
         } else {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProfileAvatar(activeProfile, size = 96.dp)
                 PearText(activeProfile.name, style = PearTheme.type.title.weight(FontWeight.Bold))
                 PearText(summary, style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PearCapsuleButton(label = "Switch profile", onClick = { env.shell.showProfiles = true })
+                    PearCapsuleButton(label = "Downloads", symbol = "arrow.down.circle", onClick = onNavigateDownloads)
+                }
             }
         }
     }

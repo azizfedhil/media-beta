@@ -137,7 +137,15 @@ enum class PlayerPanel {
  * The player's controls at one window size: how much larger they are drawn than the window's own density, and the margins
  * around them in dp (before that scale). [playerMetrics] picks them from the window's shorter side.
  */
-data class PlayerMetrics(val scale: Float, val sideMarginDp: Float, val bottomMarginDp: Float)
+data class PlayerMetrics(
+    val scale: Float,
+    val sideMarginDp: Float,
+    val bottomMarginDp: Float,
+    /** A phone-sized window: the compact layout drops the desktop-only buttons (Fullscreen in the pill). */
+    val compact: Boolean = false,
+    /** The width a panel may use, in the player's scaled dp: the window less the side margins. */
+    val availableWidthDp: Float = Float.MAX_VALUE,
+)
 
 /**
  * At and above this shorter side (dp) the controls are the desktop look. A 1080p fullscreen window is 1080, 864, 720 or 540 dp
@@ -166,6 +174,7 @@ fun playerMetrics(shortSideDp: Float): PlayerMetrics {
         scale = mix(PLAYER_COMPACT.scale, PLAYER_DESKTOP.scale),
         sideMarginDp = mix(PLAYER_COMPACT.sideMarginDp, PLAYER_DESKTOP.sideMarginDp),
         bottomMarginDp = mix(PLAYER_COMPACT.bottomMarginDp, PLAYER_DESKTOP.bottomMarginDp),
+        compact = t < 0.5f,
     )
 }
 
@@ -206,3 +215,9 @@ object SpeedMath {
         return "$whole$tail×"
     }
 }
+
+/** The narrowest a floating panel is drawn, in dp, so a very small window still shows its controls. */
+private const val MIN_PANEL_DP = 220f
+
+/** A floating panel's width: the width it asks for, or less when the window has no room for it. Pure, so it is unit tested. */
+fun PlayerMetrics.panelWidthDp(desiredDp: Float): Float = minOf(desiredDp, availableWidthDp).coerceAtLeast(MIN_PANEL_DP)

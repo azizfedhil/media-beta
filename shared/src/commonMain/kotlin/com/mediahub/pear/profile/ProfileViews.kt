@@ -66,6 +66,7 @@ import com.mediahub.pear.glass.FlatSheet
 import com.mediahub.pear.shell.PearCircleButton
 import com.mediahub.pear.shell.PearCapsuleButton
 import com.mediahub.pear.shell.PearButtonStyle
+import com.mediahub.pear.shell.SwatchGrid
 
 @Composable
 fun ProfileAvatar(
@@ -406,20 +407,11 @@ fun ProfileEditor(
 
         // Color Presets
         PearText("Colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Accents.presets.forEach { p ->
-                val col = Accents.parseHex(p.hex) ?: Color.Gray
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).background(col)
-                        .clickable { colorHex = p.hex },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (colorHex.equals(p.hex, ignoreCase = true)) {
-                        PearIcon("checkmark", size = 16.dp, tint = Accents.contrastingForeground(col))
-                    }
-                }
-            }
-        }
+        SwatchGrid(
+            colors = Accents.presets.map { Accents.parseHex(it.hex) ?: Color.Gray },
+            selectedIndex = Accents.presets.indexOfFirst { colorHex.equals(it.hex, ignoreCase = true) },
+            onSelect = { colorHex = Accents.presets[it].hex },
+        )
 
         // Symbol Choices
         PearText("Icon symbol", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))

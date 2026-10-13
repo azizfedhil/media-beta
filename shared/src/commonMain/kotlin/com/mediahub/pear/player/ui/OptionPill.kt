@@ -145,7 +145,9 @@ internal fun OptionPill(
     val mode = pillMode(expanded, volumeOpen, folded)
     // Full screen is always the pill's last slot, except in volume mode, where the slider takes the whole pill. It is
     // not one of the layout's items, so it never counts towards folding.
-    val fullscreenSlots = if (mode == PillMode.Volume) 0 else 1
+    // In the compact layout (a phone-sized window) the desktop-only Fullscreen button is left out.
+    val compactPill = LocalPlayerMetrics.current.compact
+    val fullscreenSlots = if (mode == PillMode.Volume || compactPill) 0 else 1
     val windowSlots = pillWindowSlots(layout, mode) + fullscreenSlots
     val desiredWidth = if (mode == PillMode.Volume) maxOf(span(windowSlots), VOLUME_MIN_DP.dp) else span(windowSlots)
     // The pill grows to the left, but never past the window's left edge. The room is measured from the footprint's
@@ -157,7 +159,7 @@ internal fun OptionPill(
     val windowWidth = minOf(desiredWidth, roomDp.dp)
     val animatedWidth by animateDpAsState(windowWidth, PearMotion.snappy<Dp>(PearMotion.BASE))
 
-    val footprint = span(pillWindowSlots(layout, PillMode.Folded) + 1) + (PAD_DP * 2).dp
+    val footprint = span(pillWindowSlots(layout, PillMode.Folded) + (if (compactPill) 0 else 1)) + (PAD_DP * 2).dp
     val height = (SLOT_DP + PAD_DP * 2).dp
 
     fun bumpUnfolded() {
@@ -240,7 +242,7 @@ internal fun OptionPill(
                                 }
                             }
                         }
-                        Box(Modifier.size(SLOT_DP.dp), contentAlignment = Alignment.Center) {
+                        if (fullscreenSlots > 0) Box(Modifier.size(SLOT_DP.dp), contentAlignment = Alignment.Center) {
                             PlayerPillButton(
                                 symbol = if (fullscreen) "arrow.down.right.and.arrow.up.left" else "arrow.up.left.and.arrow.down.right",
                                 onClick = {

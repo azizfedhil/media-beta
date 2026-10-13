@@ -87,6 +87,8 @@ internal fun Sidebar(
             }
             Spacer(Modifier.weight(1f))
         }
+        // The hairline on the trailing edge, as the iPad sidebar has it (0.5 pt, white at 7%).
+        Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(0.5f.dp).background(Color.White.copy(alpha = SIDEBAR_HAIRLINE_ALPHA)))
     }
 }
 
@@ -235,3 +237,6 @@ private fun BrandBadge(title: String) {
         }
     }
 }
+
+/** The sidebar's trailing hairline. Set to 0 to remove it. */
+private const val SIDEBAR_HAIRLINE_ALPHA = 0.07f

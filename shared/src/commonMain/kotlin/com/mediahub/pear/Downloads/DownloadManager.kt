@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.coroutines.delay
 import com.mediahub.pear.model.blocksReplacement
+import com.mediahub.pear.model.StreamSize
 
 /** Where downloaded files are kept: one file per download, appended to as its bytes arrive. */
 interface DownloadFiles {
@@ -26,6 +27,9 @@ interface DownloadFiles {
     fun append(name: String, buffer: ByteArray, count: Int)
 
     fun delete(name: String)
+
+    /** Closes [name] if it is held open between pieces. Called when a transfer stops, finishes or fails. */
+    fun close(name: String) {}
 }
 
 /** Fetches a link into a file's bytes. */
@@ -192,6 +196,12 @@ class DownloadManager(
                     delay(RETRY_DELAY_MILLIS shl (attempt - 1))
                 }
             }
+            // A 200 with a body far smaller than the source said is an error page or a stub, not the video.
+            if (target.expectedBytes > 0 && received < target.expectedBytes / 4) {
+                throw DownloadFailure(
+                    "The file is far smaller than the source said (${StreamSize.format(received)}, about ${StreamSize.format(target.expectedBytes)}). Try another source.",
+                )
+            }
             change(id) {
                 it.copy(
                     state = DownloadState.Done,
@@ -205,6 +215,7 @@ class DownloadManager(
         } catch (e: Exception) {
             change(id) { it.copy(state = DownloadState.Failed, error = e.message ?: "The download failed") }
         } finally {
+            files.close(target.fileName)
             if (running[id] === me) running.remove(id)
         }
     }

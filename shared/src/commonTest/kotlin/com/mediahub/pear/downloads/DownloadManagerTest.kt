@@ -157,4 +157,83 @@ class DownloadManagerTest {
 
         assertTrue(prefs.jsonText(PrefKeys.DOWNLOADS)!!.contains("\"tt1\""))
     }
+
+    @Test
+    fun aSecondSourceReplacesAStoppedDownload() {
+        val scope = TestScope()
+        val manager = DownloadManager(PrefStore(), MemoryFiles(), RefusingTransport(), scope)
+        manager.enqueue(film())
+        scope.advanceUntilIdle()
+        assertEquals(DownloadState.Failed, manager.records.value.single().state)
+
+        manager.enqueue(film().copy(url = "https://example.test/other.mp4"))
+        scope.advanceUntilIdle()
+        assertEquals(1, manager.records.value.size)
+        assertEquals("https://example.test/other.mp4", manager.records.value.single().url)
+    }
+
+    @Test
+    fun aFinishedDownloadBlocksAnotherSource() {
+        val scope = TestScope()
+        val manager = DownloadManager(PrefStore(), MemoryFiles(), FakeTransport(ByteArray(16)), scope)
+        manager.enqueue(film())
+        scope.advanceUntilIdle()
+
+        manager.enqueue(film().copy(url = "https://example.test/other.mp4"))
+        scope.advanceUntilIdle()
+        assertEquals(DownloadState.Done, manager.records.value.single().state)
+        assertEquals("https://example.test/film.mp4", manager.records.value.single().url)
+    }
+
+    @Test
+    fun aFileFarSmallerThanTheSourcedSizeFails() {
+        val scope = TestScope()
+        val manager = DownloadManager(PrefStore(), MemoryFiles(), FakeTransport(ByteArray(2)), scope)
+        manager.enqueue(film().copy(expectedBytes = 1000))
+        scope.advanceUntilIdle()
+        assertEquals(DownloadState.Failed, manager.records.value.single().state)
+    }
+
+    @Test
+    fun aTransientFailureIsRetriedBeforeItFails() {
+        val scope = TestScope()
+        val transport = FlakyTransport(ByteArray(16), failures = 2)
+        val manager = DownloadManager(PrefStore(), MemoryFiles(), transport, scope)
+        manager.enqueue(film())
+        scope.advanceUntilIdle()
+        assertEquals(DownloadState.Done, manager.records.value.single().state)
+        assertEquals(3, transport.attempts)
+    }
+}
+
+
+/** Every attempt fails: a source that refuses the file. */
+private class RefusingTransport : DownloadTransport {
+    override suspend fun fetch(
+        url: String,
+        headers: Map<String, String>,
+        offset: Long,
+        onTotal: (Long) -> Unit,
+        onChunk: (ByteArray, Int) -> Unit,
+    ) {
+        throw DownloadFailure("The source refused the file (HTTP 403). Try another source.")
+    }
+}
+
+/** Fails the first [failures] attempts with a transient error, then sends [body]. */
+private class FlakyTransport(private val body: ByteArray, private val failures: Int) : DownloadTransport {
+    var attempts = 0
+
+    override suspend fun fetch(
+        url: String,
+        headers: Map<String, String>,
+        offset: Long,
+        onTotal: (Long) -> Unit,
+        onChunk: (ByteArray, Int) -> Unit,
+    ) {
+        attempts++
+        if (attempts <= failures) throw DownloadFailure("The server had a hiccup.", transient = true)
+        onTotal(body.size.toLong())
+        onChunk(body, body.size)
+    }
 }

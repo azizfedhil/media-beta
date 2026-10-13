@@ -30,9 +30,18 @@ import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.glass.GlassStyle
 import dev.chrisbanes.haze.glass.hazeGlass
-import androidx.compose.foundation.border
 
 internal val LocalGlassState = staticCompositionLocalOf<HazeState?> { null }
+
+/** True inside a glass surface. A surface drawn inside one is flat, so glass never sits in glass (`glass.md`). */
+internal val LocalInsideGlass = staticCompositionLocalOf { false }
+
+/**
+ * The style a surface draws: flat when there is no glass scene, on low battery, or when it sits inside another glass surface
+ * ([nested]); otherwise the style the store chose. Pure, so it is unit tested.
+ */
+internal fun effectiveGlassMode(hasScene: Boolean, lowBattery: Boolean, nested: Boolean, mode: GlassMode): GlassMode =
+    if (!hasScene || lowBattery || nested) GlassMode.Flat else mode
 internal val LocalGlassStore = staticCompositionLocalOf { GlassStore() }
 
 /**
@@ -85,39 +94,48 @@ fun GlassSurface(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(PearRadii.card),
     wash: Color? = null,
+    /** A neutral lift under the glass (a white veil), used when there is no [wash]. Glass without a veil is clearer. */
+    veil: Color? = null,
     highlight: Boolean = false,
-    /** A hairline rim in this colour, 0.5 dp wide. Only the player asks for one; glass has none otherwise. */
-    rim: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = PearTheme.colors
     val state = LocalGlassState.current
     val store = LocalGlassStore.current
     // Glass everywhere, except on low battery, where it falls back to flat (see PowerStatus).
-    val mode = if (state == null || PowerStatus.lowBattery) GlassMode.Flat else store.mode
+    val nested = LocalInsideGlass.current
+    if (nested && GlassTuning.NESTING_WARNINGS) println("Pear: a glass surface sits inside another glass surface, so it is drawn flat.")
+    val mode = effectiveGlassMode(hasScene = state != null, lowBattery = PowerStatus.lowBattery, nested = nested, mode = store.mode)
     val perf = store.performance.haze
     // The hover fill fades in and out. It is read in the draw phase, so the glass itself does not recompose as it moves.
     val lit by animateFloatAsState(if (highlight) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))
     val hover = c.fillSubtle
 
+    // The tint under the glass: the accent wash over the veil when both are set; otherwise whichever is set.
+    val tintColor: Color? = when {
+        wash != null && veil != null -> wash.compositeOver(veil)
+        else -> wash ?: veil
+    }
+
     val effect: Modifier = when (mode) {
         GlassMode.Frosted -> {
-            val style = remember(c.isDark, c.surface, wash) { frostedStyle(c, wash) }
+            val style = remember(c.isDark, c.surface, tintColor) { frostedStyle(c, tintColor) }
             Modifier.clip(shape).hazeBlur(input = HazeInput.Sources(state!!), style = style, performanceMode = perf)
         }
         GlassMode.Glass, GlassMode.Clear -> {
-            val style = remember(mode, shape, wash) {
+            val style = remember(mode, shape, tintColor) {
                 val base = if (mode == GlassMode.Clear) GlassStyle.clear else GlassStyle.regular
                 base.then {
                     shape(shape)
-                    if (wash != null) tint(wash)
+                    if (tintColor != null) tint(tintColor)
                 }
             }
             Modifier.hazeGlass(input = HazeInput.Sources(state!!), style = style, performanceMode = perf).clip(shape)
         }
-        GlassMode.Flat -> Modifier.clip(shape).background(flatColor(c, wash))
+        // Inside another glass surface the flat fill is the plain card tint, so the nested item reads as a flat control.
+        GlassMode.Flat -> Modifier.clip(shape).background(if (nested) (tintColor?.compositeOver(c.fill) ?: c.fill) else flatColor(c, tintColor))
     }
-    Box(modifier.then(effect).then(if (rim != null) Modifier.border(0.5f.dp, rim, shape) else Modifier).drawBehind { if (lit > 0f) drawRect(hover.copy(alpha = hover.alpha * lit)) }) {
-        content()
+    Box(modifier.then(effect).drawBehind { if (lit > 0f) drawRect(hover.copy(alpha = hover.alpha * lit)) }) {
+        CompositionLocalProvider(LocalInsideGlass provides true) { content() }
     }
 }

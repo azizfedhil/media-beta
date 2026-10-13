@@ -181,7 +181,7 @@ internal fun PageCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
     val shape = RoundedCornerShape(PearRadii.card)
     val click = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)
     Column(
-        modifier.fillMaxWidth().clip(shape).background(c.fillSubtle).border(1.dp, c.outline, shape).then(click).padding(16.dp),
+        modifier.fillMaxWidth().clip(shape).background(c.fillSubtle).then(click).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         content = content,
     )

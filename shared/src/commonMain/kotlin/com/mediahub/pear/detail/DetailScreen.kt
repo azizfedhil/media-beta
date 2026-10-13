@@ -89,6 +89,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.mediahub.pear.theme.PearMotion
+import com.mediahub.pear.home.heroAmbientFor
+import com.mediahub.pear.shell.LocalHttp
 
 @Composable
 fun DetailScreen(
@@ -186,10 +188,14 @@ fun DetailScreen(
             // Split layout for wide screens
             CompositionLocalProvider(LocalFeedCollapse provides feed) {
             Row(Modifier.fillMaxSize()) {
-                // Left column: the poster, frameless, dissolving into the page's colour wash.
-                val dominant = rememberDominantColor(item.posterUrl ?: item.backdropUrl)
-                LaunchedEffect(item.id, dominant) {
-                    env.shell.heroAmbientColor = dominant ?: fallbackHeroAmbientColor(item.name)
+                // Left column: the poster, frameless, dissolving into the page's colour wash. The colour is read from the
+                // same image the poster draws, as the Home hero does, not from the small list poster.
+                val http = LocalHttp.current
+                val artUrl = item.largePosterUrl() ?: item.backdropUrl
+                LaunchedEffect(artUrl) {
+                    val colour = artUrl?.let { heroAmbientFor(http, it) } ?: return@LaunchedEffect
+                    env.shell.heroAmbientColor = colour
+                    env.shell.heroAmbientKnown = true
                 }
                 Box(Modifier.width(posterWidth).fillMaxHeight().clipToBounds()) {
                 Box(

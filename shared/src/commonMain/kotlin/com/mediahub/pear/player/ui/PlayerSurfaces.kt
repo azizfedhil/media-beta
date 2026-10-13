@@ -53,11 +53,17 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.border
+import com.mediahub.pear.glass.GlassTuning
 
 
-/** The rim every player surface draws: white at 50%, 0.5 dp wide. */
-private val PLAYER_RIM = Color.White.copy(alpha = 0.5f)
+/**
+ * The white veil under the player's glass, so it reads lighter than the page behind it, as the iOS player does. The controls
+ * carry 13% (the iOS pause circle measures about 26 L above its backdrop); the panels carry 8%. Tune here; the target is a
+ * screenshot check at real luminance, not these numbers alone.
+ */
+private val PLAYER_CONTROL_VEIL = Color.White.copy(alpha = GlassTuning.PLAYER_CONTROL_VEIL)
+private val PLAYER_CARD_VEIL = Color.White.copy(alpha = GlassTuning.PLAYER_CARD_VEIL)
+
 
 /** The look every overlay surface follows. Set once by [PlayerOverlay]. */
 internal val LocalPlayerLook = compositionLocalOf { PlayerLook.Flat }
@@ -84,12 +90,14 @@ internal fun PlayerSurface(
     when (LocalPlayerLook.current) {
         PlayerLook.Blur -> {
             // The app's glass, unchanged: no wash and no outline. An active button takes the accent at 55%, as on iOS.
-            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), rim = PLAYER_RIM, content = content)
+            // The veil is for the neutral surface; an active button keeps its accent wash instead.
+            val veil = if (tint != null) null else if (kind == SurfaceKind.Card) PLAYER_CARD_VEIL else PLAYER_CONTROL_VEIL
+            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), veil = veil, content = content)
         }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            Box(modifier.clip(shape).background(fill).border(0.5f.dp, PLAYER_RIM, shape), content = content)
+            Box(modifier.clip(shape).background(fill), content = content)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {
@@ -97,7 +105,7 @@ internal fun PlayerSurface(
                 SurfaceKind.Capsule -> Color.Black.copy(alpha = 0.55f)
                 SurfaceKind.Card -> Color.Black.copy(alpha = 0.88f)
             }
-            Box(modifier.clip(shape).background(fill).border(0.5f.dp, PLAYER_RIM, shape), content = content)
+            Box(modifier.clip(shape).background(fill), content = content)
         }
     }
 }

@@ -1,7 +1,6 @@
 package com.mediahub.pear.player.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -82,8 +81,7 @@ private fun InfoThumb(info: PlayerInfo, logo: String?, stacked: Boolean) {
             val shape = RoundedCornerShape(16.dp)
             Box(
                 Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                    .clip(shape)
-                    .border(1.dp, Color.White.copy(alpha = 0.06f), shape), // half the 12% it had: the player's outlines are 50% weaker
+                    .clip(shape),
             ) {
                 RemoteImage(url, Modifier.fillMaxSize())
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent))))

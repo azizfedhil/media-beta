@@ -52,6 +52,19 @@ import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.foundation.layout.Row
+import com.mediahub.pear.theme.PearIcon
+import com.mediahub.pear.shell.SettingsGroup
+import com.mediahub.pear.shell.SettingsRow
+import com.mediahub.pear.shell.SettingsDivider
+import com.mediahub.pear.shell.PearSwitch
+import com.mediahub.pear.shell.SegmentedControl
+import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.shell.PearButtonStyle
+import com.mediahub.pear.shell.PearCircleButton
+import com.mediahub.pear.shell.SwatchGrid
+import com.mediahub.pear.shell.PearStepper
+import com.mediahub.pear.glass.ContentCard
 
 /** Loud, high-contrast content that moves, so blur and refraction are easy to judge. */
 @Composable
@@ -183,6 +196,7 @@ fun GlassGalleryScreen(store: GlassStore, onBack: (() -> Unit)? = null) {
             GlassPill {
                 GlassPillButton("magnifyingglass", {})
                 GlassPillButton("gearshape", {})
+                Section("Kit") { KitPreview() }
             }
         }
     }
@@ -193,5 +207,42 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PearText(title, style = PearTheme.type.title3.weight(FontWeight.Bold), color = Color.White)
         content()
+    }
+}
+
+/** The components of the kit, with their default settings. */
+@Composable
+private fun KitPreview() {
+    var on by remember { mutableStateOf(true) }
+    var segment by remember { mutableStateOf(0) }
+    var swatch by remember { mutableStateOf(0) }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SettingsGroup(title = "Settings group") {
+            SettingsRow(
+                title = "A switch",
+                subtitle = "Flat, and accent when on",
+                trailing = { PearSwitch(checked = on, onCheckedChange = { on = it }) },
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "A link row",
+                onClick = {},
+                trailing = { PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary) },
+            )
+        }
+        SegmentedControl(labels = listOf("Auto", "Phone", "Wide"), selectedIndex = segment, onSelect = { segment = it })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            PearCapsuleButton(label = "Neutral", onClick = {})
+            PearCapsuleButton(label = "Accent", style = PearButtonStyle.Accent, onClick = {})
+            PearCapsuleButton(label = "Delete", style = PearButtonStyle.Destructive, onClick = {})
+            PearCircleButton(onClick = {}, symbol = "xmark")
+        }
+        SwatchGrid(
+            colors = listOf(Color(0xFF7D5CFF), Color(0xFFFF5C8D), Color(0xFF2F80FF), Color(0xFF22C55E)),
+            selectedIndex = swatch,
+            onSelect = { swatch = it },
+        )
+        PearStepper(onMinus = {}, onPlus = {})
+        ContentCard { PearText("A content card", style = PearTheme.type.headline) }
     }
 }

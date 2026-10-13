@@ -55,3 +55,15 @@ class GlassStore(
             prefs?.setString(PrefKeys.DESKTOP_GLASS_PERFORMANCE, value.name)
         }
 }
+
+/** Tuning numbers for the glass, in one place. Change them here, and say what they were measured against. */
+object GlassTuning {
+    /** Print a line when a glass surface is drawn inside another. Off in normal builds; switch it on while hunting nesting. */
+    const val NESTING_WARNINGS = false
+
+    /** The white veil under the player's neutral controls. The iOS pause circle measures about 26 L above its backdrop. */
+    const val PLAYER_CONTROL_VEIL = 0.13f
+
+    /** The white veil under the player's panels. */
+    const val PLAYER_CARD_VEIL = 0.08f
+}

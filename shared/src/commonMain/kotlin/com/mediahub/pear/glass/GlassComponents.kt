@@ -139,7 +139,7 @@ fun GlassPillButton(symbol: String, onClick: () -> Unit, modifier: Modifier = Mo
 
 /** Content card: a solid surface with no contour, as on iOS. Clickable when [onClick] is given. */
 @Composable
-fun GlassCard(
+fun ContentCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     shape: RoundedCornerShape = RoundedCornerShape(PearRadii.card),
@@ -229,3 +229,13 @@ fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, content
         }
     }
 }
+
+/** The old name of [ContentCard], kept for one release so existing callers still compile. */
+@Deprecated("Cards are solid, not glass: use ContentCard", ReplaceWith("ContentCard(modifier, onClick, shape, content)"))
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    shape: RoundedCornerShape = RoundedCornerShape(PearRadii.card),
+    content: @Composable ColumnScope.() -> Unit,
+) = ContentCard(modifier, onClick, shape, content)
