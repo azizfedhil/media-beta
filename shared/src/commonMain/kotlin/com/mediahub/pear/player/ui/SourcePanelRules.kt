@@ -7,11 +7,11 @@ import com.mediahub.pear.model.StreamItem
 
 /**
  * The sources the player can actually open: playable ones only, grouped by add-on, and add-ons with nothing playable
- * left out. P2P is still off here (Batch 4.5 brings torrents in), so torrent-only results are not listed.
+ * left out. Torrents are listed only while [p2pReady] (P2P on, network allowed).
  */
-fun playableSourceGroups(groups: List<Pair<Addon, List<StreamItem>>>): List<Pair<Addon, List<StreamItem>>> =
+fun playableSourceGroups(groups: List<Pair<Addon, List<StreamItem>>>, p2pReady: Boolean): List<Pair<Addon, List<StreamItem>>> =
     groups
-        .map { (addon, items) -> addon to items.filter { it.isPlayable(p2pReady = false) } }
+        .map { (addon, items) -> addon to items.filter { it.isPlayable(p2pReady) } }
         .filter { (_, items) -> items.isNotEmpty() }
 
 /**

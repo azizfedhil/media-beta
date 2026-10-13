@@ -1,5 +1,7 @@
 package com.mediahub.pear.detail
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.alpha
 import com.mediahub.pear.glass.GlassSurface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -60,6 +62,9 @@ fun SourceSheet(
     logo: String? = null,
 ) {
     val env = LocalAppEnv.current
+    // Live: the switch in Settings changes these rows at once.
+    val p2pReady by env.data.p2p.canStream.collectAsState()
+    val p2pOn by env.data.p2p.enabled.collectAsState()
     val streams = remember { mutableStateListOf<Pair<Addon, List<StreamItem>>>() }
     var loading by remember { mutableStateOf(true) }
     var selectedAddonFilter by remember { mutableStateOf<String?>(null) }
@@ -136,6 +141,7 @@ fun SourceSheet(
                                 stream = stream,
                                 addon = addon,
                                 isPinned = isPinned,
+                                playable = stream.isPlayable(p2pReady),
                                 onClick = {
                                     val streamUrl = stream.url ?: "p2p://${stream.infoHash}"
                                     onSelectSource(
@@ -157,6 +163,20 @@ fun SourceSheet(
                                 },
                             )
                         }
+                        // Why a torrent can't be played, under its group.
+                        val unavailable = items.count { it.isTorrent && !it.isPlayable(p2pReady) }
+                        if (unavailable > 0) {
+                            PearText(
+                                if (!p2pOn) {
+                                    "$unavailable torrent source${if (unavailable == 1) "" else "s"} unavailable: P2P is off. " +
+                                        "Turn it on in Settings → Peer-to-peer."
+                                } else {
+                                    "$unavailable torrent source${if (unavailable == 1) "" else "s"} unavailable on this network."
+                                },
+                                style = PearTheme.type.caption,
+                                color = PearTheme.colors.textTertiary,
+                            )
+                        }
                     }
                 }
             }
@@ -169,11 +189,13 @@ private fun SourceItemRow(
     stream: StreamItem,
     addon: Addon,
     isPinned: Boolean,
+    playable: Boolean,
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(PearRadii.sm)
     GlassSurface(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        Modifier.fillMaxWidth().alpha(if (playable) 1f else 0.45f)
+            .then(if (playable) Modifier.clickable(onClick = onClick) else Modifier),
         shape,
         wash = if (isPinned) PearTheme.colors.accent.copy(alpha = 0.3f) else null,
     ) {

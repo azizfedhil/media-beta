@@ -42,3 +42,36 @@ through the UniFFI Kotlin bindings, so the Rust API is the only definition of th
 The authoring environment has no Rust or Gradle here. Two names come from UniFFI's output and are checked at build time:
 the `libraryOverride` property, and the error variant classes. If the build reports them missing, the message names the
 file to change.
+
+## Batch 4.5b: the switch, the gate, and the source lists
+
+- **The switch** (`commonMain/p2p/P2PService.kt`, held by `AppData.p2p`). Off by default. `setEnabled(false)` is the
+  killswitch: it makes every torrent source unplayable at once and stops the engine (`requestStop`). The settings are saved
+  under `p2p.enabled` and `p2p.wifiOnly`, and they are not in a settings backup, so a restored backup can't turn P2P on.
+- **Live state**. `canStream` is on and the network is allowed. The player, the source lists and the episode matcher all
+  read it, so a change in Settings reaches an open source list at once.
+- **The gate** (`P2PService.gate`). The add-on client's `streamFilter`. It keeps every stream, torrents included, so the
+  list can show a torrent as unavailable and say why. With P2P on, it waits for the network check first, as iOS does.
+- **The network check** (`P2PNetworkWatch`). A phone can tell Wi-Fi from cellular and hotspots; this desktop can't, so its
+  check always allows. The Wi-Fi only setting is saved, and Settings says it doesn't limit P2P on this computer.
+- **The lists**. A torrent is dimmed and can't be clicked while it isn't playable. Under each group, a line says how many
+  torrents are unavailable and why ("P2P is off. Turn it on in Settings → Peer-to-peer").
+- **The player** hides torrents while they aren't playable. Clicking a torrent while P2P is on reports that playback
+  isn't connected yet: that is 4.5c.
+
+### Where this differs from the plan
+- The plan's done-when said torrents "appear only with P2P enabled". The iOS app lists them, dimmed, with the reason,
+  which is the spec this batch follows. If you want them hidden instead, it's a one-line filter in the two source lists.
+
+### Check it
+1. Settings → Peer-to-peer is off. Open a title: its torrent sources are dimmed, can't be clicked, and the group explains
+   why.
+2. Turn it on (the confirmation appears). The torrents are no longer dimmed. A click reports that playback isn't
+   connected yet.
+3. Turn it off while the source list is open: the torrents dim at once, and the engine's test screen reports "Engine
+   loaded: no".
+4. Restart the app: the switch keeps its state. A backup restored onto a fresh install leaves P2P off.
+
+### Not compiled
+As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (the P2P service has a
+common test: `P2PServiceTest`), then `gradle :desktopApp:run`.

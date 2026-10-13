@@ -1,5 +1,6 @@
 package com.mediahub.pear.shell
 
+import com.mediahub.pear.shell.LocalAppEnv
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,7 +48,7 @@ private val TEST_TRACKERS = listOf(
 @Composable
 internal fun P2PCheckScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
-    val engine = remember { P2PEngine(p2pPlatform()) }
+    val engine = LocalAppEnv.current.data.p2p.engine
     val log = remember { mutableStateListOf<String>() }
     var busy by remember { mutableStateOf(false) }
 

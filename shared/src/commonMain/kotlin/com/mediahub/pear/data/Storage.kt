@@ -1,5 +1,6 @@
 package com.mediahub.pear.data
 
+import com.mediahub.pear.p2p.P2PService
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.addons.AddonStore
 import com.mediahub.pear.addons.OpenSubtitlesClient
@@ -46,7 +47,9 @@ class AppData(
 
     val mediaServers = MediaServerStore(storage.prefs, storage.secrets, network.http)
 
-    val addonClient = AddonClient(network.http, network.cache)
+    /** P2P: the switch, the network check and the one engine (4.5b). Off until the user turns it on. */
+    val p2p = P2PService(storage.prefs)
+    val addonClient = AddonClient(network.http, network.cache, streamFilter = { p2p.gate(it) })
     val addons = AddonStore(storage.prefs, addonClient, addonDispatcher).apply {
         serverAddons = { mediaServers.addons }
     }

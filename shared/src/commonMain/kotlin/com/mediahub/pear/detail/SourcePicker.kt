@@ -1,5 +1,7 @@
 package com.mediahub.pear.detail
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -279,6 +281,10 @@ private fun SourcesPane(
     modifier: Modifier,
 ) {
     val total = ordered.sumOf { it.second.size }
+    // Live: the switch in Settings changes these cards at once.
+    val env = LocalAppEnv.current
+    val p2pReady by env.data.p2p.canStream.collectAsState()
+    val p2pOn by env.data.p2p.enabled.collectAsState()
     Column(modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -321,7 +327,21 @@ private fun SourcesPane(
                                 SourceCard(
                                     stream = stream,
                                     isPinned = pinned?.addonID == addon.id && pinned.signature == stream.signature,
+                                    playable = stream.isPlayable(p2pReady),
                                     onClick = { onSelect(addon, stream) },
+                                )
+                            }
+                            val unavailable = items.count { it.isTorrent && !it.isPlayable(p2pReady) }
+                            if (unavailable > 0) {
+                                PearText(
+                                    if (!p2pOn) {
+                                        "$unavailable torrent source${if (unavailable == 1) "" else "s"} unavailable: P2P is off. " +
+                                            "Turn it on in Settings → Peer-to-peer."
+                                    } else {
+                                        "$unavailable torrent source${if (unavailable == 1) "" else "s"} unavailable on this network."
+                                    },
+                                    style = PearTheme.type.caption,
+                                    color = PearTheme.colors.textTertiary,
                                 )
                             }
                         }
@@ -340,16 +360,17 @@ private fun SourcesPane(
 
 /** One source, as a glass card: its name, the description under it, and a mark when it is the pinned one. */
 @Composable
-private fun SourceCard(stream: StreamItem, isPinned: Boolean, onClick: () -> Unit) {
+private fun SourceCard(stream: StreamItem, isPinned: Boolean, playable: Boolean, onClick: () -> Unit) {
     val c = PearTheme.colors
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val detail = stream.description ?: stream.title
     GlassSurface(
         Modifier.fillMaxWidth()
+            .alpha(if (playable) 1f else 0.45f)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
+            .then(if (playable) Modifier.clickable(interactionSource = source, indication = null, onClick = onClick) else Modifier),
         RoundedCornerShape(PearRadii.card),
         wash = if (isPinned) c.accent.copy(alpha = 0.3f) else null,
         highlight = hovered,

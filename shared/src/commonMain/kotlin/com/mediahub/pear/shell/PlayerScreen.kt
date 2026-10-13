@@ -169,7 +169,7 @@ fun PlayerScreen(
 
     val state by engine.state.collectAsState()
     val engineError by engine.errorMessage.collectAsState()
-    val error = if (isP2P) "Peer-to-peer sources aren't supported on desktop yet (Batch 4.5). Pick a direct or debrid source." else engineError
+    val error = if (isP2P) "Peer-to-peer playback isn't connected yet. Pick a direct or debrid source for now." else engineError
 
     val glassOn = rememberPref(prefs, PrefKeys.PLAYER_GLASS) { it.bool(PrefKeys.PLAYER_GLASS, true) }
     // Glass while the video plays is on by default (the Settings switch turns it off if the machine can't keep up).
@@ -181,7 +181,7 @@ fun PlayerScreen(
     // The next episode, its skip timestamps, and the settings that drive them (4.3d). Looked up again for every episode
     // (`loadAux` in PlayerView.swift); a source switch keeps both.
     val episodeSupport = remember(data) {
-        EpisodeSupport(data.episodes, data.meta.tmdb, data.addonClient, { data.addons.enabledAddons }, data.pinned)
+        EpisodeSupport(data.episodes, data.meta.tmdb, data.addonClient, { data.addons.enabledAddons }, data.pinned, { data.p2p.canStreamNow() })
     }
     var nextEp by remember(request) { mutableStateOf<Pair<Int, EpisodeItem>?>(null) }
     var segments by remember(request) { mutableStateOf<List<SkipSegment>>(emptyList()) }
@@ -303,7 +303,7 @@ fun PlayerScreen(
             data.addonClient.streamUpdates(sid, r.item.type, addons).collect { group ->
                 raw.add(group)
                 // Groups appear as each add-on answers, in the user's add-on order.
-                sourceGroups = playableSourceGroups(AddonClient.ordered(raw, addons))
+                sourceGroups = playableSourceGroups(AddonClient.ordered(raw, addons), p2pReady = data.p2p.canStreamNow())
             }
         } finally {
             sourcesLoading = false

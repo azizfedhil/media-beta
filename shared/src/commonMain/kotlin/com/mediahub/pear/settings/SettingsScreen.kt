@@ -1,5 +1,6 @@
 package com.mediahub.pear.settings
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -74,8 +75,10 @@ fun SettingsScreen(
     var pipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_PIP, true)) }
     var skipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.SKIP_ENABLED, true)) }
     var fallbackSkip by remember { mutableIntStateOf(prefs.int(PrefKeys.SKIP_FALLBACK_SECONDS, 0)) }
-    var p2pEnabled by remember { mutableStateOf(prefs.bool("p2p.enabled", false)) }
-    var p2pWifiOnly by remember { mutableStateOf(prefs.bool("p2p.wifiOnly", true)) }
+    // The P2P switches live in the service (the killswitch and the live state of every torrent source).
+    val p2p = env.data.p2p
+    val p2pEnabled by p2p.enabled.collectAsState()
+    val p2pWifiOnly by p2p.wifiOnly.collectAsState()
 
     var includeData by remember { mutableStateOf(false) }
     var backupStatus by remember { mutableStateOf<String?>(null) }
@@ -204,20 +207,21 @@ fun SettingsScreen(
             GlassCard(Modifier.fillMaxWidth()) {
                 PearText("Peer-to-peer", style = PearTheme.type.headline)
                 SettingToggleRow("Peer-to-peer streams", p2pEnabled) { on ->
-                    if (on) showP2PDialog = true
-                    else {
-                        p2pEnabled = false
-                        prefs.setBool("p2p.enabled", false)
-                    }
+                    // Off is the killswitch: torrent sources stop being playable and any engine stops, at once.
+                    if (on) showP2PDialog = true else p2p.setEnabled(false)
                 }
                 if (p2pEnabled) {
-                    SettingToggleRow("Wi-Fi only", p2pWifiOnly) {
-                        p2pWifiOnly = it
-                        prefs.setBool("p2p.wifiOnly", it)
-                    }
+                    SettingToggleRow("Wi-Fi only", p2pWifiOnly) { p2p.setWifiOnly(it) }
+                    PearText(
+                        "On this computer Pear can't tell Wi-Fi from a hotspot or a metered link, so Wi-Fi only doesn't " +
+                            "limit P2P here.",
+                        style = PearTheme.type.caption,
+                        color = PearTheme.colors.textTertiary,
+                    )
                 }
                 PearText(
-                    "Off by default. When off, torrent sources are hidden and no P2P connections are made.",
+                    "Off by default. When off, torrent sources are listed but can't be played, and no P2P connection " +
+                        "or engine runs.",
                     style = PearTheme.type.caption,
                     color = PearTheme.colors.textSecondary,
                 )
@@ -308,8 +312,7 @@ fun SettingsScreen(
                         )
                         GlassButton(
                             onClick = {
-                                p2pEnabled = true
-                                prefs.setBool("p2p.enabled", true)
+                                p2p.setEnabled(true)
                                 showP2PDialog = false
                             },
                             label = "Enable",

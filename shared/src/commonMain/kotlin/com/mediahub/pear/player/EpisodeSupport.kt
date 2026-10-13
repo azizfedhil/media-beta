@@ -27,6 +27,8 @@ class EpisodeSupport(
     private val addonClient: AddonClient,
     private val addons: () -> List<Addon>,
     private val pinned: PinnedSources,
+    /** Whether torrent sources can be played now (P2P on, network allowed). Read at each choice. */
+    private val p2pReady: () -> Boolean = { false },
 ) {
     /** The episode after [request]'s, if it exists and has aired. Null for a movie, or when nothing comes after. */
     suspend fun next(request: PlayRequest): Pair<Int, EpisodeItem>? {
@@ -52,6 +54,7 @@ class EpisodeSupport(
                 currentAddonID = current.sourceAddonID,
                 currentSignature = current.sourceSignature,
                 pin = pinned.pin(current.imdb),
+                p2pReady = p2pReady(),
                 groups = ordered,
             ) ?: return@lenient null
             SourceChooser.request(current, season, episode, addon, stream)
@@ -77,17 +80,18 @@ object SourceChooser {
     /**
      * The first match of: the add-on and name being played now, the pinned source, the first playable stream of any
      * add-on. [groups] must already be in the user's add-on order. Within an add-on, a name that is no longer there
-     * falls back to that add-on's first playable stream. Only direct links count while P2P is off.
+     * falls back to that add-on's first playable stream. Torrents count only while P2P is on and the network allows it.
      */
     fun choose(
         currentAddonID: String?,
         currentSignature: String?,
         pin: Pin?,
         groups: List<Pair<Addon, List<StreamItem>>>,
+        p2pReady: Boolean = false,
     ): Pair<Addon, StreamItem>? {
         fun match(addonID: String, signature: String?): Pair<Addon, StreamItem>? {
             val group = groups.firstOrNull { it.first.id == addonID } ?: return null
-            val playable = group.second.filter { it.isPlayable(p2pReady = false) }
+            val playable = group.second.filter { it.isPlayable(p2pReady = p2pReady) }
             val stream = playable.firstOrNull { it.signature == signature } ?: playable.firstOrNull() ?: return null
             return group.first to stream
         }
@@ -95,7 +99,7 @@ object SourceChooser {
         if (currentAddonID != null) match(currentAddonID, currentSignature)?.let { return it }
         if (pin != null) match(pin.addonID, pin.signature)?.let { return it }
         for ((addon, streams) in groups) {
-            streams.firstOrNull { it.isPlayable(p2pReady = false) }?.let { return addon to it }
+            streams.firstOrNull { it.isPlayable(p2pReady = p2pReady) }?.let { return addon to it }
         }
         return null
     }

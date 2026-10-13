@@ -29,6 +29,9 @@ object PrefKeys {
     /** Default audio language (desktop only). "off" leaves the file's own default track. */
     const val AUDIO_LANG = "audio.lang"
     const val SUBS_ONLINE = "subs.online"
+    /** The P2P switch and Wi-Fi only. Not in a settings backup: restoring one can't turn P2P on (as on iOS). */
+    const val P2P_ENABLED = "p2p.enabled"
+    const val P2P_WIFI_ONLY = "p2p.wifiOnly"
     const val SUBS_BASE_URL = "subs.baseURL"
     const val LIBRARY_COLLAPSED = "library.collapsed"
     const val PROFILES_LIST = "profiles.list"

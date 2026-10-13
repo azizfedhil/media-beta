@@ -93,7 +93,7 @@ class PlayerPanelRulesTest {
     @Test
     fun onlyDirectLinksAreListedAndEmptyAddonsDropOut() {
         val groups = listOf(a to listOf(direct, torrent), b to listOf(torrent))
-        val shown = playableSourceGroups(groups)
+        val shown = playableSourceGroups(groups, p2pReady = false)
         assertEquals(listOf(a), shown.map { it.first })
         assertEquals(listOf(direct), shown.single().second)
     }
