@@ -64,13 +64,10 @@ fun SourceSheet(
     onSelectSource: (PlayRequest) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Episode still (or the movie backdrop): shown on the Continue Watching card. */
     thumb: String? = null,
-    /** Title logo, for the player's paused state. */
     logo: String? = null,
 ) {
     val env = LocalAppEnv.current
-    // Live: the switch in Settings changes these rows at once.
     val p2pReady by env.data.p2p.canStream.collectAsState()
     val p2pOn by env.data.p2p.enabled.collectAsState()
     val streams = remember { mutableStateListOf<Pair<Addon, List<StreamItem>>>() }
@@ -104,7 +101,6 @@ fun SourceSheet(
             GlassButton(onClick = onClose, symbol = "xmark", size = 32.dp)
         }
 
-        // Add-on filter chips if multiple add-ons answered
         if (streams.size > 1) {
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -174,7 +170,6 @@ fun SourceSheet(
                                 },
                             )
                         }
-                        // Why a torrent can't be played, under its group.
                         val unavailable = items.count { it.isTorrent && !it.isPlayable(p2pReady) }
                         if (unavailable > 0) {
                             PearText(
@@ -195,10 +190,6 @@ fun SourceSheet(
     }
 }
 
-/**
- * One source in the phone sheet: its name and size, the description, the download's status, and a small download button for a
- * direct link. A tap picks it; a long press (or a right click) opens its menu.
- */
 @Composable
 private fun SourceItemRow(
     stream: StreamItem,
@@ -212,7 +203,9 @@ private fun SourceItemRow(
     val shape = RoundedCornerShape(PearRadii.sm)
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
-    // iOS draws a source row as a plain white fill (7%); the sheet around it is the glass.
+    val name = stream.name ?: stream.title ?: "Stream"
+    val detail = stream.description ?: stream.title
+
     Box(
         Modifier.fillMaxWidth().alpha(if (playable) 1f else 0.45f)
             .clip(shape)
@@ -231,12 +224,16 @@ private fun SourceItemRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     PearText(
-                        text = stream.name ?: stream.title ?: "Stream",
+                        text = name,
                         style = PearTheme.type.subheadline.weight(FontWeight.SemiBold),
-                        maxLines = 1,
+                        maxLines = 2,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     stream.sizeBytes?.let {
                         PearText(StreamSize.format(it), style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 1)
@@ -245,22 +242,32 @@ private fun SourceItemRow(
                         PearIcon("pin.fill", size = 12.dp, tint = PearTheme.colors.accent)
                     }
                 }
-                stream.description?.let { desc ->
-                    PearText(desc, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 2)
+                if (detail != null && detail != name) {
+                    PearText(
+                        text = detail,
+                        style = PearTheme.type.caption,
+                        color = PearTheme.colors.textSecondary,
+                        maxLines = 6,
+                    )
                 }
                 if (stream.downloadUrl != null) SourceDownloadStatus(env, owner, stream.downloadUrl)
             }
 
             if (stream.isTorrent) {
                 Box(
-                    Modifier.clip(RoundedCornerShape(PearRadii.xs))
+                    Modifier.padding(start = 6.dp)
+                        .clip(RoundedCornerShape(PearRadii.xs))
                         .background(Color.White.copy(alpha = 0.1f))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                 ) {
                     PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textSecondary)
                 }
             }
-            if (stream.downloadUrl != null) SourceDownloadButton(env, owner, addon, stream)
+            if (stream.downloadUrl != null) {
+                Box(Modifier.padding(start = 6.dp)) {
+                    SourceDownloadButton(env, owner, addon, stream)
+                }
+            }
         }
     }
 }

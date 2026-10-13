@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -56,30 +57,18 @@ import androidx.compose.animation.animateColorAsState
 import com.mediahub.pear.glass.GlassTuning
 import androidx.compose.ui.unit.sp
 
-
-/**
- * The white veil under the player's glass, so it reads lighter than the page behind it, as the iOS player does. The controls
- * carry 13% (the iOS pause circle measures about 26 L above its backdrop); the panels carry 8%. Tune here; the target is a
- * screenshot check at real luminance, not these numbers alone.
- */
 private val PLAYER_CONTROL_VEIL = Color.White.copy(alpha = GlassTuning.PLAYER_CONTROL_VEIL)
 private val PLAYER_CARD_VEIL = Color.White.copy(alpha = GlassTuning.PLAYER_CARD_VEIL)
 
+// 0.5px / 0.5dp subtle white rim
+private val PLAYER_RIM_COLOR = Color.White.copy(alpha = 0.15f)
 
-/** The look every overlay surface follows. Set once by [PlayerOverlay]. */
 internal val LocalPlayerLook = compositionLocalOf { PlayerLook.Flat }
 
 internal enum class SurfaceKind { Circle, Capsule, Card }
 
 private val Pill = RoundedCornerShape(percent = 50)
 
-/**
- * One overlay surface, drawn according to [LocalPlayerLook]:
- * blur (a Haze glass surface), tint (cheap, for moving video) or flat (glass switched off).
- * The flat fills are the ones PlayerView.swift uses when "Liquid Glass controls" is off
- * (circle 0.4 black or the tint at 0.75, capsule 0.55, card 0.88).
- * No surface takes a gradient: the glass shows through, as it does on iOS.
- */
 @Composable
 internal fun PlayerSurface(
     modifier: Modifier = Modifier,
@@ -88,17 +77,24 @@ internal fun PlayerSurface(
     tint: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val wrappedContent: @Composable BoxScope.() -> Unit = {
+        content()
+        Box(
+            Modifier.matchParentSize()
+                .clip(shape)
+                .border(0.5.dp, PLAYER_RIM_COLOR, shape),
+        )
+    }
+
     when (LocalPlayerLook.current) {
         PlayerLook.Blur -> {
-            // The app's glass, unchanged: no wash and no outline. An active button takes the accent at 55%, as on iOS.
-            // The veil is for the neutral surface; an active button keeps its accent wash instead.
             val veil = if (tint != null) null else if (kind == SurfaceKind.Card) PLAYER_CARD_VEIL else PLAYER_CONTROL_VEIL
-            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), veil = veil, content = content)
+            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), veil = veil, content = wrappedContent)
         }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            Box(modifier.clip(shape).background(fill), content = content)
+            Box(modifier.clip(shape).background(fill), content = wrappedContent)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {
@@ -106,12 +102,11 @@ internal fun PlayerSurface(
                 SurfaceKind.Capsule -> Color.Black.copy(alpha = 0.55f)
                 SurfaceKind.Card -> Color.Black.copy(alpha = 0.88f)
             }
-            Box(modifier.clip(shape).background(fill), content = content)
+            Box(modifier.clip(shape).background(fill), content = wrappedContent)
         }
     }
 }
 
-/** Round glass button (close, skip, play/pause): `circleButton` in PlayerView.swift. */
 @Composable
 internal fun PlayerCircleButton(
     symbol: String,
@@ -122,7 +117,6 @@ internal fun PlayerCircleButton(
     tint: Color? = null,
     enabled: Boolean = true,
     contentDescription: String? = null,
-    /** A small numeral drawn over the icon: the "10" of the skip buttons. */
     numeral: String? = null,
 ) {
     val source = remember { MutableInteractionSource() }
@@ -151,7 +145,6 @@ internal fun PlayerCircleButton(
     }
 }
 
-/** A capsule holding the option buttons (the Swift "controls pill"). */
 @Composable
 internal fun PlayerPill(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     PlayerSurface(modifier, SurfaceKind.Capsule) {
@@ -164,10 +157,6 @@ internal fun PlayerPill(modifier: Modifier = Modifier, content: @Composable RowS
     }
 }
 
-/**
- * A button inside a [PlayerPill]: no surface of its own, a faint fill on hover and an accent disc when [selected]
- * (`pillButton` in PlayerView.swift: 46 pt slot, 19 pt icon). Give [label] instead of [symbol] for a text button.
- */
 @Composable
 internal fun PlayerPillButton(
     onClick: () -> Unit,
@@ -202,7 +191,6 @@ internal fun PlayerPillButton(
     }
 }
 
-/** Indeterminate ring, white. Used on the play button while loading and alone while buffering. */
 @Composable
 internal fun PlayerSpinner(modifier: Modifier = Modifier, diameter: Dp = 36.dp) {
     val transition = rememberInfiniteTransition(label = "player-spinner")

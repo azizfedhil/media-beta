@@ -73,29 +73,19 @@ import kotlin.math.min
 import androidx.compose.animation.animateContentSize
 import com.mediahub.pear.shell.LocalHttp
 
-/** Computes a cinematic ambient hue from the title (the fallback when the artwork has no dominant colour). */
 fun fallbackHeroAmbientColor(title: String): Color {
     val h = (abs(title.hashCode()) % 360).toFloat()
-    // Returns deep, cinematic moody tones (like Silo's dark teal #0E3A35)
     return Color.hsv(h, 0.70f, 0.32f)
 }
 
-/** The phone hero's height. */
 private val PhoneHeroHeight = 480.dp
-
-/** The wide hero column: 460 dp, 10% wider (see WideScale). */
 private val WideHeroWidth = 460.dp * WideScale.HERO_WIDTH
 
-/** Pages change with a fade and a short slide, as the iOS hero does when it moves on. */
 private val heroTransition: AnimatedContentTransitionScope<Int>.() -> ContentTransform = {
     (fadeIn(tween(900)) + slideInHorizontally(tween(900)) { it / 10 }) togetherWith
         (fadeOut(tween(900)) + slideOutHorizontally(tween(900)) { -it / 10 })
 }
 
-/**
- * The fade iOS draws with `easedFade`: the artwork stays opaque down to [start] of its height, then eases to clear at the
- * bottom along a smoothstep curve, so no line marks where the fade begins.
- */
 private fun easedFade(start: Float, steps: Int = 10): Brush {
     val stops = ArrayList<Pair<Float, Color>>()
     stops += 0f to Color.Black
@@ -107,10 +97,6 @@ private fun easedFade(start: Float, steps: Int = 10): Brush {
     return Brush.verticalGradient(*stops.toTypedArray())
 }
 
-/**
- * The hero's page index, moved on every [intervalMillis]. While [paused] (a synopsis is open) it stays put. The timer starts
- * again when the list changes or the pause ends.
- */
 @Composable
 private fun rememberHeroIndex(count: Int, intervalMillis: Long, paused: Boolean): MutableIntState {
     val index = remember { mutableIntStateOf(0) }
@@ -124,10 +110,6 @@ private fun rememberHeroIndex(count: Int, intervalMillis: Long, paused: Boolean)
     return index
 }
 
-/**
- * Sets the glow from the hero image's own colour, as iOS does (`HomeView.updateTint`). [url] is the image the page draws. While
- * it loads, the last colour stays; nothing is guessed from the title.
- */
 @Composable
 private fun HeroAmbient(url: String?) {
     val env = LocalAppEnv.current
@@ -139,17 +121,12 @@ private fun HeroAmbient(url: String?) {
     }
 }
 
-/**
- * The MDBList ratings of [item]: every source MDBList has, as the detail page shows them. Empty until they are known for this
- * title, so a title never shows the previous one's ratings.
- */
 @Composable
 private fun rememberTitleRatings(item: MetaPreview): List<MdbRating> {
     val env = LocalAppEnv.current
     var loaded by remember { mutableStateOf<Pair<String, List<MdbRating>>?>(null) }
     LaunchedEffect(item.id) {
         val mdb = env.data.meta.mdblist
-        // MDBList is keyed by IMDb id. A TMDB item's id is resolved through TMDB, as the detail page does.
         val imdb = if (item.id.startsWith("tt")) item.id
         else item.id.removePrefix("tmdb:").toIntOrNull()?.let { attempt { env.data.meta.tmdb.imdbId(it, item.type) } }
         val ratings = if (imdb != null && mdb.hasKey) attempt { mdb.ratings(imdb, item.type) } ?: emptyList() else emptyList()
@@ -158,31 +135,28 @@ private fun rememberTitleRatings(item: MetaPreview): List<MdbRating> {
     return loaded?.takeIf { it.first == item.id }?.second.orEmpty()
 }
 
-/**
- * The artwork of a hero page: a slow zoom while the page is showing (iOS's Ken Burns), a parallax drift against the scroll
- * ([scroll]), and an eased fade into the page at the bottom. [fadeSides] also dissolves the sides, as the wide column does.
- */
 @Composable
 private fun HeroArt(
     url: String?,
     active: Boolean,
     scroll: ScrollState?,
     fadeSides: Boolean,
-    /** Where the darkening starts, as a fraction of the height. */
     scrimStart: Float = 0.45f,
-    /** How dark the bottom of the artwork gets. It deepens while a synopsis is open, so the text reads over it. */
     scrimEnd: Float = 0.6f,
     modifier: Modifier = Modifier,
 ) {
     val zoom = remember { Animatable(1f) }
     LaunchedEffect(active) {
-        // Slow and linear while the page shows; back to normal quickly when it leaves.
         if (active) zoom.animateTo(1.1f, tween(durationMillis = 18_000, easing = LinearEasing))
         else zoom.animateTo(1f, tween(durationMillis = 900))
     }
     val bottomFade = remember { easedFade(start = 0.42f) }
     val sideFade = remember {
-        Brush.horizontalGradient(0f to Color.Transparent, 0.16f to Color.Black, 0.60f to Color.Black, 1f to Color.Transparent)
+        Brush.horizontalGradient(
+            0f to Color.Black,
+            0.50f to Color.Black,
+            1f to Color.Transparent,
+        )
     }
 
     BoxWithConstraints(
@@ -195,11 +169,9 @@ private fun HeroArt(
                 drawRect(bottomFade, blendMode = BlendMode.DstIn)
             },
     ) {
-        // Taller than the window by an eighth at each end, so the drift never shows an edge.
         val overscan = maxHeight * 0.125f
         Box(
             Modifier.fillMaxWidth().height(maxHeight * 1.25f).offset(y = -overscan).graphicsLayer {
-                // Half the scroll speed: the artwork drifts behind the content, which is the depth iOS's parallax gives.
                 translationY = min((scroll?.value ?: 0) * 0.5f, overscan.toPx())
             },
         ) {
@@ -213,11 +185,6 @@ private fun HeroArt(
     }
 }
 
-/**
- * The text over a hero page: the type and year, the title (its logo, or its name until the logo loads), the MDBList ratings,
- * the synopsis and Details. The synopsis shows three lines in both layouts, with More and Less when it is cut short. [expanded]
- * and [onToggleExpanded] are the carousel's, so opening a synopsis can pause the carousel.
- */
 @Composable
 private fun HeroInfo(
     modifier: Modifier,
@@ -238,7 +205,6 @@ private fun HeroInfo(
             maxHeight = if (wide) 96.dp else 72.dp,
         )
         if (ratings.isNotEmpty()) {
-            // Every MDBList source, in a row that scrolls when more than fit: nothing is cut off without a way to reach it.
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -272,7 +238,6 @@ private fun HeroInfo(
     }
 }
 
-/** "TV SERIES · 2026" as a pill. The background comes before the padding, so the fill covers the padding too. */
 @Composable
 private fun HeroTypePill(item: MetaPreview, wide: Boolean) {
     Row(
@@ -299,10 +264,6 @@ private fun HeroTypePill(item: MetaPreview, wide: Boolean) {
     }
 }
 
-/**
- * The hero's Details button: a solid accent pill with the accent's own text colour. The padding comes before the background,
- * so the accent fills the whole pill rather than only the text inside it.
- */
 @Composable
 private fun HeroDetailsButton(onClick: () -> Unit) {
     val c = PearTheme.colors
@@ -320,7 +281,6 @@ private fun HeroDetailsButton(onClick: () -> Unit) {
     }
 }
 
-/** The dots under the hero: the current page is long and white. Tapping one shows that page. */
 @Composable
 private fun HeroDots(count: Int, index: Int, wide: Boolean, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -342,10 +302,6 @@ private fun HeroDots(count: Int, index: Int, wide: Boolean, onSelect: (Int) -> U
     }
 }
 
-/**
- * The phone hero: a page for each title, which moves on every seven seconds. Each page's artwork zooms slowly while it shows,
- * drifts against the scroll ([scroll], the Home column's) and melts into the page below, so the ambient glow shows through.
- */
 @Composable
 fun HeroCarousel(
     items: List<MetaPreview>,
@@ -354,7 +310,6 @@ fun HeroCarousel(
     scroll: ScrollState? = null,
 ) {
     if (items.isEmpty()) return
-    // The page whose synopsis is open, or null. An open synopsis pauses the carousel; a page change closes it.
     var expandedId by remember { mutableStateOf<String?>(null) }
     val index = rememberHeroIndex(items.size, intervalMillis = 7_000L, paused = expandedId != null)
     LaunchedEffect(index.intValue) { expandedId = null }
@@ -400,11 +355,6 @@ fun HeroCarousel(
     }
 }
 
-/**
- * The wide hero: the tall column on the left of the Home page. It moves on every eight seconds, with the same zoom, parallax
- * and fades as the phone hero, and a short fade at the bottom so the text reads over the artwork. [collapse] 0..1 folds it
- * away to nothing as the feed scrolls; [scroll] is the feed's scroll, which the artwork drifts against.
- */
 @Composable
 fun WideHeroPanel(
     items: List<MetaPreview>,
@@ -423,7 +373,6 @@ fun WideHeroPanel(
 
     val panelWidth = WideHeroWidth * (1f - collapse).coerceIn(0f, 1f)
     Box(modifier.fillMaxHeight().width(panelWidth).clipToBounds()) {
-        // Fixed-size content so the text doesn't re-wrap while the panel folds away.
         Box(
             Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(WideHeroWidth).fillMaxHeight()
                 .graphicsLayer { alpha = (1f - collapse * 1.3f).coerceIn(0f, 1f) },
@@ -441,7 +390,6 @@ fun WideHeroPanel(
                         active = i == index.intValue,
                         scroll = scroll,
                         fadeSides = true,
-                        // The readability scrim is inside the artwork's layer, so it dissolves with the art.
                         scrimStart = 0.5f,
                         scrimEnd = if (expandedId == item.id) 0.9f else 0.7f,
                         modifier = Modifier.fillMaxSize(),
@@ -468,7 +416,6 @@ fun WideHeroPanel(
     }
 }
 
-/** Reads the glow colour of every hero page in the background, so a page change shows its colour at once. */
 @Composable
 private fun PrefetchHeroAmbient(urls: List<String?>) {
     val http = LocalHttp.current
