@@ -50,6 +50,7 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.core.animateFloatAsState
 
 @Composable
 fun PosterCard(
@@ -73,7 +74,7 @@ fun PosterCard(
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val pressed by source.collectIsPressedAsState()
-    val scale = if (pressed) 0.95f else if (hovered) 1.03f else 1f
+    val scale by animateFloatAsState(if (pressed) 0.95f else if (hovered) 1.03f else 1f, PearMotion.press<Float>())
     // A left click opens the title; a right click opens its menu beside the poster (the iOS long press).
     val anchor = remember { MenuAnchor() }
 

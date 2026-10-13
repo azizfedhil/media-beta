@@ -222,7 +222,6 @@ private fun SourceItemRow(
                 },
             ),
         shape,
-        border = true,
     ) {
         Row(
             Modifier.fillMaxWidth().padding(12.dp),

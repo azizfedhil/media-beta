@@ -56,6 +56,8 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.core.animateFloatAsState
+import com.mediahub.pear.theme.PearMotion
 
 @Composable
 fun ProfileAvatar(
@@ -112,6 +114,7 @@ fun ProfileAvatarButton(
 ) {
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
+    val ring by animateFloatAsState(if (hovered) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))
     Box(
         modifier
             .size(size)
@@ -119,7 +122,7 @@ fun ProfileAvatarButton(
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
-            .then(if (hovered) Modifier.border(2.dp, PearTheme.colors.accent.copy(alpha = 0.7f), CircleShape) else Modifier),
+            .border(2.dp, PearTheme.colors.accent.copy(alpha = 0.7f * ring), CircleShape),
     ) {
         ProfileAvatar(profile, size = size)
     }

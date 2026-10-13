@@ -48,6 +48,10 @@ import com.mediahub.pear.detail.SourcePickerOverlay
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.mediahub.pear.theme.PearTheme
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.graphics.graphicsLayer
+import com.mediahub.pear.theme.PearMotion
+import com.mediahub.pear.theme.PearTransitions
 
 @Composable
 fun AdaptiveShell(
@@ -191,9 +195,12 @@ internal fun ShellPages(shell: ShellState, modifier: Modifier = Modifier) {
 
 @Composable
 private fun KeepAlive(shown: Boolean, content: @Composable () -> Unit) {
+    // The page fades in and out with the tab switch, and keeps its room until the fade-out ends. The fade is read in the
+    // layout and draw phases, so the page itself does not recompose while it moves.
+    val fade by animateFloatAsState(if (shown) 1f else 0f, tween(PearMotion.BASE, easing = PearMotion.standard))
     Box(
-        Modifier.fillMaxSize().layout { measurable, constraints ->
-            if (shown) {
+        Modifier.fillMaxSize().graphicsLayer { alpha = fade }.layout { measurable, constraints ->
+            if (shown || fade > 0f) {
                 val placeable = measurable.measure(constraints)
                 layout(placeable.width, placeable.height) { placeable.place(0, 0) }
             } else {
@@ -225,8 +232,9 @@ private fun AmbientWash(color: Color, strength: Float) {
 }
 
 /**
- * What floats over the app: "Who's watching?" and the source picker. Drawn inside the glass scene, so their glass blurs
- * the app behind them, in both layouts.
+ * What floats over the app: "Who's watching?", the source picker and the context menu. Drawn inside the glass scene, so
+ * their glass blurs the app behind them, in both layouts. Each one fades in and out. The sheets rise from the bottom in
+ * the phone layout and grow in the wide one. A request is held while it leaves, so it can animate out after it is cleared.
  */
 @Composable
 private fun ShellOverlays(
@@ -236,7 +244,13 @@ private fun ShellOverlays(
     sidebarWidth: Dp? = null,
     onProfiles: (Boolean) -> Unit,
 ) {
-    if (showProfiles) {
+    val wide = LocalWideLayout.current
+    val panelIn = if (wide) PearTransitions.overlayIn else PearTransitions.sheetIn
+    val panelOut = if (wide) PearTransitions.overlayOut else PearTransitions.sheetOut
+    val picker = retainedWhilePresent(shell.sourcePicker)
+    val menu = retainedWhilePresent(shell.contextMenu)
+
+    AnimatedVisibility(visible = showProfiles, enter = panelIn, exit = panelOut) {
         ProfileSheetOverlay(
             sidebarWidth = sidebarWidth,
             onDismiss = { onProfiles(false) },
@@ -250,10 +264,26 @@ private fun ShellOverlays(
             },
         )
     }
-    shell.sourcePicker?.let { picker ->
-        SourcePickerOverlay(picker, onClose = { shell.closeSourcePicker() })
+    AnimatedVisibility(visible = shell.sourcePicker != null, enter = panelIn, exit = panelOut) {
+        picker?.let { SourcePickerOverlay(it, onClose = { shell.closeSourcePicker() }) }
     }
-    shell.contextMenu?.let { menu ->
-        ContextMenuOverlay(menu, onClose = { shell.closeContextMenu() })
+    AnimatedVisibility(
+        visible = shell.contextMenu != null,
+        enter = PearTransitions.overlayIn,
+        exit = PearTransitions.overlayOut,
+    ) {
+        menu?.let { ContextMenuOverlay(it, onClose = { shell.closeContextMenu() }) }
     }
+}
+
+/** Holds the last non-null [current], so an overlay still has its content while it animates out. */
+@Composable
+private fun <T : Any> retainedWhilePresent(current: T?): T? {
+    val held = remember { RetainedValue<T>() }
+    if (current != null) held.value = current
+    return held.value
+}
+
+private class RetainedValue<T> {
+    var value: T? = null
 }

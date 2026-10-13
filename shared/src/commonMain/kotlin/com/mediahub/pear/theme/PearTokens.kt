@@ -2,6 +2,7 @@ package com.mediahub.pear.theme
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,4 +43,7 @@ object PearMotion {
     fun <T> snappy(durationMs: Int = BASE): FiniteAnimationSpec<T> = tween(durationMs, easing = standard)
 
     fun <T> pushSpec(): FiniteAnimationSpec<T> = tween(PUSH, easing = push)
+
+    /** Hover and press scale: a short spring with a little give, the desktop version of the iOS button press. */
+    fun <T> press(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.75f, stiffness = 500f)
 }

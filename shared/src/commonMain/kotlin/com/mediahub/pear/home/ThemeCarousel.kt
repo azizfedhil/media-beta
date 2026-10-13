@@ -50,6 +50,9 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.getValue
+import com.mediahub.pear.theme.PearMotion
 
 @Composable
 fun ThemeCarousel(
@@ -85,7 +88,7 @@ private fun ThemeCard(item: ThemedTitle, onClick: () -> Unit, scale: Float = 1f)
     val width = 240.dp * scale
     val source = remember { MutableInteractionSource() }
     val hovered = source.collectIsHoveredAsState().value
-    val hoverScale = if (hovered) 1.02f else 1f
+    val hoverScale by animateFloatAsState(if (hovered) 1.02f else 1f, PearMotion.press<Float>())
     val env = LocalAppEnv.current
     val anchor = remember { MenuAnchor() }
 

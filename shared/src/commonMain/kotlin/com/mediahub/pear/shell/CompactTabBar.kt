@@ -32,6 +32,8 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.animateColorAsState
+import com.mediahub.pear.theme.PearMotion
 
 /**
  * The iPhone layout's tab bar: a floating glass capsule with Home, Explore, Library and Settings, and Search as a
@@ -66,12 +68,15 @@ private fun TabBarItem(tab: AppTab, isSelected: Boolean, modifier: Modifier, onC
     val c = PearTheme.colors
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val bg = when {
-        isSelected -> c.fill
-        hovered -> c.fillSubtle
-        else -> Color.Transparent
-    }
-    val fg = if (isSelected) c.accent else c.textSecondary
+    val bg by animateColorAsState(
+        when {
+            isSelected -> c.fill
+            hovered -> c.fillSubtle
+            else -> Color.Transparent
+        },
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    val fg by animateColorAsState(if (isSelected) c.accent else c.textSecondary, PearMotion.snappy<Color>(PearMotion.FAST))
     Column(
         modifier.fillMaxSize().clip(RoundedCornerShape(PearRadii.pill)).background(bg)
             .hoverable(source)

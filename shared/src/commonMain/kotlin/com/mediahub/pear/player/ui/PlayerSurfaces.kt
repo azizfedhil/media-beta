@@ -9,7 +9,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -53,20 +52,8 @@ import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.animateColorAsState
 
-/**
- * How strong the player's tint edge is, against the theme's outline colour: half. The blur look draws no outline; the glass
- * styles draw their own edge through Haze.
- */
-private const val PLAYER_OUTLINE = 0.5f
-
-/**
- * The wash under the player's glass, tuned by eye against the iOS player (its Liquid Glass carries a light tint): the controls
- * are a light smoke (the grey pill and round buttons), the panels a dark grey (the sub-menus). Both are drawn with a rim, as
- * iOS draws its glass. The page cards, the sidebar and the bars keep `PearColors.panel`.
- */
-private val PLAYER_CONTROL_WASH = Color.White.copy(alpha = 0.14f)
-private val PLAYER_CARD_WASH = Color(0xFF2C2C2E).copy(alpha = 0.72f)
 
 /** The look every overlay surface follows. Set once by [PlayerOverlay]. */
 internal val LocalPlayerLook = compositionLocalOf { PlayerLook.Flat }
@@ -92,14 +79,13 @@ internal fun PlayerSurface(
 ) {
     when (LocalPlayerLook.current) {
         PlayerLook.Blur -> {
-            // An active button keeps its accent tint; everything else takes the player's own light or dark wash, with a rim.
-            val wash = tint?.copy(alpha = 0.55f) ?: if (kind == SurfaceKind.Card) PLAYER_CARD_WASH else PLAYER_CONTROL_WASH
-            GlassSurface(modifier, shape, wash = wash, border = true, content = content)
+            // The app's glass, unchanged: no wash and no outline. An active button takes the accent at 55%, as on iOS.
+            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), content = content)
         }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            Box(modifier.clip(shape).background(fill).border(1.dp, Color.White.copy(alpha = 0.14f * PLAYER_OUTLINE), shape), content = content)
+            Box(modifier.clip(shape).background(fill), content = content)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {
@@ -128,6 +114,7 @@ internal fun PlayerCircleButton(
     val hovered by source.collectIsHoveredAsState()
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.92f else 1f, PearMotion.snappy<Float>(PearMotion.FAST))
+    val fill by animateColorAsState(if (hovered && enabled) Color.White.copy(alpha = 0.12f) else Color.Transparent, PearMotion.snappy<Color>(PearMotion.FAST))
     val semantic = if (contentDescription == null) Modifier else Modifier.semantics { this.contentDescription = contentDescription }
     PlayerSurface(
         modifier = modifier.size(size)
@@ -140,7 +127,7 @@ internal fun PlayerCircleButton(
         tint = tint,
     ) {
         Box(
-            Modifier.fillMaxSize().background(if (hovered && enabled) Color.White.copy(alpha = 0.12f) else Color.Transparent),
+            Modifier.fillMaxSize().background(fill),
             contentAlignment = Alignment.Center,
         ) { PearIcon(symbol, size = icon, tint = Color.White) }
     }
@@ -175,11 +162,12 @@ internal fun PlayerPillButton(
 ) {
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val bg = when {
+    val target = when {
         selected -> PearTheme.colors.accent.copy(alpha = 0.6f)
         hovered && enabled -> Color.White.copy(alpha = 0.12f)
         else -> Color.Transparent
     }
+    val bg by animateColorAsState(target, PearMotion.snappy<Color>(PearMotion.FAST))
     val semantic = if (contentDescription == null) Modifier else Modifier.semantics { this.contentDescription = contentDescription }
     val sizing = if (label == null) Modifier.size(46.dp) else Modifier.height(46.dp).widthIn(min = 46.dp)
     Box(

@@ -428,7 +428,6 @@ private fun SourceCard(
             ),
         RoundedCornerShape(PearRadii.card),
         highlight = hovered,
-        border = true,
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -76,6 +76,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import com.mediahub.pear.theme.PearTransitions
 
 /**
  * Hosts the player: creates the engine, loads the stream and shows the video under [PlayerOverlay] (Batch 4.3a),
@@ -511,7 +514,6 @@ fun PlayerScreen(
             onClose = { leave(); onBack() },
             onToggleFullscreen = { setFullscreen(!fullscreen) },
             onMediaCommand = { runMedia(it) },
-            fullscreen = fullscreen,
             p2pOpening = p2pOpening,
             p2pStatus = p2pStatus,
             modifier = modifier,
@@ -543,58 +545,66 @@ fun PlayerScreen(
                 )
             },
             panels = {
-                when (panel) {
-                    PlayerPanel.Speed -> SpeedPanel(engine, onClose = { panel = null })
-                    PlayerPanel.Sources -> SourcesPanel(
-                        groups = sourceGroups,
-                        loading = sourcesLoading,
-                        selectedAddonID = sourceFilter,
-                        currentAddonID = current.sourceAddonID,
-                        currentSignature = current.sourceSignature,
-                        onSelectAddon = { sourceFilter = it },
-                        onSelect = { addon, stream -> switchSource(addon, stream) },
-                        onClose = { panel = null },
-                    )
-                    PlayerPanel.Info -> info?.let { InfoPanel(it, current.logo, onClose = { panel = null }) }
-                    PlayerPanel.Display -> DisplayPanel(
-                        aspect = aspect,
-                        onAspect = { aspect = it },
-                        fastFourK = performance,
-                        onFastFourK = { performance = it },
-                        onClose = { panel = null },
-                    )
-                    PlayerPanel.Subtitles -> SubtitlesPanel(
-                        tracks = subtitleTracks,
-                        onPick = { t ->
-                            preferredSubLang = t?.let { it.language?.takeIf { l -> l.isNotBlank() } ?: it.title }
-                            engine.selectTrack(TrackKind.Subtitle, t?.id)
-                        },
-                        delaySeconds = subDelay,
-                        onDelay = {
-                            subDelay = it
-                            engine.setSubtitleDelay(it)
-                        },
-                        online = OpenSubtitlesClient.choices(onlineSubs, preferredSubLang).filter { it.id !in addedOnline },
-                        loadingOnline = onlineLoading,
-                        onPickOnline = { addOnline(it) },
-                        style = subStyle,
-                        onStyle = { prefs.setString(PrefKeys.SUB_STYLE, it.encoded()) },
-                        onClose = { panel = null },
-                    )
-                    PlayerPanel.Audio -> AudioPanel(
-                        tracks = audioTracks,
-                        onPick = { t ->
-                            preferredAudioLang = t.language?.takeIf { l -> l.isNotBlank() } ?: t.title
-                            engine.selectTrack(TrackKind.Audio, t.id)
-                        },
-                        delaySeconds = audioDelay,
-                        onDelay = {
-                            audioDelay = it
-                            engine.setAudioDelay(it)
-                        },
-                        onClose = { panel = null },
-                    )
-                    null -> Unit
+                // The open panel fades and rises in and out; a switch from one panel to another crossfades.
+                AnimatedContent(
+                    targetState = panel,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = { PearTransitions.panelIn togetherWith PearTransitions.panelOut },
+                    label = "player-panel",
+                ) { openPanel ->
+                    when (openPanel) {
+                        PlayerPanel.Speed -> SpeedPanel(engine, onClose = { panel = null })
+                        PlayerPanel.Sources -> SourcesPanel(
+                            groups = sourceGroups,
+                            loading = sourcesLoading,
+                            selectedAddonID = sourceFilter,
+                            currentAddonID = current.sourceAddonID,
+                            currentSignature = current.sourceSignature,
+                            onSelectAddon = { sourceFilter = it },
+                            onSelect = { addon, stream -> switchSource(addon, stream) },
+                            onClose = { panel = null },
+                        )
+                        PlayerPanel.Info -> info?.let { InfoPanel(it, current.logo, onClose = { panel = null }) }
+                        PlayerPanel.Display -> DisplayPanel(
+                            aspect = aspect,
+                            onAspect = { aspect = it },
+                            fastFourK = performance,
+                            onFastFourK = { performance = it },
+                            onClose = { panel = null },
+                        )
+                        PlayerPanel.Subtitles -> SubtitlesPanel(
+                            tracks = subtitleTracks,
+                            onPick = { t ->
+                                preferredSubLang = t?.let { it.language?.takeIf { l -> l.isNotBlank() } ?: it.title }
+                                engine.selectTrack(TrackKind.Subtitle, t?.id)
+                            },
+                            delaySeconds = subDelay,
+                            onDelay = {
+                                subDelay = it
+                                engine.setSubtitleDelay(it)
+                            },
+                            online = OpenSubtitlesClient.choices(onlineSubs, preferredSubLang).filter { it.id !in addedOnline },
+                            loadingOnline = onlineLoading,
+                            onPickOnline = { addOnline(it) },
+                            style = subStyle,
+                            onStyle = { prefs.setString(PrefKeys.SUB_STYLE, it.encoded()) },
+                            onClose = { panel = null },
+                        )
+                        PlayerPanel.Audio -> AudioPanel(
+                            tracks = audioTracks,
+                            onPick = { t ->
+                                preferredAudioLang = t.language?.takeIf { l -> l.isNotBlank() } ?: t.title
+                                engine.selectTrack(TrackKind.Audio, t.id)
+                            },
+                            delaySeconds = audioDelay,
+                            onDelay = {
+                                audioDelay = it
+                                engine.setAudioDelay(it)
+                            },
+                            onClose = { panel = null },
+                        )
+                        null -> Unit
+                    }
                 }
             },
             skip = { shown ->

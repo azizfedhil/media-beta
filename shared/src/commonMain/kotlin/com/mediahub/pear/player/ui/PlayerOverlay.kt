@@ -128,8 +128,6 @@ fun PlayerOverlay(
     onToggleFullscreen: () -> Unit,
     /** A media key was pressed. The screen runs it, so Next can play the next episode (Batch 4.6b). */
     onMediaCommand: (MediaCommand) -> Unit = {},
-    /** Full screen is on: the way out stays on screen, whatever the controls are doing. */
-    fullscreen: Boolean = false,
     /** A torrent is being opened through the engine: the loader shows, as it does for a link that is opening. */
     p2pOpening: Boolean = false,
     /** The torrent's status line (peers, speed, progress), under the loader or the buffering spinner. */
@@ -339,16 +337,6 @@ fun PlayerOverlay(
             // Panels last, so they sit above the controls. Only one is open at a time; the host decides which. Their text is at
             // the base size, not the controls' scale: the sub-menus were too large with it.
             CompositionLocalProvider(LocalDensity provides Density(scaled.density, base.fontScale)) { panels() }
-
-            // Full screen: the controls fade with the pointer, so the way out is drawn here, always.
-            if (fullscreen && errorMessage == null) {
-                PlayerCircleButton(
-                    "arrow.down.right.and.arrow.up.left", size = 42.dp, icon = 16.dp,
-                    onClick = onToggleFullscreen,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = PLAYER_SIDE_MARGIN),
-                    contentDescription = "Exit full screen",
-                )
-            }
 
             PlayerNotice(notice)
         }

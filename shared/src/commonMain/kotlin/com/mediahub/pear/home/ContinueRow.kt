@@ -61,6 +61,8 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.core.animateFloatAsState
+import com.mediahub.pear.theme.PearMotion
 
 private sealed class ContinueCardItem(val updated: Long) {
     class InProgress(val entry: HistoryEntry) : ContinueCardItem(entry.updated)
@@ -164,7 +166,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
-    val lift = if (hovered) 1.02f else 1f
+    val lift by animateFloatAsState(if (hovered) 1.02f else 1f, PearMotion.press<Float>())
     // The text follows the layout, not the hover lift: 20% larger in the wide layout.
     val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
 
@@ -219,7 +221,7 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, onMenu: (Rect) -> 
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
-    val lift = if (hovered) 1.02f else 1f
+    val lift by animateFloatAsState(if (hovered) 1.02f else 1f, PearMotion.press<Float>())
     val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
 
     Column(

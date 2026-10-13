@@ -3,7 +3,6 @@ package com.mediahub.pear.shell
 import androidx.compose.foundation.background
 import com.mediahub.pear.data.Profile
 import com.mediahub.pear.profile.ProfileAvatarButton
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -50,6 +49,8 @@ import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.monospacedDigits
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.delay
+import androidx.compose.animation.animateColorAsState
+import com.mediahub.pear.theme.PearMotion
 
 @Composable
 internal fun Sidebar(
@@ -67,8 +68,6 @@ internal fun Sidebar(
     GlassSurface(
         modifier = modifier.width(width).fillMaxHeight(),
         shape = RoundedCornerShape(0.dp),
-        wash = PearTheme.colors.panel,
-        border = true,
     ) {
         Column(
             Modifier.fillMaxHeight()
@@ -129,12 +128,15 @@ private fun NavRow(tab: AppTab, isSelected: Boolean, iconsOnly: Boolean, onClick
     val hovered by source.collectIsHoveredAsState()
 
     // Matches the mockup: Selected tab is a solid white pill with black icon and text!
-    val bg = when {
-        isSelected -> Color.White
-        hovered -> Color.White.copy(alpha = 0.08f)
-        else -> Color.Transparent
-    }
-    val fg = if (isSelected) Color.Black else Color.White.copy(alpha = 0.78f)
+    val bg by animateColorAsState(
+        when {
+            isSelected -> Color.White
+            hovered -> Color.White.copy(alpha = 0.08f)
+            else -> Color.Transparent
+        },
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    val fg by animateColorAsState(if (isSelected) Color.Black else Color.White.copy(alpha = 0.78f), PearMotion.snappy<Color>(PearMotion.FAST))
 
     Row(
         Modifier.fillMaxWidth()
@@ -182,12 +184,15 @@ private fun ColumnScope.CatalogueList(items: List<CatalogueItem>, selectedId: St
 private fun CatalogueRow(item: CatalogueItem, isSelected: Boolean, onClick: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val bg = when {
-        isSelected -> Color.White
-        hovered -> Color.White.copy(alpha = 0.08f)
-        else -> Color.Transparent
-    }
-    val fg = if (isSelected) Color.Black else Color.White.copy(alpha = 0.85f)
+    val bg by animateColorAsState(
+        when {
+            isSelected -> Color.White
+            hovered -> Color.White.copy(alpha = 0.08f)
+            else -> Color.Transparent
+        },
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    val fg by animateColorAsState(if (isSelected) Color.Black else Color.White.copy(alpha = 0.85f), PearMotion.snappy<Color>(PearMotion.FAST))
 
     Row(
         Modifier.fillMaxWidth()

@@ -1,6 +1,9 @@
 package com.mediahub.pear.glass
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -47,7 +50,7 @@ fun GlassBar(
     contentPadding: Dp = 12.dp,
     content: @Composable RowScope.() -> Unit,
 ) {
-    GlassSurface(modifier, shape, wash = PearTheme.colors.panel, border = true) {
+    GlassSurface(modifier, shape) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = contentPadding, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -58,8 +61,9 @@ fun GlassBar(
 }
 
 /**
- * Round icon button, or a capsule when [label] is set. [tint] is the colour wash (the Swift app uses the
- * accent at 55% for the active player buttons).
+ * Round icon button, or a capsule when [label] is set. [tint] is a wash on the glass (the accent at 55%, for an active
+ * control, as the Swift app does). [iconTint] colours the symbol alone and leaves the glass neutral, as the watched check
+ * does on iOS. A changed [symbol] cross-fades, the way iOS replaces symbols.
  */
 @Composable
 fun GlassButton(
@@ -69,13 +73,16 @@ fun GlassButton(
     label: String? = null,
     size: Dp = 44.dp,
     tint: Color? = null,
+    iconTint: Color? = null,
     enabled: Boolean = true,
 ) {
     val type = PearTheme.type
+    val c = PearTheme.colors
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val pressed by source.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, PearMotion.snappy<Float>(PearMotion.FAST))
+    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, PearMotion.press<Float>())
+    val glyph by animateColorAsState(iconTint ?: c.textPrimary, PearMotion.snappy<Color>(PearMotion.FAST))
     val sizing = if (label == null) Modifier.size(size) else Modifier.height(size).widthIn(min = size)
     GlassSurface(
         modifier = modifier.then(sizing)
@@ -86,14 +93,17 @@ fun GlassButton(
         shape = RoundedCornerShape(percent = 50),
         wash = tint?.copy(alpha = 0.55f),
         highlight = hovered && enabled,
-        border = true,
     ) {
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = if (label != null) 16.dp else 0.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (symbol != null) PearIcon(symbol, size = 20.dp)
+            if (symbol != null) {
+                Crossfade(targetState = symbol, animationSpec = tween(PearMotion.BASE)) { name ->
+                    PearIcon(name, size = 20.dp, tint = glyph)
+                }
+            }
             if (label != null) PearText(label, style = type.subheadline.weight(FontWeight.SemiBold))
         }
     }
@@ -113,11 +123,12 @@ fun GlassPillButton(symbol: String, onClick: () -> Unit, modifier: Modifier = Mo
     val c = PearTheme.colors
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
-    val bg = when {
+    val target = when {
         selected -> c.accent.copy(alpha = 0.55f)
         hovered && enabled -> c.fill
         else -> Color.Transparent
     }
+    val bg by animateColorAsState(target, PearMotion.snappy<Color>(PearMotion.FAST))
     Box(
         modifier.size(40.dp).clip(RoundedCornerShape(percent = 50)).background(bg)
             .hoverable(source).pointerHoverIcon(PointerIcon.Hand)
@@ -140,9 +151,10 @@ fun GlassCard(
         Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand).clickable(interactionSource = source, indication = null, onClick = onClick)
     val c = PearTheme.colors
     // The card's face is the solid surface colour (#1C1C1E, the iOS dark cell colour), with no glass and no contour in any
-    // mode. Hovering a clickable card lifts it a step.
+    // mode. Hovering a clickable card lifts it a step, and the step fades in.
+    val lift by animateFloatAsState(if (hovered && onClick != null) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))
     Box(modifier.then(interactive).clip(shape).background(c.surface)) {
-        if (hovered && onClick != null) Box(Modifier.matchParentSize().background(c.fillSubtle))
+        if (lift > 0f) Box(Modifier.matchParentSize().background(c.fillSubtle.copy(alpha = c.fillSubtle.alpha * lift)))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }
@@ -150,7 +162,7 @@ fun GlassCard(
 /** Dropdown / context menu panel. Place it where the menu should open; positioning is the caller's job. */
 @Composable
 fun GlassMenu(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg), wash = PearTheme.colors.panel, border = true) {
+    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg)) {
         Column(Modifier.padding(6.dp), content = content)
     }
 }
@@ -161,8 +173,9 @@ fun GlassMenuItem(label: String, onClick: () -> Unit, modifier: Modifier = Modif
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
     val color = if (destructive) c.red else c.textPrimary
+    val fill by animateColorAsState(if (hovered) c.fill else Color.Transparent, PearMotion.snappy<Color>(PearMotion.FAST))
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(PearRadii.sm)).background(if (hovered) c.fill else Color.Transparent)
+        modifier.fillMaxWidth().clip(RoundedCornerShape(PearRadii.sm)).background(fill)
             .hoverable(source).pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -189,7 +202,7 @@ fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, content
     } else {
         RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)
     }
-    GlassSurface(modifier, shape, wash = c.panel, border = floating) {
+    GlassSurface(modifier, shape) {
         Column(Modifier.padding(horizontal = 20.dp).padding(top = if (floating) 20.dp else 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!floating) Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)

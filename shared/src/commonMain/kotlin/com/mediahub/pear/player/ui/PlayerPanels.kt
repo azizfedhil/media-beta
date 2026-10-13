@@ -42,6 +42,8 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.animateColorAsState
+import com.mediahub.pear.theme.PearMotion
 
 // The three panels the player shows over the video (Batch 4.3c). Each one is drawn where its Swift counterpart is:
 // speed floats above the pill, sources sits on the right edge, the info card rises from the bottom.
@@ -197,9 +199,10 @@ private fun AddonFilterButton(
     val name = groups.firstOrNull { it.first.id == selectedAddonID }?.let { it.first.manifest.name } ?: "All add-ons"
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
+    val fill by animateColorAsState(Color.White.copy(alpha = if (open || hovered) 0.22f else 0.14f), PearMotion.snappy<Color>(PearMotion.FAST))
     Row(
         Modifier.clip(RoundedCornerShape(PearRadii.pill))
-            .background(Color.White.copy(alpha = if (open || hovered) 0.22f else 0.14f))
+            .background(fill)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onToggle)
@@ -256,10 +259,11 @@ private fun SourceRow(stream: StreamItem, current: Boolean, onClick: () -> Unit)
     val detail = stream.description ?: stream.title
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
+    val fill by animateColorAsState(Color.White.copy(alpha = if (current) 0.16f else if (hovered) 0.11f else 0.07f), PearMotion.snappy<Color>(PearMotion.FAST))
     Row(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(11.dp))
-            .background(Color.White.copy(alpha = if (current) 0.16f else if (hovered) 0.11f else 0.07f))
+            .background(fill)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick)

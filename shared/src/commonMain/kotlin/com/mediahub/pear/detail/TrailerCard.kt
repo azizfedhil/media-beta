@@ -45,6 +45,8 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlin.math.abs
+import androidx.compose.animation.core.animateFloatAsState
+import com.mediahub.pear.theme.PearMotion
 
 /**
  * Episode-card styling without the description: the thumbnail dissolves into a softly tinted panel,
@@ -69,7 +71,7 @@ fun TrailerCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val scale = if (isHovered) 1.02f else 1.0f
+    val scale by animateFloatAsState(if (isHovered) 1.02f else 1.0f, PearMotion.press<Float>())
 
     val handleClick = onClick ?: { openUrl(video.watchUrl) }
 

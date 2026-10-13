@@ -82,6 +82,13 @@ import com.mediahub.pear.shell.menuAnchor
 import com.mediahub.pear.shell.FeedCollapse
 import kotlin.math.max
 import com.mediahub.pear.shell.LocalFeedCollapse
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import com.mediahub.pear.theme.PearMotion
 
 @Composable
 fun DetailScreen(
@@ -425,28 +432,63 @@ private fun DetailActionBar(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GlassButton(
-            onClick = onPlay,
+        PlayButton(
             label = if (isSeries) "Play S$season:E$episode" else "Play",
-            symbol = "play.fill",
-            tint = PearTheme.colors.accent,
+            onClick = onPlay,
             modifier = Modifier.weight(1f),
         )
 
-        // Bookmark / Library toggle
+        // Bookmark / Library toggle: a neutral glass circle, as on iOS.
         GlassButton(
             onClick = onToggleLibrary,
             symbol = if (isInLibrary) "bookmark.fill" else "bookmark",
             size = 44.dp,
         )
 
-        // Watched toggle
+        // Watched toggle: the check takes the accent when the title is watched; the glass stays neutral.
         GlassButton(
             onClick = onToggleWatched,
             symbol = if (isWatched) "checkmark.circle.fill" else "checkmark.circle",
-            tint = if (isWatched) PearTheme.colors.accent else null,
+            iconTint = if (isWatched) PearTheme.colors.accent else null,
             size = 44.dp,
         )
+    }
+}
+
+/**
+ * The Play button, drawn as iOS draws its prominent action (`glassProminent` in the accent): a solid accent capsule as
+ * tall as the round buttons beside it, with the play symbol and the label in the theme's `onAccent`. Hover lightens it a
+ * step, and a press shrinks it a little on a spring.
+ */
+@Composable
+private fun PlayButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = PearTheme.colors
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, PearMotion.press<Float>())
+    val sheen by animateFloatAsState(if (hovered) 0.12f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))
+    Box(
+        modifier
+            .height(44.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(RoundedCornerShape(percent = 50))
+            .background(c.accent)
+            .hoverable(source)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        // The hover sheen: white laid over the accent, so the fill stays the accent colour.
+        Box(Modifier.matchParentSize().background(Color.White.copy(alpha = sheen)))
+        Row(
+            Modifier.padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PearIcon("play.fill", size = 20.dp, tint = c.onAccent)
+            PearText(label, style = PearTheme.type.headline.weight(FontWeight.SemiBold), color = c.onAccent, maxLines = 1)
+        }
     }
 }
 

@@ -13,7 +13,7 @@ enum class PlayerLook {
     /** Haze blur over the video (the glass styles chosen in the glass settings). */
     Blur,
 
-    /** Translucent tint with a hairline edge, no blur: cheap enough to sit over moving video. */
+    /** A translucent tint, no blur: cheap enough to sit over moving video. */
     Tint,
 
     /** The "Liquid Glass controls" switch is off: plain dark fills, the same as the iOS flat look. */

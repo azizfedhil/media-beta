@@ -57,6 +57,8 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlin.math.abs
+import androidx.compose.animation.core.animateFloatAsState
+import com.mediahub.pear.theme.PearMotion
 
 enum class EpisodeFreshness(val text: String) {
     JustAired("Just aired"),
@@ -151,7 +153,7 @@ fun EpisodeCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val hoverScale = if (isHovered) 1.02f else 1.0f
+    val hoverScale by animateFloatAsState(if (isHovered) 1.02f else 1.0f, PearMotion.press<Float>())
 
     val accent = PearTheme.colors.accent
 

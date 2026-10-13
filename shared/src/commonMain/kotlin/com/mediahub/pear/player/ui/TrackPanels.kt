@@ -42,6 +42,8 @@ import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.animateColorAsState
+import com.mediahub.pear.theme.PearMotion
 
 // The subtitle and audio menus of the player (Batch 4.4a). Spec: `subtitlePanel` and the audio `Menu` in PlayerView.swift.
 // The subtitles card sits on the right edge, as the sources card does, and covers the controls; the audio card floats
@@ -192,10 +194,11 @@ private fun PanelHeader(title: String, onClose: () -> Unit) {
 private fun TrackRow(title: String, selected: Boolean, onClick: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
+    val fill by animateColorAsState(Color.White.copy(alpha = if (selected) 0.16f else if (hovered) 0.11f else 0.07f), PearMotion.snappy<Color>(PearMotion.FAST))
     Row(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(11.dp))
-            .background(Color.White.copy(alpha = if (selected) 0.16f else if (hovered) 0.11f else 0.07f))
+            .background(fill)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = source, indication = null, onClick = onClick)

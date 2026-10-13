@@ -25,9 +25,9 @@ class PearColors(
     /** Pressed and selected fills, chips (Swift: white at 12%). */
     val fill: Color,
     val fillStrong: Color,
-    /** Border of glass surfaces. */
+    /** Hairline outlines of cards and rows, and menu dividers. Glass draws no outline, as on iOS. */
     val outline: Color,
-    /** Thin divider lines (sidebar edge, menu dividers). */
+    /** Thin divider lines (menu dividers, the source picker's column rule). */
     val hairline: Color,
     // text
     val textPrimary: Color,
@@ -43,14 +43,6 @@ class PearColors(
 ) {
     /** The accent gradient (iOS `ThemeStore.gradient`): the accent into its neighbouring hue, left to right. */
     val gradient: Brush get() = Brush.horizontalGradient(listOf(accent, accent2))
-
-    /**
-     * The neutral wash of the glass surfaces: the sidebar, the bars, menus and sheets (cards are solid, see [surface]). It is
-     * dark in dark mode (the player is always dark) and the light surface colour in light mode, so text stays readable over
-     * the picture. It is never the accent: glass takes no accent gradient (the iOS glass does not either), and the accent
-     * appears on selected and active controls alone.
-     */
-    val panel: Color get() = if (isDark) Color(0xFF0D0D11).copy(alpha = 0.55f) else Color(0xFFF2F2F7).copy(alpha = 0.55f)
 
     /** Name and colour of every token, for the theme preview screen. */
     fun swatches(): List<Pair<String, Color>> = listOf(

@@ -1,22 +1,24 @@
 package com.mediahub.pear.glass
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.theme.PearColors
+import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearTheme
 import dev.chrisbanes.haze.HazeInput
@@ -70,10 +72,12 @@ private fun flatColor(c: PearColors, wash: Color?): Color {
 }
 
 /**
- * The base of every glass component. Draws blur, glass or a flat tint according to [GlassStore.mode],
- * clipped to [shape]. Outside a [GlassScene] it falls back to flat. [wash] is a plain tint laid over the glass: the
- * accent at 55% for a selected or active control (like the tinted player buttons in Swift), or the neutral panel wash.
- * Glass is never painted with a gradient; that is the iOS look.
+ * The base of every glass component, and the only place glass is drawn, so every glass item has the same clarity. It
+ * draws the style [GlassStore.mode] picks (blur, glass, or a flat tint), clipped to [shape]. Outside a [GlassScene] it
+ * falls back to flat.
+ *
+ * There is no wash and no outline, as on iOS Liquid Glass. The one exception is [wash]: the accent at 55% on a selected
+ * or active control. [highlight] is the hover fill, which fades in and out rather than snapping.
  */
 @Composable
 fun GlassSurface(
@@ -81,21 +85,17 @@ fun GlassSurface(
     shape: RoundedCornerShape = RoundedCornerShape(PearRadii.card),
     wash: Color? = null,
     highlight: Boolean = false,
-    /**
-     * Draws the theme outline. Only Glass and Clear draw it, and only when asked: Frosted and Flat never have an outline,
-     * as on iOS. Glass makes its own edge from what is behind it; floating bars, buttons, menus and the sidebar ask for the
-     * outline so they keep a visible edge over a black page.
-     */
-    border: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = PearTheme.colors
-    val outline = c.outline
     val state = LocalGlassState.current
     val store = LocalGlassStore.current
     // Glass everywhere, except on low battery, where it falls back to flat (see PowerStatus).
     val mode = if (state == null || PowerStatus.lowBattery) GlassMode.Flat else store.mode
     val perf = store.performance.haze
+    // The hover fill fades in and out. It is read in the draw phase, so the glass itself does not recompose as it moves.
+    val lit by animateFloatAsState(if (highlight) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))
+    val hover = c.fillSubtle
 
     val effect: Modifier = when (mode) {
         GlassMode.Frosted -> {
@@ -111,11 +111,10 @@ fun GlassSurface(
                 }
             }
             Modifier.hazeGlass(input = HazeInput.Sources(state!!), style = style, performanceMode = perf).clip(shape)
-                .then(if (border) Modifier.border(1.dp, outline, shape) else Modifier)
         }
         GlassMode.Flat -> Modifier.clip(shape).background(flatColor(c, wash))
     }
-    Box(modifier.then(effect).then(if (highlight) Modifier.background(c.fillSubtle) else Modifier)) {
+    Box(modifier.then(effect).drawBehind { if (lit > 0f) drawRect(hover.copy(alpha = hover.alpha * lit)) }) {
         content()
     }
 }
