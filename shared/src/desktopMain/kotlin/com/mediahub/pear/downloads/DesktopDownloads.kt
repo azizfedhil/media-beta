@@ -34,6 +34,8 @@ class FolderDownloadFiles(private val dir: File) : DownloadFiles {
  * Cancelling the download is checked between reads (a read blocks for at most the read timeout).
  */
 class HttpDownloadTransport(private val userAgent: String = "Pear/1.0") : DownloadTransport {
+    // URL(String) is deprecated, but it accepts the odd links add-ons hand out, which URI would reject.
+    @Suppress("DEPRECATION")
     override suspend fun fetch(
         url: String,
         headers: Map<String, String>,

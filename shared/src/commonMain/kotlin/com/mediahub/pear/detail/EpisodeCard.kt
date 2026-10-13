@@ -399,7 +399,7 @@ fun EpisodeCard(
                     .align(Alignment.BottomEnd)
                     .padding(end = d(6f), bottom = d(6f))
                     .size(width = d(44f), height = d(40f))
-                    .clickable(onClick = { onMenu?.invoke(anchor.rect()) }),
+                    .clickable(onClick = { onMenu(anchor.rect()) }),
                 contentAlignment = Alignment.Center,
             ) {
                 PearIcon(

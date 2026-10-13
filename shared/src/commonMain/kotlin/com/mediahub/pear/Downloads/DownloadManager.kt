@@ -152,12 +152,16 @@ class DownloadManager(
         }
     }
 
-    /** Progress comes in every 64 KB. The list is updated at most twice a second, which is all the screen needs. */
+    /**
+     * Progress comes in every 64 KB, and a piece's update is queued before the finish is written, so it can run after the
+     * transfer is already Done. Progress therefore counts only while the download is still running: a late piece never
+     * overwrites the final size. The list is updated at most twice a second, which is all the screen needs.
+     */
     private fun progress(id: String, bytes: Long) {
         val at = now()
         if (at - (lastProgress[id] ?: Long.MIN_VALUE / 2) < 500) return
         lastProgress[id] = at
-        change(id, save = false) { it.copy(bytes = bytes) }
+        change(id, save = false) { if (it.state == DownloadState.Downloading) it.copy(bytes = bytes) else it }
     }
 
     /** Must be called on [scope]. */

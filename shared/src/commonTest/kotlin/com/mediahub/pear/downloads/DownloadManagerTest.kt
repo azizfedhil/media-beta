@@ -1,5 +1,6 @@
 package com.mediahub.pear.downloads
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.mediahub.pear.data.PearJson
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.PrefStore
@@ -61,6 +62,7 @@ private fun film(): DownloadRecord = DownloadRecord(
     expectedBytes = 16,
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DownloadManagerTest {
     private val body = "0123456789abcdef".encodeToByteArray()
 
