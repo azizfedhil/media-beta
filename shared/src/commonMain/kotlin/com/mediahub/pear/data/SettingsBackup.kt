@@ -1,5 +1,6 @@
 package com.mediahub.pear.data
 
+import com.mediahub.pear.onboarding.OnboardingState
 import com.mediahub.pear.theme.ThemeStore
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -120,6 +121,8 @@ object SettingsBackup {
             prefs.remove(PrefKeys.ADDON_DISABLED)
         }
 
+        // A restored backup is an existing setup: the first-launch flow never shows after it.
+        OnboardingState.finish(prefs)
         return n
     }
 

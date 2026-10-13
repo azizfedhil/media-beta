@@ -16,6 +16,8 @@ import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.Storage
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.model.CatalogSource
+import com.mediahub.pear.onboarding.OnboardingHost
+import com.mediahub.pear.onboarding.OnboardingState
 import com.mediahub.pear.net.Network
 import com.mediahub.pear.shell.AdaptiveShell
 import com.mediahub.pear.shell.AppEnv
@@ -35,6 +37,11 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
     val theme = remember(data) { ThemeStore(prefs = data.prefs) }
     val glass = remember(data) { GlassStore(prefs = data.prefs) }
     val shell = remember { ShellState() }
+    // Decided once per storage: a fresh install sees the setup first, an existing one never does (see OnboardingState).
+    val setupNeeded = remember(data) {
+        OnboardingState.needed(data.prefs, data.secrets, hasSimklAccount = data.simkl.account != null)
+    }
+    LaunchedEffect(setupNeeded) { shell.onboardingVisible = setupNeeded }
     val env = remember(data) { AppEnv(theme, glass, shell, data, devTools) }
     LaunchedEffect(data.profiles.activeID) { data.switchProfile(data.profiles.activeID) }
     // The P2P engine ends with the window: the close runs this hook before the process exits, and waits for the stop (4.5d).
@@ -62,6 +69,8 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
             // The intro plays over the app while it loads, as the iOS launch screen does.
             Box(Modifier.fillMaxSize()) {
                 AdaptiveShell(shell, glass, catalogues = catalogues)
+                // The first-launch setup covers the shell while it is pending; the launch intro still plays above it.
+                if (shell.onboardingVisible) OnboardingHost()
                 PearLaunchOverlay()
             }
         }

@@ -38,6 +38,7 @@ import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.library.LibrarySourceControls
+import com.mediahub.pear.onboarding.OnboardingState
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LayoutOverride
 import com.mediahub.pear.shell.LocalAppEnv
@@ -329,6 +330,10 @@ fun SettingsScreen(
                         DevChip("History", false) { onNavigateDeveloperCheck("HistoryCheck") }
                         DevChip("Player", false) { onNavigateDeveloperCheck("PlayerCheck") }
                         DevChip("P2P", false) { onNavigateDeveloperCheck("P2PCheck") }
+                        DevChip("Replay onboarding", false) {
+                            OnboardingState.replay(env.data.prefs)
+                            env.shell.onboardingVisible = true
+                        }
                     }
                 }
             }

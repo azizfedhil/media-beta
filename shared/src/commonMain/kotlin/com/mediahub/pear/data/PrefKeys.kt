@@ -36,6 +36,9 @@ object PrefKeys {
     const val LIBRARY_COLLAPSED = "library.collapsed"
     const val PROFILES_LIST = "profiles.list"
     const val PROFILES_ACTIVE = "profiles.active"
+
+    /** First-launch setup: `pending` or `done` (see `onboarding/OnboardingState.kt`). Not in backups: a restore marks it done. */
+    const val ONBOARDING_STATE = "onboarding.state"
     const val PINNED_SOURCES = "pinned.sources"
     /** The download index (JSON): every download, finished or not. Per device, not per profile. */
     const val DOWNLOADS = "downloads.records"

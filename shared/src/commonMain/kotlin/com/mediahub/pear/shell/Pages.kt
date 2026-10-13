@@ -45,7 +45,6 @@ import com.mediahub.pear.settings.AddonsSettingsScreen
 import com.mediahub.pear.settings.ContentSettingsScreen
 import com.mediahub.pear.settings.IntegrationsScreen
 import com.mediahub.pear.settings.MediaServersScreen
-import com.mediahub.pear.settings.OnboardingScreen
 import com.mediahub.pear.settings.PlayerControlsSettingsScreen
 import com.mediahub.pear.settings.SettingsScreen
 import com.mediahub.pear.settings.SubtitleSettingsScreen
@@ -160,9 +159,6 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         )
         Route.SimklLogin -> SimklLoginScreen(
             onBack = { nav.pop() },
-        )
-        Route.Onboarding -> OnboardingScreen(
-            onFinish = { nav.pop() },
         )
         Route.ThemePreview -> ThemePreviewScreen(env.theme, env.glass, onBack = { nav.pop() })
         Route.GlassGallery -> GlassGalleryScreen(env.glass, onBack = { nav.pop() })

@@ -33,7 +33,6 @@ sealed interface Route {
     data object SubtitleSettings : Route
     data object PlayerControlsSettings : Route
     data object About : Route
-    data object Onboarding : Route
     data object ThemePreview : Route
     data object GlassGallery : Route
     data object StorageCheck : Route
@@ -104,6 +103,9 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
     var heroAmbientKnown: Boolean by mutableStateOf(false)
     /** Whether "Who's watching?" is open. The avatar, the sidebar and a profile page's Switch profile all set it. */
     var showProfiles: Boolean by mutableStateOf(false)
+
+    /** Whether the first-launch setup covers the app (see `onboarding/OnboardingHost.kt`). */
+    var onboardingVisible: Boolean by mutableStateOf(false)
 
     /** The source picker, if one is open. */
     var sourcePicker: SourcePickerRequest? by mutableStateOf(null)
