@@ -62,6 +62,7 @@ import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.net.attempt
 import com.mediahub.pear.p2p.p2pSource
 import com.mediahub.pear.preview.DevChip
+import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.ContextMenuRequest
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalWideLayout
