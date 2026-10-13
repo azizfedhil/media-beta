@@ -10,19 +10,8 @@ import androidx.compose.ui.input.pointer.pointerInput
  * The back button does what Escape does, so the two keys agree everywhere.
  */
 
-/** Whether the mouse's back button is down for [event]: the platform reads it (see BackButton.desktop.kt). */
-internal expect fun isBackButtonDown(event: PointerEvent): Boolean
-
-/** Tells a press from a hold: [pressed] is true once for each press, on the change from up to down. */
-class BackButtonEdge {
-    private var down = false
-
-    fun pressed(isDown: Boolean): Boolean {
-        val edge = isDown && !down
-        down = isDown
-        return edge
-    }
-}
+/** Whether [event] is the mouse's back button going down. The platform reads it (see BackButton.desktop.kt). */
+internal expect fun isBackButtonPressed(event: PointerEvent): Boolean
 
 /** Back, as Escape does it: a full-screen player leaves full screen first, then the screen goes back. */
 fun backFromMouse(shell: ShellState): Boolean = shell.escapeHook?.invoke() == true || shell.back()
@@ -33,10 +22,9 @@ fun backFromMouse(shell: ShellState): Boolean = shell.escapeHook?.invoke() == tr
  */
 fun Modifier.mouseBack(shell: ShellState): Modifier = pointerInput(shell) {
     awaitPointerEventScope {
-        val edge = BackButtonEdge()
         while (true) {
             val event = awaitPointerEvent(PointerEventPass.Initial)
-            if (edge.pressed(isBackButtonDown(event))) backFromMouse(shell)
+            if (isBackButtonPressed(event)) backFromMouse(shell)
         }
     }
 }

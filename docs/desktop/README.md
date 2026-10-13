@@ -39,3 +39,4 @@ the cargo cache with `Swatinem/rust-cache`. Committing `p2p-core/Cargo.lock` mak
 
 - `BackButton` (4.6c) now reads the back button through AWT (`BackButton.desktop.kt`), the same route as the right-click
   check in `ClicksDesktop.kt`, instead of a Compose pointer API that doesn't exist in this version.
+- `BackButton` (4.6c), second attempt: AWT's `InputEvent` has masks only for buttons 1 to 3, so the held state of button 4 can't be read from the modifiers. The back press is now the `MOUSE_PRESSED` event for button 4, one per click. The edge detector that tracked a held button was removed with it.

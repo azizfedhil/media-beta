@@ -411,7 +411,7 @@ Code: `shared/.../player/KeepAwake.kt` (the interface and `KeepAwakeRules.wanted
 
 ### The mouse back button
 - Pressing the back button (the thumb button, Windows' XButton1) runs the same action as Escape: a full-screen player leaves full screen first, then the screen goes back. So the back button, Escape and Alt+Left all agree.
-- It reads the Initial pass at the shell root, so it sees the press before any screen does, and consumes nothing. A press counts once; holding it does not repeat.
+- It reads the Initial pass at the shell root, so it sees the press before any screen does, and consumes nothing. AWT sends one press event per click, so a hold does not repeat.
 - The forward button does nothing.
 
 ### Check it
@@ -422,4 +422,4 @@ Code: `shared/.../player/KeepAwake.kt` (the interface and `KeepAwakeRules.wanted
 5. Mouse back button in a full-screen player: leaves full screen; the next press closes the player.
 
 ### Not compiled
-As before, no Gradle here. Run `gradle :shared:build` first (new common tests: `KeepAwakeRulesTest`, `WindowMemoryRulesTest`, `BackButtonEdgeTest`; new desktop test: `LinuxKeepAwakeTest`), then `gradle :desktopApp:run`. Check first if the build fails: `PointerButtons.isPressed(PointerButton.Back)` (the back button in Compose's pointer API), the `Double.dp` extension, and the `rememberWindowState` parameter names. The first CI compile also showed the key-property imports and the `matchParentSize`/pointer imports were wrong; those are fixed (see the compile-fix note in `docs/desktop/README.md`).
+As before, no Gradle here. Run `gradle :shared:build` first (new common tests: `KeepAwakeRulesTest`, `WindowMemoryRulesTest`, `BackButtonEdgeTest`; new desktop test: `LinuxKeepAwakeTest`), then `gradle :desktopApp:run`. Check first if the build fails: the back button is read from the AWT event (`BackButton.desktop.kt`, `MOUSE_PRESSED` with button 4), and AWT has no `BUTTON4_DOWN_MASK`. Also the `Double.dp` extension and the `rememberWindowState` parameter names. The first CI compile also showed the key-property imports and the `matchParentSize`/pointer imports were wrong; those are fixed (see the compile-fix note in `docs/desktop/README.md`).
