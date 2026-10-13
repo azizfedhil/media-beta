@@ -271,6 +271,7 @@ fun SettingsScreen(
                         DevChip("Add-ons", false) { onNavigateDeveloperCheck("AddonsCheck") }
                         DevChip("History", false) { onNavigateDeveloperCheck("HistoryCheck") }
                         DevChip("Player", false) { onNavigateDeveloperCheck("PlayerCheck") }
+                        DevChip("P2P", false) { onNavigateDeveloperCheck("P2PCheck") }
                     }
                 }
             }

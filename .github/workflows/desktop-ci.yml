@@ -67,6 +67,10 @@ jobs:
           mkdir -p desktopApp/packaging/resources/linux-x64
           cp -L "$lib" desktopApp/packaging/resources/linux-x64/libmpv.so.2
 
+      # The P2P engine (p2p-core, Rust). The Gradle build compiles it into a shared library and generates its
+      # Kotlin bindings, so cargo must be on the PATH before the build step.
+      - uses: dtolnay/rust-toolchain@stable
+
       # No fallback: a missing libmpv fails the job here, not later in a build without video.
       - name: Build, test, package
         run: gradle :shared:build :desktopApp:createDistributable --console=plain

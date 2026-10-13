@@ -90,6 +90,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
                         "HistoryCheck" -> nav.push(Route.HistoryCheck)
                         "BackupCheck" -> nav.push(Route.BackupCheck)
                         "PlayerCheck" -> nav.push(Route.PlayerCheck)
+                        "P2PCheck" -> nav.push(Route.P2PCheck)
                     }
                 },
             )
@@ -154,6 +155,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.HistoryCheck -> HistoryCheckScreen(env.data, onBack = { nav.pop() })
         Route.BackupCheck -> BackupCheckScreen(env.data, onBack = { nav.pop() })
         Route.PlayerCheck -> PlayerCheckScreen(onBack = { nav.pop() })
+        Route.P2PCheck -> P2PCheckScreen(onBack = { nav.pop() })
     }
 }
 
