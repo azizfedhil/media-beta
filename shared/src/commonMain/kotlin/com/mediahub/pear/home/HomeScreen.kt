@@ -68,6 +68,7 @@ fun HomeScreen(
                         items = model.hero,
                         collapse = fold,
                         onSelectTitle = { onSelectTitle(it, null, null) },
+                        scroll = scroll,
                     )
                 }
                 Box(Modifier.weight(1f).fillMaxHeight()) {
@@ -88,10 +89,11 @@ fun HomeScreen(
         }
     } else {
         // Compact phone layout
+        val scroll = rememberScrollState()
         Box(modifier.fillMaxSize()) {
             Column(
                 Modifier.fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scroll)
                     .padding(bottom = bottomInset + 32.dp),
                 verticalArrangement = Arrangement.spacedBy(26.dp),
             ) {
@@ -99,6 +101,7 @@ fun HomeScreen(
                     HeroCarousel(
                         items = model.hero,
                         onSelectTitle = { onSelectTitle(it, null, null) },
+                        scroll = scroll,
                     )
                 } else {
                     Spacer(Modifier.height(40.dp))

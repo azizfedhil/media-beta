@@ -1,5 +1,13 @@
 package com.mediahub.pear.home
 
+import androidx.compose.ui.geometry.Rect
+import com.mediahub.pear.shell.AppEnv
+import com.mediahub.pear.shell.ContextMenuItem
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
+import com.mediahub.pear.shell.titleMenuItems
 import com.mediahub.pear.shell.WideScale
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.LocalAppEnv
@@ -107,6 +115,19 @@ fun ContinueRow(
                         ContinueCard(
                             entry = e,
                             scale = wideScale,
+                            onMenu = { rect ->
+                                env.shell.openContextMenu(
+                                    ContextMenuRequest(
+                                        rect,
+                                        continueMenuItems(
+                                            env,
+                                            e.item,
+                                            remove = { env.data.history.remove(e.item.id) },
+                                            onDetails = { onSelectTitle(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode) },
+                                        ),
+                                    ),
+                                )
+                            },
                             onClick = { choose(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode, e.episodeTitle, e.thumb) },
                         )
                     }
@@ -115,6 +136,19 @@ fun ContinueRow(
                         UpNextCard(
                             item = n,
                             scale = wideScale,
+                            onMenu = { rect ->
+                                env.shell.openContextMenu(
+                                    ContextMenuRequest(
+                                        rect,
+                                        continueMenuItems(
+                                            env,
+                                            n.item,
+                                            remove = { env.data.history.dismissUpNext(n.item.id) },
+                                            onDetails = { onSelectTitle(n.item, n.season, n.episode) },
+                                        ),
+                                    ),
+                                )
+                            },
                             onClick = { choose(n.item, n.season, n.episode, n.title, n.thumb) },
                         )
                     }
@@ -125,9 +159,10 @@ fun ContinueRow(
 }
 
 @Composable
-private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, scale: Float = 1f) {
+private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f) {
     val width = (260f * scale).dp
     val source = remember { MutableInteractionSource() }
+    val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
     val lift = if (hovered) 1.02f else 1f
     // The text follows the layout, not the hover lift: 20% larger in the wide layout.
@@ -138,7 +173,8 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, scale: Float 
             .graphicsLayer { scaleX = lift; scaleY = lift }
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
+            .menuAnchor(anchor)
+            .clickOrMenu(source, onClick = onClick, onMenu = { onMenu(anchor.rect()) }),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
@@ -178,9 +214,10 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, scale: Float 
 }
 
 @Composable
-private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, scale: Float = 1f) {
+private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f) {
     val width = (260f * scale).dp
     val source = remember { MutableInteractionSource() }
+    val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
     val lift = if (hovered) 1.02f else 1f
     val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
@@ -190,7 +227,8 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, scale: Float = 1f)
             .graphicsLayer { scaleX = lift; scaleY = lift }
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
+            .menuAnchor(anchor)
+            .clickOrMenu(source, onClick = onClick, onMenu = { onMenu(anchor.rect()) }),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
@@ -217,3 +255,14 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, scale: Float = 1f)
         }
     }
 }
+/**
+ * A Continue Watching card's menu (HomeView.swift): take the card off the row, then the title's own menu, as a poster has.
+ */
+private fun continueMenuItems(
+    env: AppEnv,
+    item: MetaPreview,
+    remove: () -> Unit,
+    onDetails: () -> Unit,
+): List<ContextMenuItem> =
+    listOf(ContextMenuItem("Remove from Continue Watching", "xmark.circle", destructive = true) { remove() }) +
+        titleMenuItems(env, item, onDetails)

@@ -1,5 +1,14 @@
 package com.mediahub.pear.home
 
+import androidx.compose.runtime.remember
+import com.mediahub.pear.data.isRowAdded
+import com.mediahub.pear.shell.AppEnv
+import com.mediahub.pear.shell.ContextMenuItem
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,9 +42,12 @@ fun CatalogRowView(
 ) {
     if (row.items.isEmpty()) return
 
+    val env = LocalAppEnv.current
+    val anchor = remember { MenuAnchor() }
+
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
-            Modifier.padding(horizontal = 20.dp).clickable(onClick = onSeeAll),
+            Modifier.padding(horizontal = 20.dp).menuAnchor(anchor).clickOrMenu(null, onClick = onSeeAll, onMenu = { openRowMenu(env, row, anchor) }),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -70,4 +82,22 @@ fun CatalogRowView(
             }
         }
     }
+}
+/**
+ * A row's menu (HideRowMenu in HomeView.swift): hide it from Home, or take an added row off Home. Rows with no key have none.
+ */
+private fun openRowMenu(env: AppEnv, row: CatalogRow, anchor: MenuAnchor) {
+    val key = row.prefKey ?: return
+    val added = env.data.content.rules.isRowAdded(key)
+    env.shell.openContextMenu(
+        ContextMenuRequest(
+            anchor.rect(),
+            listOf(
+                ContextMenuItem(
+                    if (added) "Remove from Home" else "Hide this row",
+                    if (added) "minus.circle" else "eye.slash",
+                ) { env.data.content.setRowHidden(key, true) },
+            ),
+        ),
+    )
 }

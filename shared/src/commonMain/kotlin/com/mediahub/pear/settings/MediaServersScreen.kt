@@ -1,5 +1,11 @@
 package com.mediahub.pear.settings
 
+import androidx.compose.runtime.key
+import com.mediahub.pear.shell.ContextMenuItem
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -72,9 +78,23 @@ fun MediaServersScreen(
             if (store.accounts.isNotEmpty()) {
                 GlassCard(Modifier.fillMaxWidth()) {
                     PearText("Connected servers", style = PearTheme.type.headline)
-                    store.accounts.forEach { account ->
+                    store.accounts.forEach { account -> key(account.id) {
+                        val anchor = remember { MenuAnchor() }
                         Row(
-                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp).menuAnchor(anchor).clickOrMenu(null, onClick = {}, onMenu = {
+                                env.shell.openContextMenu(
+                                    ContextMenuRequest(
+                                        anchor.rect(),
+                                        listOf(
+                                            ContextMenuItem(
+                                                if (account.showOnHome) "Hide from Home" else "Show on Home",
+                                                if (account.showOnHome) "eye.slash" else "eye",
+                                            ) { store.setShowOnHome(account.id, !account.showOnHome) },
+                                            ContextMenuItem("Remove", "trash", destructive = true) { store.remove(account.id) },
+                                        ),
+                                    ),
+                                )
+                            }),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -103,6 +123,7 @@ fun MediaServersScreen(
                                 )
                             }
                         }
+                    }
                     }
                 }
             }

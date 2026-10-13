@@ -1,5 +1,11 @@
 package com.mediahub.pear.settings
 
+import androidx.compose.runtime.key
+import com.mediahub.pear.shell.ContextMenuItem
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -90,10 +96,22 @@ fun AddonsSettingsScreen(
                     }
                 }
 
-                store.addons.forEachIndexed { index, addon ->
+                store.addons.forEachIndexed { index, addon -> key(addon.id) {
+                    val anchor = remember { MenuAnchor() }
                     val isEnabled = store.isEnabled(addon)
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp).menuAnchor(anchor).clickOrMenu(null, onClick = {}, onMenu = {
+                            val items = mutableListOf<ContextMenuItem>()
+                            items += ContextMenuItem(
+                                if (isEnabled) "Turn off" else "Turn on",
+                                if (isEnabled) "pause.circle" else "play.circle",
+                            ) { store.setEnabled(addon, !isEnabled) }
+                            if (addon.isConfigurable) {
+                                items += ContextMenuItem("Configure", "gearshape") { openUrl(addon.configureUrl) }
+                            }
+                            items += ContextMenuItem("Reload", "arrow.clockwise") { store.reload(addon) }
+                            env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), items))
+                        }),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -118,6 +136,7 @@ fun AddonsSettingsScreen(
                             GlassButton(onClick = { scope.launch { store.remove(addon) } }, symbol = "trash", size = 32.dp)
                         }
                     }
+                }
                 }
             }
         }

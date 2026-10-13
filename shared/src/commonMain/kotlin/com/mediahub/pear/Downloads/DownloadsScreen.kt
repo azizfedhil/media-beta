@@ -1,5 +1,12 @@
 package com.mediahub.pear.downloads
 
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import com.mediahub.pear.detail.downloadActions
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,7 +82,7 @@ fun DownloadsScreen(
                     style = PearTheme.type.caption,
                     color = PearTheme.colors.textSecondary,
                 )
-                rows.forEach { DownloadRow(it, env) }
+                rows.forEach { key(it.id) { DownloadRow(it, env) } }
             }
         }
 
@@ -86,7 +93,13 @@ fun DownloadsScreen(
 @Composable
 private fun DownloadRow(r: DownloadRecord, env: AppEnv) {
     val downloads = env.data.downloads
-    GlassCard(Modifier.fillMaxWidth()) {
+    // A right click (or a long press) opens the row's menu, as the iOS row does: pause, resume, retry, delete.
+    val anchor = remember { MenuAnchor() }
+    GlassCard(
+        Modifier.fillMaxWidth().menuAnchor(anchor).clickOrMenu(null, onClick = {}, onMenu = {
+            env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), downloadActions(downloads, r)))
+        }),
+    ) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
