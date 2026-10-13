@@ -13,6 +13,7 @@ import com.mediahub.pear.testing.FakeHttp
 import com.mediahub.pear.testing.reply
 import com.mediahub.pear.testing.tmdbRouter
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
