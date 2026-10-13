@@ -49,6 +49,39 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.launch
+import com.mediahub.pear.shell.SettingsGroup
+import com.mediahub.pear.shell.SettingsRow
+import com.mediahub.pear.shell.SettingsDivider
+import com.mediahub.pear.shell.PearSwitch
+import com.mediahub.pear.shell.PearStepper
+import com.mediahub.pear.shell.SegmentedControl
+import com.mediahub.pear.shell.ChipFlow
+import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.shell.PearButtonStyle
+import com.mediahub.pear.glass.FlatSheet
+import com.mediahub.pear.shell.LocalWideLayout
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.semantics.Role
+import com.mediahub.pear.theme.PearMotion
+
+/** The Settings sections. The wide layout shows one at a time beside a rail; the phone layout shows them all in one column. */
+private enum class SettingsSection(val title: String) {
+    Library("Library"),
+    Appearance("Appearance"),
+    Playback("Playback"),
+    PeerToPeer("Peer-to-peer"),
+    Backup("Backup"),
+    Developer("Developer tools"),
+    About("About"),
+}
 
 @Composable
 fun SettingsScreen(
@@ -66,6 +99,7 @@ fun SettingsScreen(
     val prefs = env.data.prefs
     val theme = env.theme
     val bottomInset = LocalBottomInset.current
+    val wide = LocalWideLayout.current
 
     var networkBadges by remember { mutableStateOf(prefs.bool(PrefKeys.UI_NETWORK_BADGES, true)) }
     var titleLogos by remember { mutableStateOf(prefs.bool(PrefKeys.UI_TITLE_LOGOS, true)) }
@@ -83,193 +117,226 @@ fun SettingsScreen(
     var includeData by remember { mutableStateOf(false) }
     var backupStatus by remember { mutableStateOf<String?>(null) }
     var showP2PDialog by remember { mutableStateOf(false) }
+    var section by remember { mutableStateOf(SettingsSection.Appearance) }
+    val shown = SettingsSection.entries.filter { it != SettingsSection.Developer || env.devTools }
 
-    Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(top = 92.dp, bottom = bottomInset + 32.dp)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            // Navigation Links Card
-            GlassCard(Modifier.fillMaxWidth()) {
-                SettingNavLink("Integrations", "puzzlepiece.extension.fill", onNavigateIntegrations)
-                SettingNavLink("Add-ons", "square.stack.3d.up.fill", onNavigateAddons)
-                SettingNavLink("Content & catalogues", "line.3.horizontal.decrease.circle.fill", onNavigateContent)
-            }
-
-            // Library Source Card
-            GlassCard(Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PearIcon("books.vertical.fill", size = 18.dp, tint = PearTheme.colors.accent)
-                    PearText("Library", style = PearTheme.type.headline)
-                }
-                LibrarySourceControls()
-            }
-
-            // Appearance Card
-            GlassCard(Modifier.fillMaxWidth()) {
-                PearText("Appearance", style = PearTheme.type.headline)
-
-                PearText("Accent colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Accents.presets.forEach { p ->
-                        val col = Accents.parseHex(p.hex) ?: Color.Gray
-                        Box(
-                            Modifier.size(34.dp).clip(CircleShape).background(col)
-                                .clickable { theme.setAccent(p.hex) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (theme.accentHex.equals(p.hex, ignoreCase = true)) {
-                                PearIcon("checkmark", size = 16.dp, tint = Accents.contrastingForeground(col))
-                            }
-                        }
+    // One section's groups. The wide pane shows one of these; the phone layout shows them all in turn.
+    @Composable
+    fun Body(which: SettingsSection) {
+        when (which) {
+            SettingsSection.Library -> SettingsGroup {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PearIcon("books.vertical.fill", size = 18.dp, tint = PearTheme.colors.accent)
+                        PearText("Library", style = PearTheme.type.headline)
                     }
-                    Box(
-                        Modifier.size(34.dp).clip(CircleShape).background(Color.White).border(1.dp, Color.Gray, CircleShape)
-                            .clickable { theme.setAccent(Accents.SYSTEM) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (theme.isSystemAccent) {
-                            PearIcon("checkmark", size = 16.dp, tint = Color.Black)
-                        }
-                    }
-                }
-
-                SettingToggleRow("Network icons on posters", networkBadges) {
-                    networkBadges = it
-                    prefs.setBool(PrefKeys.UI_NETWORK_BADGES, it)
-                }
-                SettingToggleRow("Logos instead of title text", titleLogos) {
-                    titleLogos = it
-                    prefs.setBool(PrefKeys.UI_TITLE_LOGOS, it)
-                }
-
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    PearText("Layout override", style = PearTheme.type.subheadline)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        LayoutOverride.entries.forEach { o ->
-                            DevChip(o.label, env.shell.layoutOverride == o) { env.shell.layoutOverride = o }
-                        }
-                    }
+                    LibrarySourceControls()
                 }
             }
 
-            // Playback Options Card
-            GlassCard(Modifier.fillMaxWidth()) {
-                PearText("Playback", style = PearTheme.type.headline)
-                SettingNavLink("Subtitles", "captions.bubble", onNavigateSubtitles)
-                SettingNavLink("Player controls", "slider.horizontal.3", onNavigatePlayerControls)
-                SettingToggleRow("Liquid Glass controls", playerGlass) {
-                    playerGlass = it
-                    prefs.setBool(PrefKeys.PLAYER_GLASS, it)
-                }
-                if (playerGlass) {
-                    SettingToggleRow("Blur controls while playing", playerBlurPlaying) {
-                        playerBlurPlaying = it
-                        prefs.setBool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, it)
-                    }
-                }
-                SettingToggleRow("Autoplay next episode", autoplayNext) {
-                    autoplayNext = it
-                    prefs.setBool(PrefKeys.PLAYER_AUTOPLAY_NEXT, it)
-                }
-                SettingToggleRow("Picture in Picture", pipEnabled) {
-                    pipEnabled = it
-                    prefs.setBool(PrefKeys.PLAYER_PIP, it)
-                }
-                SettingToggleRow("Skip intro / recap / credits", skipEnabled) {
-                    skipEnabled = it
-                    prefs.setBool(PrefKeys.SKIP_ENABLED, it)
-                }
-                if (skipEnabled) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        PearText(
-                            text = if (fallbackSkip == 0) "Manual skip button: off" else "Manual skip button: ${fallbackSkip}s",
-                            style = PearTheme.type.subheadline,
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            DevChip("-5s", false) {
-                                fallbackSkip = maxOf(0, fallbackSkip - 5)
-                                prefs.setInt(PrefKeys.SKIP_FALLBACK_SECONDS, fallbackSkip)
-                            }
-                            DevChip("+5s", false) {
-                                fallbackSkip = minOf(180, fallbackSkip + 5)
-                                prefs.setInt(PrefKeys.SKIP_FALLBACK_SECONDS, fallbackSkip)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Peer-to-Peer Card
-            GlassCard(Modifier.fillMaxWidth()) {
-                PearText("Peer-to-peer", style = PearTheme.type.headline)
-                SettingToggleRow("Peer-to-peer streams", p2pEnabled) { on ->
-                    // Off is the killswitch: torrent sources stop being playable and any engine stops, at once.
-                    if (on) showP2PDialog = true else p2p.setEnabled(false)
-                }
-                if (p2pEnabled) {
-                    SettingToggleRow("Wi-Fi only", p2pWifiOnly) { p2p.setWifiOnly(it) }
-                    PearText(
-                        "On this computer Pear can't tell Wi-Fi from a hotspot or a metered link, so Wi-Fi only doesn't " +
-                            "limit P2P here.",
-                        style = PearTheme.type.caption,
-                        color = PearTheme.colors.textTertiary,
-                    )
-                }
-                PearText(
-                    "Off by default. When off, torrent sources are listed but can't be played, and no P2P connection " +
-                        "or engine runs.",
-                    style = PearTheme.type.caption,
-                    color = PearTheme.colors.textSecondary,
-                )
-            }
-
-            // Backup Card
-            GlassCard(Modifier.fillMaxWidth()) {
-                PearText("Backup", style = PearTheme.type.headline)
-                SettingToggleRow("Include watch history & library", includeData) { includeData = it }
-
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DevChip("Copy to clipboard", false) {
-                        val json = SettingsBackup.exportJson(prefs, includeData)
-                        com.mediahub.pear.data.DesktopClipboard.copy(json)
-                        backupStatus = "Copied settings to clipboard."
-                    }
-                    DevChip("Paste from clipboard", false) {
-                        val text = com.mediahub.pear.data.DesktopClipboard.paste()
-                        if (!text.isNullOrBlank()) {
-                            scope.launch {
-                                try {
-                                    val n = SettingsBackup.applyBackup(text, env.data, theme)
-                                    backupStatus = "Imported $n settings."
-                                } catch (e: Exception) {
-                                    backupStatus = "Import failed: ${e.message}"
+            SettingsSection.Appearance -> SettingsGroup(title = "Appearance") {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PearText("Accent colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+                    ChipFlow {
+                        Accents.presets.forEach { p ->
+                            val col = Accents.parseHex(p.hex) ?: Color.Gray
+                            Box(
+                                Modifier.size(34.dp).clip(CircleShape).background(col).clickable { theme.setAccent(p.hex) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (theme.accentHex.equals(p.hex, ignoreCase = true)) {
+                                    PearIcon("checkmark", size = 16.dp, tint = Accents.contrastingForeground(col))
                                 }
                             }
-                        } else {
-                            backupStatus = "Clipboard is empty."
+                        }
+                        Box(
+                            Modifier.size(34.dp).clip(CircleShape).background(Color.White).border(1.dp, Color.Gray, CircleShape)
+                                .clickable { theme.setAccent(Accents.SYSTEM) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (theme.isSystemAccent) PearIcon("checkmark", size = 16.dp, tint = Color.Black)
                         }
                     }
                 }
-
-                backupStatus?.let {
-                    PearText(it, style = PearTheme.type.caption, color = PearTheme.colors.accent)
+                SettingsDivider()
+                SettingsRow(
+                    title = "Network icons on posters",
+                    trailing = {
+                        PearSwitch(checked = networkBadges, onCheckedChange = {
+                            networkBadges = it
+                            prefs.setBool(PrefKeys.UI_NETWORK_BADGES, it)
+                        })
+                    },
+                )
+                SettingsDivider()
+                SettingsRow(
+                    title = "Logos instead of title text",
+                    trailing = {
+                        PearSwitch(checked = titleLogos, onCheckedChange = {
+                            titleLogos = it
+                            prefs.setBool(PrefKeys.UI_TITLE_LOGOS, it)
+                        })
+                    },
+                )
+                SettingsDivider()
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PearText("Layout override", style = PearTheme.type.subheadline)
+                    val options = LayoutOverride.entries
+                    SegmentedControl(
+                        labels = options.map { it.label },
+                        selectedIndex = options.indexOf(env.shell.layoutOverride),
+                        onSelect = { env.shell.layoutOverride = options[it] },
+                    )
                 }
             }
 
-            // Developer Gallery / Checks
-            if (env.devTools) {
-                GlassCard(Modifier.fillMaxWidth()) {
-                    PearText("Developer tools", style = PearTheme.type.headline)
+            SettingsSection.Playback -> SettingsGroup(title = "Playback") {
+                SettingsRow(title = "Subtitles", onClick = onNavigateSubtitles, trailing = { SettingsChevron() })
+                SettingsDivider()
+                SettingsRow(title = "Player controls", onClick = onNavigatePlayerControls, trailing = { SettingsChevron() })
+                SettingsDivider()
+                SettingsRow(
+                    title = "Liquid Glass controls",
+                    trailing = {
+                        PearSwitch(checked = playerGlass, onCheckedChange = {
+                            playerGlass = it
+                            prefs.setBool(PrefKeys.PLAYER_GLASS, it)
+                        })
+                    },
+                )
+                if (playerGlass) {
+                    SettingsDivider()
+                    SettingsRow(
+                        title = "Blur controls while playing",
+                        trailing = {
+                            PearSwitch(checked = playerBlurPlaying, onCheckedChange = {
+                                playerBlurPlaying = it
+                                prefs.setBool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, it)
+                            })
+                        },
+                    )
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title = "Autoplay next episode",
+                    trailing = {
+                        PearSwitch(checked = autoplayNext, onCheckedChange = {
+                            autoplayNext = it
+                            prefs.setBool(PrefKeys.PLAYER_AUTOPLAY_NEXT, it)
+                        })
+                    },
+                )
+                SettingsDivider()
+                SettingsRow(
+                    title = "Picture in Picture",
+                    trailing = {
+                        PearSwitch(checked = pipEnabled, onCheckedChange = {
+                            pipEnabled = it
+                            prefs.setBool(PrefKeys.PLAYER_PIP, it)
+                        })
+                    },
+                )
+                SettingsDivider()
+                SettingsRow(
+                    title = "Skip intro / recap / credits",
+                    trailing = {
+                        PearSwitch(checked = skipEnabled, onCheckedChange = {
+                            skipEnabled = it
+                            prefs.setBool(PrefKeys.SKIP_ENABLED, it)
+                        })
+                    },
+                )
+                if (skipEnabled) {
+                    SettingsDivider()
+                    SettingsRow(
+                        title = "Manual skip button",
+                        subtitle = if (fallbackSkip == 0) "Off" else "$fallbackSkip seconds",
+                        trailing = {
+                            PearStepper(
+                                onMinus = {
+                                    fallbackSkip = maxOf(0, fallbackSkip - 5)
+                                    prefs.setInt(PrefKeys.SKIP_FALLBACK_SECONDS, fallbackSkip)
+                                },
+                                onPlus = {
+                                    fallbackSkip = minOf(180, fallbackSkip + 5)
+                                    prefs.setInt(PrefKeys.SKIP_FALLBACK_SECONDS, fallbackSkip)
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+
+            SettingsSection.PeerToPeer -> SettingsGroup(
+                title = "Peer-to-peer",
+                footer = "Off by default. When off, torrent sources are listed but can't be played, and no P2P connection or engine runs.",
+            ) {
+                SettingsRow(
+                    title = "Peer-to-peer streams",
+                    trailing = {
+                        PearSwitch(checked = p2pEnabled, onCheckedChange = { on ->
+                            // Off is the killswitch: torrent sources stop being playable and any engine stops, at once.
+                            if (on) showP2PDialog = true else p2p.setEnabled(false)
+                        })
+                    },
+                )
+                if (p2pEnabled) {
+                    SettingsDivider()
+                    SettingsRow(
+                        title = "Wi-Fi only",
+                        subtitle = "On this computer Pear can't tell Wi-Fi from a hotspot or a metered link, so Wi-Fi only doesn't limit P2P here.",
+                        trailing = { PearSwitch(checked = p2pWifiOnly, onCheckedChange = { p2p.setWifiOnly(it) }) },
+                    )
+                }
+            }
+
+            SettingsSection.Backup -> SettingsGroup(title = "Backup") {
+                SettingsRow(
+                    title = "Include watch history & library",
+                    trailing = { PearSwitch(checked = includeData, onCheckedChange = { includeData = it }) },
+                )
+                SettingsDivider()
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PearCapsuleButton(
+                            label = "Copy to clipboard",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val json = SettingsBackup.exportJson(prefs, includeData)
+                                com.mediahub.pear.data.DesktopClipboard.copy(json)
+                                backupStatus = "Copied settings to clipboard."
+                            },
+                        )
+                        PearCapsuleButton(
+                            label = "Paste from clipboard",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val text = com.mediahub.pear.data.DesktopClipboard.paste()
+                                if (!text.isNullOrBlank()) {
+                                    scope.launch {
+                                        try {
+                                            val n = SettingsBackup.applyBackup(text, env.data, theme)
+                                            backupStatus = "Imported $n settings."
+                                        } catch (e: Exception) {
+                                            backupStatus = "Import failed: ${e.message}"
+                                        }
+                                    }
+                                } else {
+                                    backupStatus = "Clipboard is empty."
+                                }
+                            },
+                        )
+                    }
+                    backupStatus?.let { PearText(it, style = PearTheme.type.caption, color = PearTheme.colors.accent) }
+                }
+            }
+
+            SettingsSection.Developer -> SettingsGroup(title = "Developer tools") {
+                Column(Modifier.padding(16.dp)) {
+                    ChipFlow {
                         DevChip("Theme preview", false) { onNavigateDeveloperCheck("ThemePreview") }
                         DevChip("Glass gallery", false) { onNavigateDeveloperCheck("GlassGallery") }
                         DevChip("Backup check", false) { onNavigateDeveloperCheck("BackupCheck") }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DevChip("Storage", false) { onNavigateDeveloperCheck("StorageCheck") }
                         DevChip("Metadata", false) { onNavigateDeveloperCheck("MetadataCheck") }
                         DevChip("Add-ons", false) { onNavigateDeveloperCheck("AddonsCheck") }
@@ -280,24 +347,77 @@ fun SettingsScreen(
                 }
             }
 
-            // About Screen Link
-            GlassCard(Modifier.fillMaxWidth(), onClick = onNavigateAbout) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PearIcon("info.circle.fill", size = 18.dp, tint = PearTheme.colors.accent)
-                        PearText("About", style = PearTheme.type.headline)
-                    }
-                    PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
-                }
+            SettingsSection.About -> SettingsGroup {
+                SettingsRow(title = "About", onClick = onNavigateAbout, trailing = { SettingsChevron() })
             }
         }
+    }
 
-        GlassTopBar(title = "Settings", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp))
+    Box(modifier.fillMaxSize()) {
+        if (wide) {
+            Row(
+                Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = bottomInset + 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(32.dp),
+            ) {
+                Column(
+                    Modifier.width(220.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    PearText(
+                        "Shortcuts",
+                        style = PearTheme.type.caption.weight(FontWeight.SemiBold),
+                        color = PearTheme.colors.textTertiary,
+                        modifier = Modifier.padding(start = 12.dp, bottom = 4.dp),
+                    )
+                    SettingsRailItem("Integrations", selected = false, onClick = onNavigateIntegrations)
+                    SettingsRailItem("Add-ons", selected = false, onClick = onNavigateAddons)
+                    SettingsRailItem("Content & catalogues", selected = false, onClick = onNavigateContent)
+                    Spacer(Modifier.height(16.dp))
+                    PearText(
+                        "Settings",
+                        style = PearTheme.type.caption.weight(FontWeight.SemiBold),
+                        color = PearTheme.colors.textTertiary,
+                        modifier = Modifier.padding(start = 12.dp, bottom = 4.dp),
+                    )
+                    shown.forEach { s -> SettingsRailItem(s.title, selected = section == s, onClick = { section = s }) }
+                }
+                Box(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                    Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Body(section)
+                    }
+                }
+            }
+        } else {
+            Column(
+                Modifier.fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = 92.dp, bottom = bottomInset + 32.dp)
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                SettingsGroup {
+                    SettingsRow(title = "Integrations", onClick = onNavigateIntegrations, trailing = { SettingsChevron() })
+                    SettingsDivider()
+                    SettingsRow(title = "Add-ons", onClick = onNavigateAddons, trailing = { SettingsChevron() })
+                    SettingsDivider()
+                    SettingsRow(title = "Content & catalogues", onClick = onNavigateContent, trailing = { SettingsChevron() })
+                }
+                shown.forEach { Body(it) }
+            }
+            GlassTopBar(title = "Settings", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp))
+        }
 
-        // P2P Confirmation Dialog
+        // P2P confirmation: a flat card over a scrim (not glass on glass). Taps on the card don't reach the scrim.
         if (showP2PDialog) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showP2PDialog = false }, contentAlignment = Alignment.Center) {
-                GlassCard(Modifier.width(360.dp)) {
+            val swallow = remember { MutableInteractionSource() }
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showP2PDialog = false },
+                contentAlignment = Alignment.Center,
+            ) {
+                FlatSheet(
+                    Modifier.width(360.dp).clickable(interactionSource = swallow, indication = null) {},
+                    floating = true,
+                ) {
                     PearText("Enable peer-to-peer?", style = PearTheme.type.title3.weight(FontWeight.Bold))
                     PearText(
                         "Torrent streams connect directly to other peers, exposing your IP address to the swarm. Nothing runs until you play a torrent stream.",
@@ -305,18 +425,14 @@ fun SettingsScreen(
                         color = PearTheme.colors.textSecondary,
                     )
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GlassButton(
-                            onClick = { showP2PDialog = false },
-                            label = "Cancel",
-                            modifier = Modifier.weight(1f),
-                        )
-                        GlassButton(
+                        PearCapsuleButton(label = "Cancel", onClick = { showP2PDialog = false }, modifier = Modifier.weight(1f))
+                        PearCapsuleButton(
+                            label = "Enable",
+                            style = PearButtonStyle.Accent,
                             onClick = {
                                 p2p.setEnabled(true)
                                 showP2PDialog = false
                             },
-                            label = "Enable",
-                            tint = PearTheme.colors.accent,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -326,29 +442,36 @@ fun SettingsScreen(
     }
 }
 
+/** One destination in the wide Settings rail: the selected one is lifted, the others take a hover fill. */
 @Composable
-private fun SettingNavLink(title: String, symbol: String, onClick: () -> Unit) {
+private fun SettingsRailItem(title: String, selected: Boolean, onClick: () -> Unit) {
+    val c = PearTheme.colors
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    val fill by animateColorAsState(
+        when {
+            selected -> c.fill
+            hovered -> c.fillSubtle
+            else -> Color.Transparent
+        },
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(PearRadii.md)).background(fill)
+            .hoverable(source).pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = source, indication = null, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PearIcon(symbol, size = 18.dp, tint = PearTheme.colors.accent)
-            PearText(title, style = PearTheme.type.subheadline.weight(FontWeight.Medium))
-        }
-        PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
+        PearText(
+            title,
+            style = PearTheme.type.subheadline.weight(if (selected) FontWeight.SemiBold else FontWeight.Medium),
+            color = if (selected) c.textPrimary else c.textSecondary,
+            maxLines = 1,
+        )
     }
 }
 
 @Composable
-private fun SettingToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PearText(label, style = PearTheme.type.subheadline)
-        DevChip(if (checked) "ON" else "OFF", checked) { onCheckedChange(!checked) }
-    }
+private fun SettingsChevron() {
+    PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
 }

@@ -131,3 +131,10 @@ Run `gradle :shared:build` first (new common test: `WindowMemoryRulesTest`), the
 
 - `AmbientTuning.WIDE_REACH_DP` (900 dp) and `WIDE_REACH_ALPHA` (0.35) add a horizontal fade from the feed's left edge, so the glow reaches further right than the iOS glow alone. The vertical glow is unchanged. Change the two numbers to tune the reach.
 - The page colour stays `#09090B`. The navy in the mockup is the poster's glow, not the page colour.
+
+## Settings layout (Track E)
+
+- **Wide.** A rail (220 dp) and one pane (up to 720 dp). The rail has three shortcuts that open their own pages (Integrations, Add-ons, Content & catalogues), then the sections: Library, Appearance, Playback, Peer-to-peer, Backup, Developer tools (only with dev tools on) and About. The pane shows one section at a time.
+- **Phone.** The same sections in one column under the top bar, as before.
+- **Controls.** Toggles are `PearSwitch` on `SettingsRow`s, inside `SettingsGroup`s with `SettingsDivider`s between rows. The layout override is a `SegmentedControl`. Swatches and dev chips wrap in a `ChipFlow`. The manual skip button is a `PearStepper`. The P2P confirmation is a `FlatSheet`.
+- **Not changed.** `library/LibrarySourceControls.kt` (Track E lists it, but its chip layout is unchanged in this pass) and every preference key, so settings still save and load as before.
