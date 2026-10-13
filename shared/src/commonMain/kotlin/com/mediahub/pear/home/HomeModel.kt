@@ -20,6 +20,7 @@ import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.net.attempt
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -61,16 +62,17 @@ class HomeModel(private val data: AppData) {
             val suggestionsJob = async { loadSuggestions(rules) }
             val rowsJob = async { loadAddonRows(rules) }
             val upNextJob = async { loadUpNext() }
-            val themesJob = async { loadThemes(rules) }
+            // Add-on enrichment of the theme rows is started in this scope and is not waited for below: it can finish
+            // after Home has stopped loading, and is cancelled with the rest when the profile changes.
+            val themesJob = async { loadThemes(rules, this@coroutineScope) }
 
             suggestionsJob.await()
             rowsJob.await()
             upNextJob.await()
             themesJob.await()
+            updateHero()
+            isLoading = false
         }
-
-        updateHero()
-        isLoading = false
     }
 
     private suspend fun loadSuggestions(rules: ContentRules) {
@@ -157,14 +159,18 @@ class HomeModel(private val data: AppData) {
         upNext = resolved
     }
 
-    private suspend fun loadThemes(rules: ContentRules) {
-        themes = ThemeCatalog.load(
+    /** Returns once the rows have loaded; the add-on's enrichment carries on in [enrichScope]. */
+    private suspend fun loadThemes(rules: ContentRules, enrichScope: CoroutineScope) {
+        ThemeCatalog.loadProgressive(
             tmdb = data.meta.tmdb,
             count = ThemeCatalog.HOME_CANDIDATES,
             dayNumber = heroDay,
             rules = rules,
+            http = data.network.http,
             enrichWith = data.addons.enrichmentAddon,
             addonClient = data.addonClient,
+            enrichScope = enrichScope,
+            update = { themes = it },
         )
     }
 

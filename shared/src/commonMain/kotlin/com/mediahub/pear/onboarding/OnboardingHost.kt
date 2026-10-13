@@ -77,39 +77,41 @@ internal class OnboardingDraft(private val env: AppEnv) {
             simklIdentity = if (simklActive) true else null,
         )
 
-    fun setName(typed: String) {
+    // Named `update*` rather than `set*`: a `setName(String)` function clashes with the
+    // JVM setter generated for the `name` property (platform declaration clash).
+    fun updateName(typed: String) {
         name = OnboardingRules.clampName(typed)
     }
 
-    fun setCustomHex(typed: String) {
+    fun updateCustomHex(typed: String) {
         val v = typed.trim()
         customHex = v
         val digits = if (v.startsWith("#")) v.drop(1) else v
         if (digits.length == 6 && Accents.parseHex(v) != null) env.theme.setAccent(v)
     }
 
-    fun setTmdbKey(typed: String) {
+    fun updateTmdbKey(typed: String) {
         tmdbKey = typed
         prefs.setString(PrefKeys.TMDB_KEY, typed.trim())
     }
 
-    fun setTvdbKey(typed: String) {
+    fun updateTvdbKey(typed: String) {
         tvdbKey = typed
         prefs.setString(PrefKeys.TVDB_KEY, typed.trim())
     }
 
-    fun setTvdbPin(typed: String) {
+    fun updateTvdbPin(typed: String) {
         tvdbPin = typed
         prefs.setString(PrefKeys.TVDB_PIN, typed.trim())
     }
 
-    fun setMdbKey(typed: String) {
+    fun updateMdbKey(typed: String) {
         mdbKey = typed
         prefs.setString(PrefKeys.MDBLIST_KEY, typed.trim())
     }
 
     /** Switching the own key off removes it, so the built-in one is the one that gets used. */
-    fun setOwnTmdb(on: Boolean) {
+    fun updateOwnTmdb(on: Boolean) {
         ownTmdb = on
         if (!on) {
             tmdbKey = ""

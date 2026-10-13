@@ -1,10 +1,23 @@
 package com.mediahub.pear.meta
 
 import com.mediahub.pear.addons.AddonClient
+import com.mediahub.pear.addons.MetaExtras
 import com.mediahub.pear.data.ContentRules
 import com.mediahub.pear.data.isRowHidden
+import com.mediahub.pear.glass.PowerStatus
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.ThemedTitle
+import com.mediahub.pear.net.Http
+import com.mediahub.pear.net.attempt
+import com.mediahub.pear.net.loadRemoteBitmap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 
 /** Editorial theme collection metadata (spec: `Themerows.swift`). */
 data class ThemeDef(
@@ -105,6 +118,10 @@ object ThemeCatalog {
         return picked
     }
 
+    /**
+     * The rows as TMDB has them, with no add-on involved. This is phase 1 of [loadProgressive] on its own, for callers
+     * that want the whole list at once. Home and Explore use [loadProgressive].
+     */
     suspend fun load(
         tmdb: TmdbClient,
         count: Int,
@@ -113,30 +130,192 @@ object ThemeCatalog {
         show: Int = HOME_ROWS,
         rules: ContentRules = ContentRules(),
         dayNumber: Int,
-        enrichWith: Addon? = null,
-        addonClient: AddonClient? = null,
     ): List<ThemeRow> {
         if (!tmdb.hasKey || rules.isRowHidden("builtin:themes")) return emptyList()
+        val done = ThemeLoader.loadRows(
+            candidates = today(count, offset, dayNumber),
+            show = show,
+            fetch = { themedTitles(tmdb, it, limit, rules) },
+            update = {},
+        )
+        return ThemeLoader.visible(done, show)
+    }
 
-        val candidates = today(count, offset, dayNumber)
-        val loaded = ArrayList<ThemeRow>()
+    /**
+     * Loads the theme rows for Home or Explore and reports them through [update] as they land (spec: `ThemeCatalog.load`).
+     *
+     * Phase 1 fetches every candidate from TMDB at once; this function returns when that is done, so the rows never wait
+     * for the add-on. Phase 2 is the add-on enrichment ([ThemeEnrichment]): it runs in [enrichScope], which the caller
+     * owns, and reports changed rows as they land. It is skipped without an add-on, and in Low Power Mode, where the
+     * decorative extras aren't worth the requests.
+     */
+    suspend fun loadProgressive(
+        tmdb: TmdbClient,
+        count: Int,
+        offset: Int = 0,
+        limit: Int = 8,
+        show: Int = HOME_ROWS,
+        rules: ContentRules = ContentRules(),
+        dayNumber: Int,
+        http: Http,
+        enrichWith: Addon? = null,
+        addonClient: AddonClient? = null,
+        enrichScope: CoroutineScope,
+        lowPower: () -> Boolean = { PowerStatus.lowBattery },
+        update: (List<ThemeRow>) -> Unit,
+    ) {
+        if (!tmdb.hasKey || rules.isRowHidden("builtin:themes")) {
+            update(emptyList())
+            return
+        }
+        val done = ThemeLoader.loadRows(
+            candidates = today(count, offset, dayNumber),
+            show = show,
+            fetch = { themedTitles(tmdb, it, limit, rules) },
+            update = update,
+        )
 
-        for (t in candidates) {
-            val items = tmdb.themed(keywords = t.keywords, language = t.language, limit = limit, rules = rules)
-            if (items.size >= 3) {
-                var rowItems = items
-                if (enrichWith != null && addonClient != null) {
-                    rowItems = items.map { title ->
-                        val extras = addonClient.metaExtras(enrichWith, title.item.type, title.item.id)
-                        val logo = extras.logo ?: title.item.logo
-                        val genres = extras.genres.takeIf { it.isNotEmpty() }?.take(2) ?: title.genres
-                        ThemedTitle(title.item.withLogo(logo), genres)
-                    }
+        val addon = enrichWith ?: return
+        val client = addonClient ?: return
+        if (lowPower()) return
+        val lookups = ThemeEnrichment.Lookups(
+            provides = { type, id -> addon.provides("meta", type, id) },
+            metaExtras = { type, id -> client.metaExtras(addon, type, id) },
+            imdbId = { tmdbId, type -> tmdb.imdbId(tmdbId, type) },
+            logoLoads = { url -> loadRemoteBitmap(http, url) != null },
+        )
+        enrichScope.launch {
+            ThemeLoader.enrichRows(
+                done = done,
+                show = show,
+                enrich = { row -> ThemeEnrichment.enrich(row, lookups) },
+                update = update,
+            )
+        }
+    }
+
+    private suspend fun themedTitles(tmdb: TmdbClient, theme: ThemeDef, limit: Int, rules: ContentRules): List<ThemedTitle> =
+        tmdb.themed(keywords = theme.keywords, language = theme.language, limit = limit, rules = rules)
+}
+
+// Theme loading in its two phases. TMDB and add-on calls arrive as parameters, so the rules are unit-tested directly.
+
+/** The phases behind [ThemeCatalog.loadProgressive]. */
+internal object ThemeLoader {
+    /** A theme needs this many titles to make a row. */
+    private const val MIN_TITLES = 3
+
+    /**
+     * Phase 1. Fetches every candidate at once and reports the rows to show after each one lands, in theme order. A theme
+     * that fails, or has too few titles, is skipped. Returns the rows found, keyed by theme index, for phase 2.
+     */
+    suspend fun loadRows(
+        candidates: List<ThemeDef>,
+        show: Int,
+        fetch: suspend (ThemeDef) -> List<ThemedTitle>,
+        update: (List<ThemeRow>) -> Unit,
+    ): MutableMap<Int, ThemeRow> {
+        val done = HashMap<Int, ThemeRow>()
+        coroutineScope {
+            val landed = Channel<Pair<Int, ThemeRow?>>(Channel.UNLIMITED)
+            candidates.forEachIndexed { index, theme ->
+                launch {
+                    val items = attempt { fetch(theme) } ?: emptyList()
+                    val row = items.takeIf { it.size >= MIN_TITLES }?.let { ThemeRow("theme-${theme.title}", theme.title, it) }
+                    landed.send(index to row)
                 }
-                loaded.add(ThemeRow("theme-${t.title}", t.title, rowItems))
-                if (loaded.size >= show) break
+            }
+            repeat(candidates.size) {
+                val (index, row) = landed.receive()
+                if (row != null) {
+                    done[index] = row
+                    update(visible(done, show))
+                }
             }
         }
-        return loaded
+        update(visible(done, show))
+        return done
+    }
+
+    /** The first [show] rows that have data, in theme order. */
+    fun visible(done: Map<Int, ThemeRow>, show: Int): List<ThemeRow> =
+        done.keys.sorted().take(show).map { done.getValue(it) }
+
+    /**
+     * Phase 2. Enriches the shown rows (the first [show] in [done]) concurrently, and reports each row as its enrichment
+     * lands, but only when something in it changed. Runs after phase 1, so nothing else is writing to [done].
+     */
+    suspend fun enrichRows(
+        done: MutableMap<Int, ThemeRow>,
+        show: Int,
+        enrich: suspend (ThemeRow) -> ThemeRow,
+        update: (List<ThemeRow>) -> Unit,
+    ) {
+        val shown = done.keys.sorted().take(show)
+        coroutineScope {
+            val enriched = Channel<Pair<Int, ThemeRow>>(Channel.UNLIMITED)
+            for (index in shown) {
+                val row = done.getValue(index)
+                launch { enriched.send(index to enrich(row)) }
+            }
+            repeat(shown.size) {
+                val (index, row) = enriched.receive()
+                currentCoroutineContext().ensureActive()
+                if (row != done.getValue(index)) {
+                    done[index] = row
+                    update(visible(done, show))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Fills theme rows with what the user's AIOMetadata add-on knows about each title (spec: `ThemeEnrichment`).
+ *
+ * - Genres under the logo come from the add-on's first two, so they match the rest of its metadata. Without any, TMDB's
+ *   stay.
+ * - The title logo is the add-on's, but only if that image really loads, so a dead address can't hide the TMDB logo. It
+ *   takes priority over the TMDB / TVDB logo for this session. It is never saved anywhere.
+ * - Only the first [LIMIT] titles of a row are looked up. A title the add-on doesn't know, or whose lookup fails, keeps its
+ *   TMDB data.
+ *
+ * The network calls come in through [Lookups], so the rules can be tested without a network.
+ */
+internal object ThemeEnrichment {
+    const val LIMIT = 8
+    private const val GENRES = 2
+
+    /** The calls enrichment makes. Each one may fail; a failure leaves that title as it was. */
+    class Lookups(
+        /** Whether the add-on serves `meta` for this title (`Addon.provides("meta", ...)`). */
+        val provides: (type: String, id: String) -> Boolean,
+        /** The add-on's genres and logo for a title, or [MetaExtras.Empty]. */
+        val metaExtras: suspend (type: String, id: String) -> MetaExtras,
+        /** The IMDb id of a TMDB title, or null when TMDB doesn't know it. */
+        val imdbId: suspend (tmdbId: Int, type: String) -> String?,
+        /** Whether the image at this address loads. */
+        val logoLoads: suspend (url: String) -> Boolean,
+    )
+
+    /** The row with its first [LIMIT] titles enriched, looked up concurrently. Titles past the limit are untouched. */
+    suspend fun enrich(row: ThemeRow, lookups: Lookups): ThemeRow = coroutineScope {
+        val head = row.items.take(LIMIT).map { title -> async { enrichTitle(title, lookups) } }.awaitAll()
+        row.copy(items = head + row.items.drop(LIMIT))
+    }
+
+    private suspend fun enrichTitle(title: ThemedTitle, lookups: Lookups): ThemedTitle {
+        val item = title.item
+        // Most add-ons that serve metadata take TMDB ids. One that only takes IMDb ids gets the translated id instead.
+        var id = item.id
+        if (!lookups.provides(item.type, id)) {
+            val tmdbId = id.takeIf { it.startsWith("tmdb:") }?.removePrefix("tmdb:")?.toIntOrNull()
+            if (tmdbId != null) attempt { lookups.imdbId(tmdbId, item.type) }?.let { id = it }
+        }
+        val extras = attempt { lookups.metaExtras(item.type, id) } ?: MetaExtras.Empty
+        val logo = extras.logo?.takeIf { url -> attempt { lookups.logoLoads(url) } == true }
+        val genres = if (extras.genres.isEmpty()) title.genres else extras.genres.take(GENRES)
+        val enriched = if (logo != null) item.withLogo(logo) else item
+        return if (genres == title.genres && enriched.logo == item.logo) title else ThemedTitle(enriched, genres)
     }
 }

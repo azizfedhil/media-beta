@@ -48,7 +48,15 @@ fun HomeScreen(
     val model = remember(env.data) { HomeModel(env.data) }
     val bottomInset = LocalBottomInset.current
 
-    LaunchedEffect(env.data.profiles.activeID) {
+    // Home is kept composed while Settings is open, so it never re-enters composition to reload on its own. Anything
+    // that changes which rows Home should show therefore restarts the refresh here.
+    LaunchedEffect(
+        env.data.profiles.activeID,
+        env.data.content.rules.addedRows,
+        env.data.content.rules.hiddenRows,
+        env.data.addons.pickerIds,
+        env.data.addons.enrichmentAddon?.id,
+    ) {
         model.refresh(force = false)
     }
 

@@ -92,17 +92,19 @@ fun ExploreScreen(
     }
 
     LaunchedEffect(Unit) {
-        val allThemes = ThemeCatalog.load(
+        ThemeCatalog.loadProgressive(
             tmdb = env.data.meta.tmdb,
             count = ThemeCatalog.EXPLORE_CANDIDATES,
             offset = ThemeCatalog.HOME_CANDIDATES,
             limit = 12,
             rules = env.data.content.rules,
             dayNumber = 0,
+            http = env.data.network.http,
             enrichWith = env.data.addons.enrichmentAddon,
             addonClient = env.data.addonClient,
+            enrichScope = this,
+            update = { themes = it },
         )
-        themes = allThemes
     }
 
     suspend fun loadMore() {

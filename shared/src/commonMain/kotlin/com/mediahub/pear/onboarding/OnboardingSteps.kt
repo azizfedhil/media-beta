@@ -123,7 +123,7 @@ private fun ColumnScope.ProfileBody(draft: OnboardingDraft) {
         CardLabel("Pick a name", symbol = "person.fill")
         OnboardingField(
             value = draft.name,
-            onValueChange = { draft.setName(it) },
+            onValueChange = { draft.updateName(it) },
             placeholder = "Name",
             onFocusChange = { draft.editing = it },
         )
@@ -160,7 +160,7 @@ private fun ColumnScope.LookBody(wide: Boolean, draft: OnboardingDraft) {
                     PearText("Custom colour", style = PearTheme.type.subheadline.weight(FontWeight.Medium))
                     OnboardingField(
                         value = draft.customHex,
-                        onValueChange = { draft.setCustomHex(it) },
+                        onValueChange = { draft.updateCustomHex(it) },
                         placeholder = "#RRGGBB",
                         modifier = Modifier.weight(1f),
                         onFocusChange = { draft.editing = it },
@@ -314,7 +314,7 @@ private fun ColumnScope.KeysBody(wide: Boolean, draft: OnboardingDraft) {
                 "Without it, most of the app stays empty.",
             placeholder = "TMDB API key",
             value = draft.tmdbKey,
-            onValueChange = { draft.setTmdbKey(it) },
+            onValueChange = { draft.updateTmdbKey(it) },
             link = "https://www.themoviedb.org/settings/api",
             linkLabel = "Get a free key",
             onFocusChange = { draft.editing = it },
@@ -330,7 +330,7 @@ private fun ColumnScope.KeysBody(wide: Boolean, draft: OnboardingDraft) {
                 text = "IMDb, Rotten Tomatoes, Metacritic and Letterboxd ratings, plus your lists on Home.",
                 placeholder = "MDBList API key",
                 value = draft.mdbKey,
-                onValueChange = { draft.setMdbKey(it) },
+                onValueChange = { draft.updateMdbKey(it) },
                 link = "https://mdblist.com/preferences",
                 linkLabel = "Get a key",
                 onFocusChange = { draft.editing = it },
@@ -344,14 +344,14 @@ private fun ColumnScope.KeysBody(wide: Boolean, draft: OnboardingDraft) {
                 text = "Fills in missing episode thumbnails and title logos.",
                 placeholder = "TVDB API key",
                 value = draft.tvdbKey,
-                onValueChange = { draft.setTvdbKey(it) },
+                onValueChange = { draft.updateTvdbKey(it) },
                 link = "https://thetvdb.com/api-information",
                 linkLabel = "Get a key",
                 onFocusChange = { draft.editing = it },
             ) {
                 OnboardingField(
                     value = draft.tvdbPin,
-                    onValueChange = { draft.setTvdbPin(it) },
+                    onValueChange = { draft.updateTvdbPin(it) },
                     placeholder = "PIN (subscriber keys only)",
                     secret = true,
                     onFocusChange = { draft.editing = it },
@@ -380,12 +380,12 @@ private fun ColumnScope.BuiltInTmdbCard(draft: OnboardingDraft) {
         ToggleRow(
             title = "Use my own TMDB key",
             checked = draft.ownTmdbOn,
-            onChange = { draft.setOwnTmdb(it) },
+            onChange = { draft.updateOwnTmdb(it) },
         )
         if (draft.ownTmdbOn) {
             OnboardingField(
                 value = draft.tmdbKey,
-                onValueChange = { draft.setTmdbKey(it) },
+                onValueChange = { draft.updateTmdbKey(it) },
                 placeholder = "TMDB API key",
                 secret = true,
                 onFocusChange = { draft.editing = it },
