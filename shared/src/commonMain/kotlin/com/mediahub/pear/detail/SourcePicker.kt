@@ -75,6 +75,9 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.home.scaledBy
 import com.mediahub.pear.theme.weight
+import androidx.compose.animation.animateColorAsState
+import com.mediahub.pear.theme.PearMotion
+import com.mediahub.pear.model.downloadUrl
 
 /**
  * The source picker, drawn over the whole app by the shell. Phone: a bottom sheet ([SourceSheet]). Wide: a panel in the
@@ -413,9 +416,13 @@ private fun SourceCard(
     val hovered by source.collectIsHoveredAsState()
     val anchor = remember { MenuAnchor() }
     val detail = stream.description ?: stream.title
-    GlassSurface(
+    // iOS draws a source row as a plain white fill (7%), lifted on hover; the picker around it is the glass.
+    val fill by animateColorAsState(Color.White.copy(alpha = if (hovered) 0.11f else 0.07f), PearMotion.snappy<Color>(PearMotion.FAST))
+    Box(
         Modifier.fillMaxWidth()
             .alpha(if (playable) 1f else 0.45f)
+            .clip(RoundedCornerShape(PearRadii.card))
+            .background(fill)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
             .menuAnchor(anchor)
@@ -426,8 +433,6 @@ private fun SourceCard(
                     env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), sourceMenuItems(env, owner, addon, stream, isPinned)))
                 },
             ),
-        RoundedCornerShape(PearRadii.card),
-        highlight = hovered,
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -444,12 +449,12 @@ private fun SourceCard(
                     PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = c.textSecondary)
                 }
                 if (isPinned) PearIcon("pin.fill", size = 12.dp, tint = c.accent)
-                if (stream.url != null) SourceDownloadButton(env, owner, addon, stream)
+                if (stream.downloadUrl != null) SourceDownloadButton(env, owner, addon, stream)
             }
             if (detail != null && detail != stream.name) {
                 PearText(detail, style = PearTheme.type.footnote, color = c.textSecondary, maxLines = 3)
             }
-            if (stream.url != null) SourceDownloadStatus(env, owner)
+            if (stream.downloadUrl != null) SourceDownloadStatus(env, owner, stream.downloadUrl)
         }
     }
 }

@@ -70,6 +70,7 @@ import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.min
+import androidx.compose.animation.animateContentSize
 
 /** Computes a cinematic ambient hue from the title (the fallback when the artwork has no dominant colour). */
 fun fallbackHeroAmbientColor(title: String): Color {
@@ -105,14 +106,18 @@ private fun easedFade(start: Float, steps: Int = 10): Brush {
     return Brush.verticalGradient(*stops.toTypedArray())
 }
 
-/** The hero's page index, moved on every [intervalMillis]. The timer starts again when the list changes. */
+/**
+ * The hero's page index, moved on every [intervalMillis]. While [paused] (a synopsis is open) it stays put. The timer starts
+ * again when the list changes or the pause ends.
+ */
 @Composable
-private fun rememberHeroIndex(count: Int, intervalMillis: Long): MutableIntState {
+private fun rememberHeroIndex(count: Int, intervalMillis: Long, paused: Boolean): MutableIntState {
     val index = remember { mutableIntStateOf(0) }
-    LaunchedEffect(count) {
+    LaunchedEffect(count, paused) {
+        if (paused || count < 2) return@LaunchedEffect
         while (true) {
             delay(intervalMillis)
-            if (count > 1) index.intValue = (index.intValue + 1) % count
+            index.intValue = (index.intValue + 1) % count
         }
     }
     return index
@@ -200,7 +205,8 @@ private fun HeroArt(
 
 /**
  * The text over a hero page: the type and year, the title (its logo, or its name until the logo loads), the MDBList ratings,
- * the synopsis and Details. The wide column shows six lines of synopsis with More and Less; the phone shows three.
+ * the synopsis and Details. The synopsis shows three lines in both layouts, with More and Less when it is cut short. [expanded]
+ * and [onToggleExpanded] are the carousel's, so opening a synopsis can pause the carousel.
  */
 @Composable
 private fun HeroInfo(
@@ -208,9 +214,10 @@ private fun HeroInfo(
     item: MetaPreview,
     ratings: List<MdbRating>,
     wide: Boolean,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     onDetails: () -> Unit,
 ) {
-    var expanded by remember(item.id) { mutableStateOf(false) }
     var overflows by remember(item.id) { mutableStateOf(false) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (wide) 16.dp else 10.dp)) {
         HeroTypePill(item, wide)
@@ -238,20 +245,16 @@ private fun HeroInfo(
                     lineHeight = if (wide) 23.sp else 20.sp,
                 ),
                 color = Color.White.copy(alpha = 0.92f),
-                maxLines = when {
-                    !wide -> 3
-                    expanded -> Int.MAX_VALUE
-                    else -> 6
-                },
-                modifier = Modifier.fillMaxWidth(),
+                maxLines = if (expanded) Int.MAX_VALUE else 3,
+                modifier = Modifier.fillMaxWidth().animateContentSize(),
                 onTextLayout = { if (!expanded) overflows = it.hasVisualOverflow },
             )
-            if (wide && (overflows || expanded)) {
+            if (overflows || expanded) {
                 PearText(
                     text = if (expanded) "Less" else "More",
                     style = PearTheme.type.subheadline.weight(FontWeight.SemiBold),
                     color = Color.White,
-                    modifier = Modifier.clickable { expanded = !expanded },
+                    modifier = Modifier.clickable(onClick = onToggleExpanded),
                 )
             }
         }
@@ -259,15 +262,14 @@ private fun HeroInfo(
     }
 }
 
-/** "TV SERIES · 2026" as a pill. The padding comes before the background, so the pill's fill covers it. */
+/** "TV SERIES · 2026" as a pill. The background comes before the padding, so the fill covers the padding too. */
 @Composable
 private fun HeroTypePill(item: MetaPreview, wide: Boolean) {
     Row(
         Modifier
-            .padding(horizontal = if (wide) 10.dp else 8.dp, vertical = if (wide) 5.dp else 3.dp)
             .clip(RoundedCornerShape(PearRadii.pill))
-            .background(Color.White.copy(alpha = 0.16f))
-            .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(PearRadii.pill)),
+            .background(Color.White.copy(alpha = 0.18f))
+            .padding(horizontal = if (wide) 10.dp else 8.dp, vertical = if (wide) 5.dp else 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -296,10 +298,10 @@ private fun HeroDetailsButton(onClick: () -> Unit) {
     val c = PearTheme.colors
     Row(
         Modifier
-            .padding(horizontal = 18.dp, vertical = 11.dp)
             .clip(RoundedCornerShape(PearRadii.pill))
             .background(c.accent)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
@@ -342,7 +344,10 @@ fun HeroCarousel(
     scroll: ScrollState? = null,
 ) {
     if (items.isEmpty()) return
-    val index = rememberHeroIndex(items.size, intervalMillis = 7_000L)
+    // The page whose synopsis is open, or null. An open synopsis pauses the carousel; a page change closes it.
+    var expandedId by remember { mutableStateOf<String?>(null) }
+    val index = rememberHeroIndex(items.size, intervalMillis = 7_000L, paused = expandedId != null)
+    LaunchedEffect(index.intValue) { expandedId = null }
     val current = items.getOrElse(index.intValue) { items.first() }
     HeroAmbient(current)
 
@@ -367,6 +372,8 @@ fun HeroCarousel(
                     item = item,
                     ratings = rememberTitleRatings(item),
                     wide = false,
+                    expanded = expandedId == item.id,
+                    onToggleExpanded = { expandedId = if (expandedId == item.id) null else item.id },
                     onDetails = { onSelectTitle(item) },
                 )
             }
@@ -395,7 +402,9 @@ fun WideHeroPanel(
     scroll: ScrollState? = null,
 ) {
     if (items.isEmpty()) return
-    val index = rememberHeroIndex(items.size, intervalMillis = 8_000L)
+    var expandedId by remember { mutableStateOf<String?>(null) }
+    val index = rememberHeroIndex(items.size, intervalMillis = 8_000L, paused = expandedId != null)
+    LaunchedEffect(index.intValue) { expandedId = null }
     val current = items.getOrElse(index.intValue) { items.first() }
     HeroAmbient(current)
 
@@ -432,6 +441,8 @@ fun WideHeroPanel(
                         item = item,
                         ratings = rememberTitleRatings(item),
                         wide = true,
+                        expanded = expandedId == item.id,
+                        onToggleExpanded = { expandedId = if (expandedId == item.id) null else item.id },
                         onDetails = { onSelectTitle(item) },
                     )
                 }

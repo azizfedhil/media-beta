@@ -16,17 +16,15 @@ Code: `shared/.../home/HeroBanners.kt` (both heroes, the text, the animation), `
 - **Animation.** Pages change with a fade and a 10% slide. The dots widen smoothly for the current page and can be clicked.
 - **Blend and glow.** The artwork fades into the page along iOS's eased curve (smoothstep), so the ambient glow behind the hero shows through
   the bottom. The hard colour edge is gone.
-- **Wide text.** The text uses the full width of the panel (it was capped at 340 dp). The synopsis shows six lines, with More and Less when it
-  is longer. The synopsis is 17 sp Medium in the wide layout and 15 sp Medium on the phone (it was 15 and 12 sp Regular).
+- **Synopsis.** Three lines on both layouts, with More and Less when the text is cut short. Opening one pauses the carousel, so the page does not move under the reader; moving to another page closes it (`expandedId` in `HeroCarousel` and `WideHeroPanel`).
 - **Wide fade.** A short fade into black across the lower half of the panel keeps the title, ratings and synopsis readable.
-- **Details button.** The padding now comes before the background. Before, the accent only covered the text, so the pill had no visible
-  background. The type pills had the same fault and are fixed too.
+- **Details button and type pill.** The background comes before the padding, so the fill covers the padding. The type pill is iOS's white 18% capsule with no border.
 
 ## Not done
 
 - A Play button. The hero's button is "Details", as on iOS; the iOS hero has no Play button either.
 - Swipe paging and drag on the hero (iOS pages by swiping). The desktop hero pages on its timer and by its dots.
-- The phone synopsis has no More toggle: three lines, as before.
+- The synopsis has More and Less on the phone too.
 
 ## Not compiled
 

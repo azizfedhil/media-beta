@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.coroutines.delay
+import com.mediahub.pear.model.blocksReplacement
 
 /** Where downloaded files are kept: one file per download, appended to as its bytes arrive. */
 interface DownloadFiles {
@@ -42,6 +44,37 @@ interface DownloadTransport {
     )
 }
 
+/** Attempts after the first for a transient failure, and the first wait (it doubles each time). */
+private const val MAX_RETRIES = 3
+private const val RETRY_DELAY_MILLIS = 2_000L
+
+/** Content types that mean the link is a page or a playlist, not a video file. */
+private val NOT_A_VIDEO_TYPES = setOf(
+    "text/html", "application/xhtml+xml", "application/dash+xml",
+    "application/vnd.apple.mpegurl", "application/x-mpegurl", "audio/mpegurl",
+)
+
+/**
+ * A transfer failure in words a person can read. A [transient] one (a server error, a busy source, a dropped connection)
+ * is retried; the rest are listed as failed at once.
+ */
+class DownloadFailure(message: String, val transient: Boolean = false) : Exception(message)
+
+/** The message for an HTTP status that stops a download, worded for the person who has to act on it. */
+fun friendlyHttpError(code: Int): String = when (code) {
+    401, 403 -> "The source refused the file (HTTP $code). Try another source."
+    404, 410 -> "The file is no longer at that link (HTTP $code). Try another source."
+    429 -> "The source is busy (HTTP 429). Try again in a few minutes."
+    in 500..599 -> "The source had a server error (HTTP $code)."
+    else -> "The server answered $code."
+}
+
+/** Why a response is not a video, when its content type says so; null when it may be one. */
+fun notAVideoMessage(contentType: String?): String? {
+    val type = contentType?.substringBefore(';')?.trim()?.lowercase() ?: return null
+    return if (type in NOT_A_VIDEO_TYPES) "The link gives a web page or a playlist, not a video file. Try another source." else null
+}
+
 /**
  * The downloads: a queue of files, fetched one at a time into [files] and listed in the index (the `downloads.records`
  * preference), so the list survives a restart. Every change to the list runs on [scope]. Give it a single-threaded scope and
@@ -64,11 +97,21 @@ class DownloadManager(
     /** The download listed under [id] (see `downloadKey`), if any. */
     fun record(id: String): DownloadRecord? = list.value.firstOrNull { it.id == id }
 
-    /** Queues [record] and starts it. Nothing happens when a download with the same id is already listed. */
+    /**
+     * Queues [record] and starts it. The same link that is already listed is not added twice. Another source of the same
+     * title replaces a download that has stopped (failed or paused); it waits behind one that is queued, running or done.
+     */
     fun enqueue(record: DownloadRecord) {
         scope.launch {
-            if (list.value.any { it.id == record.id }) return@launch
-            // A file left under this name belongs to an older download, possibly from another source: start it afresh.
+            val existing = list.value.firstOrNull { it.id == record.id }
+            if (existing != null) {
+                if (existing.url == record.url || existing.state.blocksReplacement) return@launch
+                running.remove(record.id)?.cancel()
+                lastProgress.remove(record.id)
+                files.delete(existing.fileName)
+                put(list.value.filterNot { it.id == record.id })
+            }
+            // A file left under this name belongs to an older download: start it afresh.
             files.delete(record.fileName)
             put(list.value + record.copy(state = DownloadState.Queued, bytes = 0, error = null, added = now()))
             start(record.id)
@@ -116,25 +159,39 @@ class DownloadManager(
         running[id] = scope.launch { run(id) }
     }
 
-    /** One transfer, on [scope]. A cancelled one (paused or deleted) leaves its state to the caller. */
+    /**
+     * One transfer, on [scope]. A transient failure is retried from the bytes already on disk, after a wait that doubles each
+     * time. A cancelled transfer (paused or deleted) leaves its state to the caller.
+     */
     private suspend fun run(id: String) {
         val me = currentCoroutineContext()[Job]
         val target = record(id) ?: return
         change(id) { it.copy(state = DownloadState.Downloading, error = null) }
-        var received = files.size(target.fileName)
+        var received = 0L
+        var attempt = 0
         try {
-            transport.fetch(
-                url = target.url,
-                headers = target.headers,
-                offset = received,
-                onTotal = { total -> scope.launch { if (total > 0) change(id, save = false) { it.copy(expectedBytes = total) } } },
-                onChunk = { buffer, count ->
-                    files.append(target.fileName, buffer, count)
-                    received += count
-                    val bytes = received
-                    scope.launch { progress(id, bytes) }
-                },
-            )
+            while (true) {
+                received = files.size(target.fileName)
+                try {
+                    transport.fetch(
+                        url = target.url,
+                        headers = target.headers,
+                        offset = received,
+                        onTotal = { total -> scope.launch { if (total > 0) change(id, save = false) { it.copy(expectedBytes = total) } } },
+                        onChunk = { buffer, count ->
+                            files.append(target.fileName, buffer, count)
+                            received += count
+                            val bytes = received
+                            scope.launch { progress(id, bytes) }
+                        },
+                    )
+                    break
+                } catch (e: DownloadFailure) {
+                    if (!e.transient || attempt >= MAX_RETRIES) throw e
+                    attempt++
+                    delay(RETRY_DELAY_MILLIS shl (attempt - 1))
+                }
+            }
             change(id) {
                 it.copy(
                     state = DownloadState.Done,

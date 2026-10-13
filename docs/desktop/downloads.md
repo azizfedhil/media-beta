@@ -53,3 +53,11 @@ retry, delete, the duplicate rule, and the saved index. `commonTest/.../model/St
 ## Not compiled
 
 This was written without a Gradle or Kotlin toolchain available. Run `gradle :shared:allTests` and `gradle :desktopApp:run` before relying on it.
+
+## Per-source downloads (Phase 4)
+
+- **A download belongs to its link.** A title's record is keyed by title, but it is the download of one link: the button, the status line and the menu read the record only when its `url` is this source's `downloadUrl` (`forSource`). Another source's download shows the plain icon, and its status is not repeated under every row.
+- **Replacing a source.** Choosing another source for a title whose download has stopped (failed or paused) replaces it: the partial file is deleted and the new link starts. A download that is queued, running or done blocks the other sources (`fromOtherSource`, `blocksReplacement`); their buttons are disabled until it is deleted in the Downloads list.
+- **Which links download.** `StreamItem.downloadUrl`: an https link whose path does not end in `.m3u8` (iOS's rule) or `.mpd`. Torrents and plain http links show no download button.
+- **Transport.** Redirects are followed by hand (up to 5), so an http-to-https hop works. The default user agent is a browser's. A response with a web-page or playlist content type is refused before a byte is written. HTTP errors read as sentences (`friendlyHttpError`). Server errors, 429 and dropped connections are transient and retried up to 3 times, after 2, 4 and 8 seconds, from the bytes already on disk.
+- **Not yet done:** the file is still opened for each 64 KB piece, and a 200 whose length is far below the expected size is not yet refused.

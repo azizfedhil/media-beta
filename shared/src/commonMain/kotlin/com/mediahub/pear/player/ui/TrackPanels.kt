@@ -163,7 +163,7 @@ internal fun AudioPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier.fillMaxSize().padding(end = PLAYER_SIDE_MARGIN, bottom = PLAYER_PANEL_CLEARANCE), contentAlignment = Alignment.BottomEnd) {
+    Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
         PlayerSurface(Modifier.width(360.dp), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 PanelHeader("Audio", onClose)

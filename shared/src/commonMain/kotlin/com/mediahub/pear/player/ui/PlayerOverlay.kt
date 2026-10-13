@@ -79,6 +79,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.onStart
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.unit.Dp
 
 /**
  * The player's overlay, one for every platform (Batches 4.3a and 4.3c). Layout and behaviour follow `PlayerScreen`
@@ -103,18 +105,23 @@ import kotlinx.coroutines.flow.onStart
  * Only the seek bar reads the engine's clock, so the rest of the overlay does not recompose while a video plays.
  */
 /**
- * The controls' margins. iOS keeps its controls at 24 pt from the sides and 6 pt from the bottom, inside the safe area; a
- * landscape iPhone's notch and home indicator add to that. A desktop window has no safe area, so the margins are set here:
- * 72 dp at the sides and 44 dp at the bottom. Change these two numbers to adjust them.
+ * The controls' margins and scale for this window, from [playerMetrics]. Desktop by default: the look of a 1080p fullscreen
+ * window, the reference for this player. iOS keeps its controls at 24 pt from the sides and 6 pt from the bottom, inside the
+ * safe area; a desktop window has no safe area, so those margins are set in [playerMetrics].
  */
-internal val PLAYER_SIDE_MARGIN = 72.dp
-internal val PLAYER_BOTTOM_MARGIN = 44.dp
+internal val LocalPlayerMetrics = compositionLocalOf { playerMetrics(PLAYER_DESKTOP_SHORT_SIDE) }
+
+/** The margin at the sides of the controls, in the player's density. */
+internal val PlayerMetrics.sideMargin: Dp get() = sideMarginDp.dp
+
+/** The margin above the bottom edge of the controls, in the player's density. */
+internal val PlayerMetrics.bottomMargin: Dp get() = bottomMarginDp.dp
 
 /**
  * How far the floating panels and the subtitle line rise above the bottom edge: the bottom margin, plus the controls' height
- * (the pill and the seek bar). Derived, so it moves with the margin.
+ * (the pill and the seek bar).
  */
-internal val PLAYER_PANEL_CLEARANCE = PLAYER_BOTTOM_MARGIN + 104.dp
+internal val PlayerMetrics.panelClearance: Dp get() = bottomMargin + 104.dp
 
 @Composable
 fun PlayerOverlay(
@@ -263,82 +270,86 @@ fun PlayerOverlay(
             },
         background = video,
     ) {
-        // The controls and panels are drawn PLAYER_UI_SCALE larger, text included. The video behind them is not scaled.
-        val base = LocalDensity.current
-        val scaled = Density(base.density * PLAYER_UI_SCALE, base.fontScale * PLAYER_UI_SCALE)
-        CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled) {
-            // Click and double-click on the picture. The controls and panels sit above and take their own clicks.
-            Box(
-                Modifier.fillMaxSize().pointerInput(Unit) {
-                    detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
-                },
-            )
-
-            // Paused: one flat dim over the frozen frame, not while a panel is open (`pausedDim` in PlayerView.swift).
-            AnimatedVisibility(
-                visible = state == PlaybackState.Paused && errorMessage == null && visible && panel == null,
-                enter = fadeIn(tween(PearMotion.BASE)),
-                exit = fadeOut(tween(PearMotion.BASE)),
-            ) {
+        // The window's shorter side picks the controls' scale and margins (playerMetrics). A 1080p fullscreen window keeps the
+        // desktop look, which is the reference for this player. The video behind the controls is never scaled.
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val metrics = playerMetrics(minOf(maxWidth, maxHeight).value)
+            val base = LocalDensity.current
+            val scaled = Density(base.density * metrics.scale, base.fontScale * metrics.scale)
+            CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled, LocalPlayerMetrics provides metrics) {
+                // Click and double-click on the picture. The controls and panels sit above and take their own clicks.
                 Box(
-                    Modifier.fillMaxSize()
-                        .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Black.copy(alpha = 0.6f)))),
+                    Modifier.fillMaxSize().pointerInput(Unit) {
+                        detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
+                    },
                 )
-            }
 
-            // Subtitles the app draws: above the picture, under the controls and panels. At the picture's own size, not the
-            // controls' scale, so the line matches the preview in the Subtitles panel.
-            CompositionLocalProvider(LocalDensity provides base) { subtitles(visible) }
-
-            // The stream is opening: the pear. loader on black, with the close button, as on iOS (launchOverlay).
-            val opening = (state == PlaybackState.Loading || p2pOpening) && errorMessage == null
-            if (opening) LoadingScreen(onClose = onClose, status = p2pStatus)
-
-            // Waiting for data while the controls are hidden: just a spinner.
-            if (isWaiting(state) && errorMessage == null && !visible && !opening) {
-                PlayerSpinner(Modifier.align(Alignment.Center), diameter = 44.dp)
-                p2pStatus?.let {
-                    PearText(
-                        it,
-                        modifier = Modifier.align(Alignment.Center).padding(top = 60.dp),
-                        style = PearTheme.type.footnote,
-                        color = Color.White.copy(alpha = 0.7f),
+                // Paused: one flat dim over the frozen frame, not while a panel is open (`pausedDim` in PlayerView.swift).
+                AnimatedVisibility(
+                    visible = state == PlaybackState.Paused && errorMessage == null && visible && panel == null,
+                    enter = fadeIn(tween(PearMotion.BASE)),
+                    exit = fadeOut(tween(PearMotion.BASE)),
+                ) {
+                    Box(
+                        Modifier.fillMaxSize()
+                            .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Black.copy(alpha = 0.6f)))),
                     )
                 }
+
+                // Subtitles the app draws: above the picture, under the controls and panels. At the picture's own size, not the
+                // controls' scale, so the line matches the preview in the Subtitles panel.
+                CompositionLocalProvider(LocalDensity provides base) { subtitles(visible) }
+
+                // The stream is opening: the pear. loader on black, with the close button, as on iOS (launchOverlay).
+                val opening = (state == PlaybackState.Loading || p2pOpening) && errorMessage == null
+                if (opening) LoadingScreen(onClose = onClose, status = p2pStatus)
+
+                // Waiting for data while the controls are hidden: just a spinner.
+                if (isWaiting(state) && errorMessage == null && !visible && !opening) {
+                    PlayerSpinner(Modifier.align(Alignment.Center), diameter = 44.dp)
+                    p2pStatus?.let {
+                        PearText(
+                            it,
+                            modifier = Modifier.align(Alignment.Center).padding(top = 60.dp),
+                            style = PearTheme.type.footnote,
+                            color = Color.White.copy(alpha = 0.7f),
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = visible && !covered && !opening,
+                    enter = fadeIn(tween(PearMotion.BASE)),
+                    exit = fadeOut(tween(PearMotion.BASE)),
+                ) {
+                    Controls(
+                        engine = engine,
+                        state = state,
+                        title = title,
+                        subtitle = subtitle,
+                        errorMessage = errorMessage,
+                        onClose = onClose,
+                        onPlayPause = playPause,
+                        onTitleClick = onTitleClick,
+                        pill = { pill { pillActive = it } },
+                        trailing = trailing,
+                        overTop = overTop,
+                        overCenter = overCenter,
+                        overBottom = overBottom,
+                        onScrubbing = { scrubbing = it },
+                        openedAt = openedAt,
+                    )
+                }
+
+                // Skip intro and next episode: hidden under a panel or an error (`skipLayer` in PlayerView.swift).
+                if (errorMessage == null && panel == null) skip(visible)
+
+                // Panels last, so they sit above the controls. Only one is open at a time; the host decides which. Their text is at
+                // the base size, not the controls' scale: the sub-menus were too large with it.
+                CompositionLocalProvider(LocalDensity provides Density(scaled.density, base.fontScale)) { panels() }
+
+                PlayerNotice(notice)
             }
-
-            AnimatedVisibility(
-                visible = visible && !covered && !opening,
-                enter = fadeIn(tween(PearMotion.BASE)),
-                exit = fadeOut(tween(PearMotion.BASE)),
-            ) {
-                Controls(
-                    engine = engine,
-                    state = state,
-                    title = title,
-                    subtitle = subtitle,
-                    errorMessage = errorMessage,
-                    onClose = onClose,
-                    onPlayPause = playPause,
-                    onTitleClick = onTitleClick,
-                    pill = { pill { pillActive = it } },
-                    trailing = trailing,
-                    overTop = overTop,
-                    overCenter = overCenter,
-                    overBottom = overBottom,
-                    onScrubbing = { scrubbing = it },
-                    openedAt = openedAt,
-                )
-            }
-
-            // Skip intro and next episode: hidden under a panel or an error (`skipLayer` in PlayerView.swift).
-            if (errorMessage == null && panel == null) skip(visible)
-
-            // Panels last, so they sit above the controls. Only one is open at a time; the host decides which. Their text is at
-            // the base size, not the controls' scale: the sub-menus were too large with it.
-            CompositionLocalProvider(LocalDensity provides Density(scaled.density, base.fontScale)) { panels() }
-
-            PlayerNotice(notice)
         }
     }
 }
@@ -365,7 +376,7 @@ private fun BoxScope.LoadingScreen(onClose: () -> Unit, status: String? = null) 
     }
     PlayerCircleButton(
         "xmark", size = 42.dp, icon = 16.dp, onClick = onClose,
-        modifier = Modifier.align(Alignment.TopStart).padding(start = PLAYER_SIDE_MARGIN, top = 16.dp),
+        modifier = Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMetrics.current.sideMargin, top = 16.dp),
         contentDescription = "Close",
     )
 }
@@ -396,7 +407,7 @@ private fun Controls(
             Box(Modifier.fillMaxWidth().height(260.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
         }
 
-        Box(Modifier.align(Alignment.TopStart).padding(start = PLAYER_SIDE_MARGIN, top = 16.dp).hoverFlag(overTop)) {
+        Box(Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMetrics.current.sideMargin, top = 16.dp).hoverFlag(overTop)) {
             PlayerCircleButton("xmark", size = 42.dp, icon = 16.dp, onClick = onClose, contentDescription = "Close")
         }
 
@@ -413,7 +424,7 @@ private fun Controls(
                 trailing = trailing,
                 onScrubbing = onScrubbing,
                 openedAt = openedAt,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = PLAYER_SIDE_MARGIN).padding(bottom = PLAYER_BOTTOM_MARGIN).hoverFlag(overBottom),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = LocalPlayerMetrics.current.sideMargin).padding(bottom = LocalPlayerMetrics.current.bottomMargin).hoverFlag(overBottom),
             )
         }
     }

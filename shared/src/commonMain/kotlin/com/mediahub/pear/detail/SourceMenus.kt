@@ -28,6 +28,10 @@ import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.ContextMenuItem
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.PearText
+import com.mediahub.pear.model.downloadUrl
+import com.mediahub.pear.model.forSource
+import com.mediahub.pear.model.fromOtherSource
+import com.mediahub.pear.model.blocksReplacement
 
 /** The title a source belongs to: a film, or one episode of a series. What a download records about it. */
 class SourceOwner(
@@ -46,6 +50,7 @@ class SourceOwner(
 
 /** Queues the download of [stream]. The context menu and the small download button both start downloads this way. */
 fun startSourceDownload(env: AppEnv, owner: SourceOwner, addon: Addon, stream: StreamItem) {
+    if (stream.downloadUrl == null) return
     env.data.downloads.enqueue(
         newDownload(
             imdb = owner.imdb,
@@ -68,17 +73,23 @@ fun startSourceDownload(env: AppEnv, owner: SourceOwner, addon: Addon, stream: S
  */
 fun sourceMenuItems(env: AppEnv, owner: SourceOwner, addon: Addon, stream: StreamItem, pinned: Boolean): List<ContextMenuItem> {
     val downloads = env.data.downloads
-    val record = downloads.record(owner.key)
+    val link = stream.downloadUrl
+    val mine = downloads.records.value.forSource(owner.key, link)
+    val other = downloads.records.value.fromOtherSource(owner.key, link)
     val items = mutableListOf<ContextMenuItem>()
     when {
-        record != null -> {
-            items += downloadActions(downloads, record)
+        mine != null -> {
+            items += downloadActions(downloads, mine)
         }
-        stream.url != null -> {
-            items += ContextMenuItem("Download", "arrow.down.circle") { startSourceDownload(env, owner, addon, stream) }
+        link == null -> {
+            val label = if (stream.isTorrent) "Torrents can't be downloaded" else "This link can't be downloaded"
+            items += ContextMenuItem(label, "nosign") { }
+        }
+        other?.state?.blocksReplacement == true -> {
+            items += ContextMenuItem("Another source is downloading this title", "nosign") { }
         }
         else -> {
-            items += ContextMenuItem("Torrents can't be downloaded", "nosign") { }
+            items += ContextMenuItem("Download", "arrow.down.circle") { startSourceDownload(env, owner, addon, stream) }
         }
     }
     if (pinned) {
@@ -154,18 +165,22 @@ fun SourceDownloadButton(env: AppEnv, owner: SourceOwner, addon: Addon, stream: 
     val downloads = env.data.downloads
     val records by downloads.records.collectAsState()
     val id = owner.key
-    val state = records.firstOrNull { it.id == id }?.state
-    val symbol = when (state) {
+    val link = stream.downloadUrl
+    // This row's own download: the record of the title from this row's link. Another source's record is not this row's.
+    val mine = records.forSource(id, link)?.state
+    // Another source of the title is queued, running or done: this row waits until that download is deleted.
+    val blocked = mine == null && records.fromOtherSource(id, link)?.state?.blocksReplacement == true
+    val symbol = when (mine) {
         null -> "arrow.down.circle"
         DownloadState.Queued, DownloadState.Downloading -> "pause.circle"
         DownloadState.Paused -> "play.circle"
         DownloadState.Failed -> "arrow.clockwise"
         DownloadState.Done -> "checkmark.circle.fill"
     }
-    val tint = if (state == null || state == DownloadState.Failed) null else PearTheme.colors.accent
+    val tint = if (mine == null || mine == DownloadState.Failed) null else PearTheme.colors.accent
     GlassButton(
         onClick = {
-            when (state) {
+            when (mine) {
                 null -> startSourceDownload(env, owner, addon, stream)
                 DownloadState.Queued, DownloadState.Downloading -> downloads.pause(id)
                 DownloadState.Paused -> downloads.resume(id)
@@ -176,6 +191,7 @@ fun SourceDownloadButton(env: AppEnv, owner: SourceOwner, addon: Addon, stream: 
         symbol = symbol,
         size = 34.dp,
         tint = tint,
+        enabled = !blocked,
     )
 }
 
@@ -202,9 +218,9 @@ fun DownloadBar(fraction: Double) {
 
 /** The status of a source's download, and its progress bar while the file is still coming. Nothing when it has none. */
 @Composable
-fun SourceDownloadStatus(env: AppEnv, owner: SourceOwner) {
+fun SourceDownloadStatus(env: AppEnv, owner: SourceOwner, link: String?) {
     val records by env.data.downloads.records.collectAsState()
-    val r = records.firstOrNull { it.id == owner.key } ?: return
+    val r = records.forSource(owner.key, link) ?: return
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         PearText(
             downloadStatusText(r),

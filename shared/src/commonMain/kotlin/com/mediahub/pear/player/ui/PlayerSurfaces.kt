@@ -53,7 +53,11 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.border
 
+
+/** The rim every player surface draws: white at 50%, 0.5 dp wide. */
+private val PLAYER_RIM = Color.White.copy(alpha = 0.5f)
 
 /** The look every overlay surface follows. Set once by [PlayerOverlay]. */
 internal val LocalPlayerLook = compositionLocalOf { PlayerLook.Flat }
@@ -80,12 +84,12 @@ internal fun PlayerSurface(
     when (LocalPlayerLook.current) {
         PlayerLook.Blur -> {
             // The app's glass, unchanged: no wash and no outline. An active button takes the accent at 55%, as on iOS.
-            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), content = content)
+            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), rim = PLAYER_RIM, content = content)
         }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            Box(modifier.clip(shape).background(fill), content = content)
+            Box(modifier.clip(shape).background(fill).border(0.5f.dp, PLAYER_RIM, shape), content = content)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {
@@ -93,7 +97,7 @@ internal fun PlayerSurface(
                 SurfaceKind.Capsule -> Color.Black.copy(alpha = 0.55f)
                 SurfaceKind.Card -> Color.Black.copy(alpha = 0.88f)
             }
-            Box(modifier.clip(shape).background(fill), content = content)
+            Box(modifier.clip(shape).background(fill).border(0.5f.dp, PLAYER_RIM, shape), content = content)
         }
     }
 }

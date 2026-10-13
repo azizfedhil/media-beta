@@ -425,3 +425,15 @@ Code: `shared/.../player/KeepAwake.kt` (the interface and `KeepAwakeRules.wanted
 
 ### Not compiled
 As before, no Gradle here. Run `gradle :shared:build` first (new common tests: `KeepAwakeRulesTest`, `WindowMemoryRulesTest`; new desktop test: `LinuxKeepAwakeTest`), then `gradle :desktopApp:run`. Check first if the build fails: the back button is read from the AWT event (`BackButton.desktop.kt`, `MOUSE_PRESSED` with button 4), and AWT has no `BUTTON4_DOWN_MASK`. Also the `Double.dp` extension and the `rememberWindowState` parameter names. The first CI compile also showed the key-property imports and the `matchParentSize`/pointer imports were wrong; those are fixed (see the compile-fix note in `docs/desktop/README.md`).
+
+## Scaling and margins (Phase 5)
+
+The controls' scale and margins come from the window's shorter side, through `playerMetrics` (`player/ui/PlayerLogic.kt`) and `LocalPlayerMetrics` (`PlayerOverlay.kt`):
+
+- **Desktop look**, at a shorter side of 500 dp or more: scale 1.25, 72 dp at the sides, 44 dp at the bottom. This is the reference. A 1080p fullscreen window is 1080, 864, 720 or 540 dp tall at 100%, 125%, 150% or 200% scaling, so all of them keep this look, unchanged.
+- **iOS sizes**, at 420 dp or less (a phone in landscape): scale 1.0, 24 pt at the sides, 6 pt at the bottom.
+- **Between the two**, the values blend on a smoothstep, so resizing never jumps.
+
+Change the two thresholds to move the blend. `PlayerMetricsTest` checks the 1080p reference, the phone case and that the blend never falls.
+
+Not done yet: panel widths are still fixed (360 and 340 dp at desktop scale), and compact layouts do not yet drop the desktop-only Fullscreen button from the pill.

@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.currentTimeLabel
 import com.mediahub.pear.brand.PearWordmark
-import com.mediahub.pear.glass.GlassSurface
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
@@ -64,10 +63,9 @@ internal fun Sidebar(
 ) {
     val iconsOnly = forceIcons || isIconOnlySidebar(width)
 
-    // Translucent Haze glass surface for the sidebar
-    GlassSurface(
-        modifier = modifier.width(width).fillMaxHeight(),
-        shape = RoundedCornerShape(0.dp),
+    // Solid, as the iPad sidebar is (Color(white: 0.07)). Not glass, so the ambient glow of Home never tints it.
+    Box(
+        modifier = modifier.width(width).fillMaxHeight().background(PearTheme.colors.sidebar),
     ) {
         Column(
             Modifier.fillMaxHeight()

@@ -134,10 +134,40 @@ enum class PlayerPanel {
 }
 
 /**
- * How much larger the player's controls and text are drawn than the window's own density (desktop). The video itself
- * is not scaled.
+ * The player's controls at one window size: how much larger they are drawn than the window's own density, and the margins
+ * around them in dp (before that scale). [playerMetrics] picks them from the window's shorter side.
  */
-const val PLAYER_UI_SCALE = 1.25f
+data class PlayerMetrics(val scale: Float, val sideMarginDp: Float, val bottomMarginDp: Float)
+
+/**
+ * At and above this shorter side (dp) the controls are the desktop look. A 1080p fullscreen window is 1080, 864, 720 or 540 dp
+ * tall at 100%, 125%, 150% or 200% scaling: all of those are desktop.
+ */
+const val PLAYER_DESKTOP_SHORT_SIDE = 500f
+
+/** At and below this shorter side (dp) the controls are the iOS sizes. A phone in landscape is about 390 to 430 dp tall. */
+const val PLAYER_COMPACT_SHORT_SIDE = 420f
+
+/** The desktop look: the values the player has always had. A 1080p fullscreen window is drawn with exactly these. */
+private val PLAYER_DESKTOP = PlayerMetrics(scale = 1.25f, sideMarginDp = 72f, bottomMarginDp = 44f)
+
+/** The iOS sizes: point sizes (1.0x), 24 pt at the sides and 6 pt at the bottom. */
+private val PLAYER_COMPACT = PlayerMetrics(scale = 1f, sideMarginDp = 24f, bottomMarginDp = 6f)
+
+/**
+ * The controls' metrics for a window whose shorter side is [shortSideDp]. Between the two thresholds the values blend on a
+ * smoothstep, so resizing a window never jumps. Pure, so it is unit tested.
+ */
+fun playerMetrics(shortSideDp: Float): PlayerMetrics {
+    val t = ((shortSideDp - PLAYER_COMPACT_SHORT_SIDE) / (PLAYER_DESKTOP_SHORT_SIDE - PLAYER_COMPACT_SHORT_SIDE)).coerceIn(0f, 1f)
+    val s = t * t * (3f - 2f * t)
+    fun mix(from: Float, to: Float) = from + (to - from) * s
+    return PlayerMetrics(
+        scale = mix(PLAYER_COMPACT.scale, PLAYER_DESKTOP.scale),
+        sideMarginDp = mix(PLAYER_COMPACT.sideMarginDp, PLAYER_DESKTOP.sideMarginDp),
+        bottomMarginDp = mix(PLAYER_COMPACT.bottomMarginDp, PLAYER_DESKTOP.bottomMarginDp),
+    )
+}
 
 /**
  * Sources, the info card and subtitles cover the controls (`showControls = false` in PlayerView.swift); speed, display and

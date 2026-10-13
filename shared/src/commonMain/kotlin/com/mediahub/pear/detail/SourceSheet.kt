@@ -52,6 +52,7 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import com.mediahub.pear.model.downloadUrl
 
 @Composable
 fun SourceSheet(
@@ -211,8 +212,11 @@ private fun SourceItemRow(
     val shape = RoundedCornerShape(PearRadii.sm)
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
-    GlassSurface(
+    // iOS draws a source row as a plain white fill (7%); the sheet around it is the glass.
+    Box(
         Modifier.fillMaxWidth().alpha(if (playable) 1f else 0.45f)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
             .menuAnchor(anchor)
             .clickOrMenu(
                 source,
@@ -221,7 +225,6 @@ private fun SourceItemRow(
                     env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), sourceMenuItems(env, owner, addon, stream, isPinned)))
                 },
             ),
-        shape,
     ) {
         Row(
             Modifier.fillMaxWidth().padding(12.dp),
@@ -245,7 +248,7 @@ private fun SourceItemRow(
                 stream.description?.let { desc ->
                     PearText(desc, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 2)
                 }
-                if (stream.url != null) SourceDownloadStatus(env, owner)
+                if (stream.downloadUrl != null) SourceDownloadStatus(env, owner, stream.downloadUrl)
             }
 
             if (stream.isTorrent) {
@@ -257,7 +260,7 @@ private fun SourceItemRow(
                     PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textSecondary)
                 }
             }
-            if (stream.url != null) SourceDownloadButton(env, owner, addon, stream)
+            if (stream.downloadUrl != null) SourceDownloadButton(env, owner, addon, stream)
         }
     }
 }

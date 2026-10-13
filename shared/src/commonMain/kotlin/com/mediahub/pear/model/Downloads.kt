@@ -73,7 +73,7 @@ fun newDownload(
         thumb = thumb,
         logo = logo,
         runtime = runtime,
-        url = stream.url.orEmpty(),
+        url = stream.downloadUrl.orEmpty(),
         headers = stream.requestHeaders,
         addonID = addonID,
         signature = stream.signature,
@@ -81,3 +81,27 @@ fun newDownload(
         expectedBytes = stream.sizeBytes ?: 0L,
     )
 }
+
+/**
+ * The direct link [stream] can be downloaded from, or null. The rule is iOS's (`StreamItem.downloadURL`): an https link whose
+ * path does not end in `.m3u8`. Manifests (`.mpd`) are refused too, since they would be saved as a fake video file.
+ */
+val StreamItem.downloadUrl: String?
+    get() {
+        val link = url?.trim()?.takeIf { it.startsWith("https://", ignoreCase = true) } ?: return null
+        val path = link.substringAfter("://").substringBefore('#').substringBefore('?')
+        val ext = path.substringAfterLast('/', "").substringAfterLast('.', "").lowercase()
+        return if (ext == "m3u8" || ext == "mpd") null else link
+    }
+
+/** The record of the title [id] when it is the download of the link [link]: this source's own download. */
+fun List<DownloadRecord>.forSource(id: String, link: String?): DownloadRecord? =
+    if (link == null) null else firstOrNull { it.id == id && it.url == link }
+
+/** The record of the title [id] from some other link than [link]: another source's download of the same title. */
+fun List<DownloadRecord>.fromOtherSource(id: String, link: String?): DownloadRecord? =
+    if (link == null) null else firstOrNull { it.id == id && it.url != link }
+
+/** Queued, running or done: another source of the same title waits until this download is deleted. */
+val DownloadState.blocksReplacement: Boolean
+    get() = this == DownloadState.Queued || this == DownloadState.Downloading || this == DownloadState.Done
