@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import com.mediahub.pear.model.CatalogRow
+import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.nav.NavController
@@ -44,7 +45,16 @@ sealed interface Route {
     data object P2PCheck : Route
 }
 
-class CatalogueItem(val id: String, val title: String)
+/**
+ * A catalogue listed in the sidebar. [source] says where its titles come from: the page opened from the sidebar has no
+ * row to start from (Home's "See all" passes one), so it loads its first page from the source itself.
+ */
+class CatalogueItem(
+    val id: String,
+    val title: String,
+    val source: CatalogSource = CatalogSource.None,
+    val prefKey: String? = null,
+)
 
 /**
  * A source picker for one title or episode. [ShellOverlays] draws it over the whole app, in the glass layer, so it can
@@ -77,6 +87,16 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
 
     /** Asked first when Escape is pressed. Returns true if it took the key (the player leaves full screen this way). */
     var escapeHook: (() -> Boolean)? = null
+
+    /**
+     * Set by the shell: if the window is full screen, leaves it and returns true. Asked after [escapeHook], so the player keeps
+     * its own handling, but a window that is full screen with no player to say so (an old saved state, a player that was
+     * closed) can still be left with Escape or the mouse's back button, whatever page is open.
+     */
+    var leaveWindowFullscreen: (() -> Boolean)? = null
+
+    /** Escape and the mouse's back button: the player's full screen, then the window's, then back one page. */
+    fun escape(): Boolean = escapeHook?.invoke() == true || leaveWindowFullscreen?.invoke() == true || back()
 
     var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36))
 
@@ -122,9 +142,21 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
 
     fun selectCatalogue(item: CatalogueItem) {
         catalogue = item
-        catalogueNav = NavController(Route.Catalogue(item.id, item.title))
+        catalogueNav = NavController(Route.Catalogue(CatalogRow(item.id, item.title, emptyList(), source = item.source, prefKey = item.prefKey)))
     }
 
     fun currentNav(): NavController<Route> = catalogueNav ?: navFor(tab)
-    fun back(): Boolean = currentNav().pop()
+
+    /**
+     * Back: pops the current stack. A catalogue opened from the sidebar has nothing under it, so going back from its first
+     * page returns to the tab that was open before it (the sidebar's catalogue is left).
+     */
+    fun back(): Boolean {
+        if (currentNav().pop()) return true
+        if (catalogue != null) {
+            select(tab)
+            return true
+        }
+        return false
+    }
 }

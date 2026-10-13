@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -58,6 +59,20 @@ fun AdaptiveShell(
     val env = LocalAppEnv.current
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+
+    // The way out of a full-screen window that no player is holding: Escape (or the back button) leaves it, on any page.
+    val window = LocalWindowControl.current
+    DisposableEffect(shell, window) {
+        shell.leaveWindowFullscreen = {
+            if (window != null && window.mode == WindowMode.Fullscreen) {
+                window.mode = WindowMode.Maximized
+                true
+            } else {
+                false
+            }
+        }
+        onDispose { shell.leaveWindowFullscreen = null }
+    }
 
     BoxWithConstraints(
         modifier.fillMaxSize().background(Color(0xFF09090B))
@@ -125,8 +140,7 @@ internal fun handleShellKey(event: KeyEvent, shell: ShellState): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     if (event.isAltPressed && event.key == Key.DirectionLeft) return shell.back()
     if (event.key == Key.Escape) {
-        if (shell.escapeHook?.invoke() == true) return true
-        return shell.back()
+        return shell.escape()
     }
     if (event.isCtrlPressed) {
         val tab = when (event.key) {

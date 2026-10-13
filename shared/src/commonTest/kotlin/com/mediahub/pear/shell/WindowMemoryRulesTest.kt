@@ -62,10 +62,11 @@ class WindowMemoryRulesTest {
     }
 
     @Test
-    fun aFullScreenWindowIsRememberedAsFullScreen() {
+    fun aFullScreenWindowIsNeverRestoredFullScreen() {
+        // The player's full screen is not a state to reopen in: the app would start with no way out of it.
         val prefs = PrefStore()
         WindowMemory.write(prefs, WindowMode.Fullscreen, geometry = null)
-        assertEquals(SavedWindow(WindowMode.Fullscreen, geometry = null), WindowMemory.read(prefs))
+        assertEquals(SavedWindow(WindowMode.Maximized, geometry = null), WindowMemory.read(prefs))
     }
 
     @Test
@@ -78,5 +79,19 @@ class WindowMemoryRulesTest {
         val prefs = PrefStore()
         WindowMemory.write(prefs, WindowMode.Windowed, floating.copy(width = 3.0))
         assertEquals(SavedWindow(WindowMode.Windowed, geometry = null), WindowMemory.read(prefs))
+    }
+
+    @Test
+    fun aWindowNeverOpensFullScreen() {
+        assertEquals(WindowMode.Maximized, WindowMemory.openingMode(WindowMode.Fullscreen))
+        assertEquals(WindowMode.Maximized, WindowMemory.openingMode(WindowMode.Maximized))
+        assertEquals(WindowMode.Windowed, WindowMemory.openingMode(WindowMode.Windowed))
+    }
+
+    @Test
+    fun aFullScreenWindowIsSavedAsTheModeItCameFrom() {
+        assertEquals(WindowMode.Windowed, WindowMemory.savedMode(WindowMode.Fullscreen, beforeFullscreen = WindowMode.Windowed))
+        assertEquals(WindowMode.Maximized, WindowMemory.savedMode(WindowMode.Fullscreen, beforeFullscreen = WindowMode.Maximized))
+        assertEquals(WindowMode.Maximized, WindowMemory.savedMode(WindowMode.Maximized, beforeFullscreen = WindowMode.Windowed))
     }
 }

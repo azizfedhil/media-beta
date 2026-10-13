@@ -51,8 +51,8 @@ class PearColors(
     val sheen: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.34f), accent2.copy(alpha = 0.12f)))
 
     /**
-     * The tint of the sidebar and of every settings card: the same dark wash, so the cards read as the sidebar does.
-     * (Not the accent sheen: a card is a panel, not a control.)
+     * The dark wash under the sidebar and under every card. On its own it is close to black, so cards add [card] and a border
+     * on top of it (see GlassCard).
      */
     val panel: Color get() = Color(0xFF0D0D11).copy(alpha = 0.55f)
 
@@ -61,6 +61,15 @@ class PearColors(
      * dark glass. Stronger than [sheen], which is for the glass boxes of the pages.
      */
     val menu: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.42f), accent2.copy(alpha = 0.16f)))
+
+    /**
+     * The face of a card or a bar on a page. Pages sit on a near-black background, and glass over black has nothing to blur,
+     * so a card drawn as glass alone vanishes. This is a quiet accent wash (a little stronger in dark mode, where it has to
+     * lift a black page) that, with the card's border, makes the card read as a surface.
+     */
+    val card: Brush get() = Brush.linearGradient(
+        listOf(accent.copy(alpha = if (isDark) 0.20f else 0.10f), accent2.copy(alpha = if (isDark) 0.07f else 0.04f)),
+    )
 
     /** Untinted buttons: a clear accent fill, so a button stands off its backdrop. */
     val button: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.6f), accent2.copy(alpha = 0.3f)))

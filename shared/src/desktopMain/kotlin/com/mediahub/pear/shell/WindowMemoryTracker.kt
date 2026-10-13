@@ -27,7 +27,8 @@ private val DEFAULT_SIZE = DpSize(1280.dp, 800.dp)
 fun restoredWindow(saved: SavedWindow?, screens: List<ScreenBounds> = screenBounds()): RestoredWindow {
     val placement = when (saved?.mode) {
         WindowMode.Maximized -> WindowPlacement.Maximized
-        WindowMode.Fullscreen -> WindowPlacement.Fullscreen
+        // Never opens full screen (see WindowMemory.openingMode); read() already maps a saved one, this guards direct calls.
+        WindowMode.Fullscreen -> WindowPlacement.Maximized
         WindowMode.Windowed, null -> WindowPlacement.Floating
     }
     val centred = WindowPosition(Alignment.Center)
@@ -59,6 +60,7 @@ fun screenBounds(): List<ScreenBounds> = runCatching {
  * Keeps the window's mode and floating geometry in the settings (Batch 4.6c). A move or a resize is written after a short
  * pause, so dragging doesn't write on every pixel, and everything is written on the way out (AppExit, before the settings
  * are flushed). A maximized or full-screen window stores its mode only; its floating geometry is the one from before.
+ * A full-screen window is saved as the mode it was in before full screen, and a window never opens full screen.
  */
 @Composable
 fun RememberWindowGeometry(window: Window, state: WindowState, prefs: PrefStore) {
@@ -88,15 +90,22 @@ private class WindowMemoryTracker(
 
     fun changed() = timer.restart()
 
+    // The last mode the window was in that was not full screen: what a full-screen window is saved as.
+    private var beforeFullscreen: WindowMode = when (state.placement) {
+        WindowPlacement.Floating -> WindowMode.Windowed
+        else -> WindowMode.Maximized
+    }
+
     fun flush() {
         timer.stop()
-        val mode = when (state.placement) {
+        val current = when (state.placement) {
             WindowPlacement.Maximized -> WindowMode.Maximized
             WindowPlacement.Fullscreen -> WindowMode.Fullscreen
             else -> WindowMode.Windowed
         }
+        if (current != WindowMode.Fullscreen) beforeFullscreen = current
         val geometry = if (state.placement == WindowPlacement.Floating) floatingGeometry() else null
-        WindowMemory.write(prefs, mode, geometry)
+        WindowMemory.write(prefs, WindowMemory.savedMode(current, beforeFullscreen), geometry)
     }
 
     /** The window's place and size in dp. AWT reports pixels, so each is divided by the window's scale factor. */

@@ -47,7 +47,7 @@ fun GlassBar(
     contentPadding: Dp = 12.dp,
     content: @Composable RowScope.() -> Unit,
 ) {
-    GlassSurface(modifier, shape) {
+    GlassSurface(modifier, shape, sheen = PearTheme.colors.card, border = true) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = contentPadding, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -138,7 +138,14 @@ fun GlassCard(
     val hovered by source.collectIsHoveredAsState()
     val interactive = if (onClick == null) Modifier else
         Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand).clickable(interactionSource = source, indication = null, onClick = onClick)
-    GlassSurface(modifier.then(interactive), shape, wash = PearTheme.colors.panel, highlight = hovered && onClick != null) {
+    val c = PearTheme.colors
+    // Always lifted off the page (highlight, the card's accent wash and a border in every glass mode), so a card on a black
+    // page is a visible surface. Hovering a clickable card lifts it a step more.
+    GlassSurface(
+        modifier.then(interactive), shape,
+        wash = c.panel, highlight = true, sheen = c.card, border = true,
+    ) {
+        if (hovered && onClick != null) Box(Modifier.matchParentSize().background(c.fillSubtle))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }

@@ -51,13 +51,18 @@ fun CatalogGridScreen(
     val env = LocalAppEnv.current
     val items = remember { mutableStateListOf<MetaPreview>().apply { addAll(row.items) } }
     var order by remember { mutableStateOf(CatalogOrder.Original) }
+    // A row from Home arrives with its first titles. One opened from the sidebar arrives empty, with only its source: its
+    // first page is fetched here, whether or not the catalogue pages with `skip`.
+    val needsFirstPage = row.items.isEmpty() && row.source !is CatalogSource.None
     var isLoading by remember { mutableStateOf(false) }
+    var loadedOnce by remember { mutableStateOf(!needsFirstPage) }
+    var loadFailed by remember { mutableStateOf(false) }
     var hasMore by remember {
         mutableStateOf(
             when (row.source) {
                 is CatalogSource.None -> false
                 is CatalogSource.TmdbTrending -> true
-                is CatalogSource.FromAddon -> row.source.catalog.supportsSkip
+                is CatalogSource.FromAddon -> needsFirstPage || row.source.catalog.supportsSkip
             },
         )
     }
@@ -80,18 +85,26 @@ fun CatalogGridScreen(
                     p
                 }
                 is CatalogSource.FromAddon -> {
-                    val cat = try { env.data.addonClient.catalog(src.addon, src.catalog, skip = fetched) } catch (_: Exception) { emptyList<MetaPreview>() }
+                    val cat = try {
+                        env.data.addonClient.catalog(src.addon, src.catalog, skip = fetched)
+                    } catch (_: Exception) {
+                        loadFailed = true
+                        emptyList<MetaPreview>()
+                    }
                     fetched += cat.size
                     cat
                 }
             }
             val newItems = fresh.filter { seen.add(it.id) }
-            hasMore = newItems.isNotEmpty()
+            // A catalogue without `skip` has one page: asking again would only return the same titles.
+            val pages = (row.source as? CatalogSource.FromAddon)?.catalog?.supportsSkip ?: true
+            hasMore = newItems.isNotEmpty() && pages
             val kept = env.data.classifier.filter(newItems, env.data.content.rules)
             items.addAll(kept)
             added += kept.size
         }
         isLoading = false
+        loadedOnce = true
     }
 
     val gridState = rememberLazyGridState()
@@ -105,6 +118,9 @@ fun CatalogGridScreen(
 
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) loadMore()
+    }
+    LaunchedEffect(row.id) {
+        if (needsFirstPage) loadMore()
     }
 
     val orderedItems = remember(items.toList(), order) {
@@ -137,7 +153,22 @@ fun CatalogGridScreen(
             if (isLoading) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                        PearText("Loading more…", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
+                        PearText(
+                            if (items.isEmpty()) "Loading…" else "Loading more…",
+                            style = PearTheme.type.footnote,
+                            color = PearTheme.colors.textSecondary,
+                        )
+                    }
+                }
+            } else if (loadedOnce && items.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        PearText(
+                            if (loadFailed) "Couldn't load this catalogue. Check the connection and the add-on, then open it again."
+                            else "Nothing to show in this catalogue.",
+                            style = PearTheme.type.footnote,
+                            color = PearTheme.colors.textSecondary,
+                        )
                     }
                 }
             }

@@ -51,13 +51,27 @@ object WindowMemory {
         return w to h
     }
 
+    /**
+     * The mode to open in for a saved [mode]. Full screen is never opened: it belongs to the player, which leaves it itself,
+     * and a window that opens full screen has no title bar, no sidebar over a player and no button to leave it by. A state
+     * saved before this rule (it was written as Fullscreen) opens maximized, the state a full-screen player came from.
+     */
+    fun openingMode(mode: WindowMode): WindowMode = if (mode == WindowMode.Fullscreen) WindowMode.Maximized else mode
+
+    /**
+     * The mode to save for a window that is in [current]. A full-screen window is saved as the mode it was in before
+     * ([beforeFullscreen]), so closing the app from a full-screen player (or killing it) still opens the app as it was.
+     */
+    fun savedMode(current: WindowMode, beforeFullscreen: WindowMode): WindowMode =
+        if (current == WindowMode.Fullscreen) openingMode(beforeFullscreen) else current
+
     /** The saved window, or null when nothing was saved or the mode is unknown. An unusable geometry is dropped, the mode kept. */
     fun read(prefs: PrefStore): SavedWindow? {
         val mode = prefs.string(PrefKeys.DESKTOP_WINDOW_MODE)
             ?.let { text -> WindowMode.entries.firstOrNull { it.name == text } }
             ?: return null
         val geometry = storedGeometry(prefs)?.takeIf { usable(it) }
-        return SavedWindow(mode, geometry)
+        return SavedWindow(openingMode(mode), geometry)
     }
 
     /**

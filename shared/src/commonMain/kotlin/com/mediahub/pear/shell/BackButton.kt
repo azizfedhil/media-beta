@@ -14,7 +14,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 internal expect fun isBackButtonPressed(event: PointerEvent): Boolean
 
 /** Back, as Escape does it: a full-screen player leaves full screen first, then the screen goes back. */
-fun backFromMouse(shell: ShellState): Boolean = shell.escapeHook?.invoke() == true || shell.back()
+fun backFromMouse(shell: ShellState): Boolean = shell.escape()
 
 /**
  * Runs [backFromMouse] when the mouse's back button is pressed. It reads the Initial pass, so it sees each press before the

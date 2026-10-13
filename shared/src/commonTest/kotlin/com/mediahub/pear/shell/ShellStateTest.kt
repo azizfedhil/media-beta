@@ -1,5 +1,6 @@
 package com.mediahub.pear.shell
 
+import com.mediahub.pear.model.CatalogSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -56,5 +57,48 @@ class ShellStateTest {
         s.navFor(AppTab.Home).push(Route.Demo(1))
         assertTrue(s.back())
         assertFalse(s.back())
+    }
+
+    @Test
+    fun aSidebarCatalogueKeepsItsSourceSoItCanLoad() {
+        val s = ShellState()
+        val source = CatalogSource.TmdbTrending("movie")
+        s.selectCatalogue(CatalogueItem("a/b", "Trending Movies", source))
+        val row = (s.currentNav().top as Route.Catalogue).row
+        assertEquals(source, row.source)
+        assertTrue(row.items.isEmpty(), "the page fetches its own first page")
+    }
+
+    @Test
+    fun backFromTheFirstPageOfASidebarCatalogueLeavesTheCatalogue() {
+        val s = ShellState()
+        s.select(AppTab.Library)
+        s.selectCatalogue(CatalogueItem("a/b", "Trending Movies"))
+        assertTrue(s.back())
+        assertNull(s.catalogue)
+        assertEquals(AppTab.Library, s.tab)
+        assertFalse(s.back())
+    }
+
+    @Test
+    fun escapeLeavesFullScreenBeforeItGoesBack() {
+        val s = ShellState()
+        s.navFor(AppTab.Home).push(Route.Demo(1))
+        var fullscreen = true
+        s.leaveWindowFullscreen = { if (fullscreen) { fullscreen = false; true } else false }
+        assertTrue(s.escape())
+        assertEquals(2, s.navFor(AppTab.Home).depth, "the first Escape only left full screen")
+        assertTrue(s.escape())
+        assertEquals(1, s.navFor(AppTab.Home).depth)
+    }
+
+    @Test
+    fun theWindowsFullScreenIsLeftAfterThePlayersOwn() {
+        val s = ShellState()
+        val order = mutableListOf<String>()
+        s.escapeHook = { order.add("player"); true }
+        s.leaveWindowFullscreen = { order.add("window"); true }
+        assertTrue(s.escape())
+        assertEquals(listOf("player"), order)
     }
 }

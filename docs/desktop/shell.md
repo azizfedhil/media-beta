@@ -103,7 +103,7 @@ Code: `shared/.../shell/WindowMemory.kt` (the rules and the settings, common, un
 
 - **What is kept.** The mode (Windowed, Maximized or Full screen) and the floating window's place and size, in dp. A maximized or full-screen window keeps the floating geometry from before it was maximized, so un-maximizing after a restart returns to the size the user chose.
 - **When it is written.** A move or a resize is written 400 ms after the last one (a Swing timer: restarting it is the debounce), and on the way out, before the settings are flushed (`AppExit`, which the window's close button runs).
-- **How it opens.** The size is fitted inside the primary screen. A saved place is used only when the window's title bar, at its centre, lies on a screen; otherwise the window is centred (a monitor was unplugged, say). The mode is restored as it was: a window closed full screen opens full screen.
+- **How it opens.** The size is fitted inside the primary screen. A saved place is used only when the window's title bar, at its centre, lies on a screen; otherwise the window is centred (a monitor was unplugged, say). The mode is restored as it was, except that full screen is never restored: a window closed full screen is saved as the mode it was in before (maximized or windowed), and a state saved by an earlier version as full screen opens maximized. Full screen belongs to the player; a window that opened full screen would have no title bar and nothing to leave it by.
 - **Sanity limits.** A saved size under 200 x 300 dp, or over 20 000, is dropped. The window's own minimum (360 x 600 px) is in pixels, so it is smaller in dp on a scaled screen; the limits catch garbage, not small windows.
 
 ### Notes
@@ -113,7 +113,7 @@ Code: `shared/.../shell/WindowMemory.kt` (the rules and the settings, common, un
 ### Check it
 1. Move and resize the window, close Pear, reopen: same place and size.
 2. Maximize, close, reopen: maximized. Restore it: it returns to the size from before the maximize.
-3. Close in full screen (in the player, or the window's full screen): it opens in full screen; Escape leaves it.
+3. Close in full screen (in the player): it opens as it was before full screen (maximized or windowed), not full screen. Pressing Escape or the mouse's back button in a full-screen window leaves full screen on any page, even with no player open (`ShellState.escape`).
 4. Unplug a second monitor the window was on (or move the saved place off-screen by editing `settings.json`): the window opens centred on a screen.
 5. Settings backup: export and import it; the window keys are not in the file.
 

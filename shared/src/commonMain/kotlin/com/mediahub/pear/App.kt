@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.mediahub.pear.addons.HomeCatalogs
+import com.mediahub.pear.addons.rowKey
 import com.mediahub.pear.brand.PearLaunchOverlay
 import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.Storage
 import com.mediahub.pear.glass.GlassStore
+import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.net.Network
 import com.mediahub.pear.shell.AdaptiveShell
 import com.mediahub.pear.shell.AppEnv
@@ -49,7 +51,14 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
             LocalHttp provides data.network.http,
         ) {
             val catalogues = HomeCatalogs.jobs(data.addons.enabledAddons, data.content.rules, data.addons.pickerIds)
-                .map { (addon, cat) -> CatalogueItem("${addon.id}/${cat.type}/${cat.id}", HomeCatalogs.rowTitle(cat)) }
+                .map { (addon, cat) ->
+                    CatalogueItem(
+                        id = "${addon.id}/${cat.type}/${cat.id}",
+                        title = HomeCatalogs.rowTitle(cat),
+                        source = CatalogSource.FromAddon(addon, cat),
+                        prefKey = addon.rowKey(cat),
+                    )
+                }
             // The intro plays over the app while it loads, as the iOS launch screen does.
             Box(Modifier.fillMaxSize()) {
                 AdaptiveShell(shell, glass, catalogues = catalogues)

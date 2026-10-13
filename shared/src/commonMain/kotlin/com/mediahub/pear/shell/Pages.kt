@@ -97,7 +97,8 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         }
         is Route.Catalogue -> CatalogGridScreen(
             row = route.row,
-            onBack = { nav.pop() },
+            // A catalogue opened from the sidebar is the root of its own stack: back from it leaves the catalogue.
+            onBack = { if (!nav.pop()) env.shell.back() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
         )
         is Route.Demo -> DemoPage(route, nav)

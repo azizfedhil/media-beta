@@ -85,6 +85,11 @@ fun GlassSurface(
     outlineStrength: Float = 1f,
     /** A gradient drawn over the glass, under the content. Gives the surface its colour (the accent sheen). */
     sheen: Brush? = null,
+    /**
+     * Draws the theme outline in Glass and Clear too (Frosted and Flat always have it). Glass makes its own edge from what is
+     * behind it, so over a black page it has none; pages' cards and bars ask for this so they keep a visible edge.
+     */
+    border: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = PearTheme.colors
@@ -110,6 +115,7 @@ fun GlassSurface(
                 }
             }
             Modifier.hazeGlass(input = HazeInput.Sources(state!!), style = style, performanceMode = perf).clip(shape)
+                .then(if (border) Modifier.border(1.dp, outline, shape) else Modifier)
         }
         GlassMode.Flat -> Modifier.clip(shape).background(flatColor(c, wash)).border(1.dp, outline, shape)
     }

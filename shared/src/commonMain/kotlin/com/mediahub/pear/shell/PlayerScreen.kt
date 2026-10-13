@@ -153,18 +153,18 @@ fun PlayerScreen(
         }
     }
 
-    // The window as the player found it: maximized, full screen or a plain window. Leaving the player puts that back, so
-    // the app doesn't drop out of a maximized or full-screen state after a film. Full screen inside the player toggles
-    // from there, and turning it off returns to the same state (never full screen, as the window was not full screen).
+    // The window as the player found it: maximized or a plain window. Leaving the player puts that back, so the app doesn't
+    // drop out of a maximized state after a film. Full screen inside the player toggles from there, and turning it off
+    // returns to the same state. Full screen is never a state to return to: it belongs to the player, and is not saved.
     val window = LocalWindowControl.current
     val windowBefore = remember { window?.mode ?: WindowMode.Windowed }
-    val windowAfterFullscreen = if (windowBefore == WindowMode.Fullscreen) WindowMode.Windowed else windowBefore
-    var fullscreen by remember { mutableStateOf(window?.mode == WindowMode.Fullscreen) }
+    val windowAfterFullscreen = if (windowBefore == WindowMode.Fullscreen) WindowMode.Maximized else windowBefore
+    // Read from the window itself, not kept as a copy: the button, the icon and Escape always agree with what the window is.
+    val fullscreen = window?.mode == WindowMode.Fullscreen
     fun setFullscreen(value: Boolean) {
-        fullscreen = value
         window?.mode = if (value) WindowMode.Fullscreen else windowAfterFullscreen
     }
-    DisposableEffect(Unit) { onDispose { window?.mode = windowBefore } }
+    DisposableEffect(Unit) { onDispose { window?.mode = windowAfterFullscreen } }
     // Escape leaves full screen before it leaves the player: the shell asks this first (see handleShellKey).
     val exitFullscreen: () -> Boolean = { setFullscreen(false); true }
     LaunchedEffect(fullscreen) { env.shell.escapeHook = if (fullscreen) exitFullscreen else null }
