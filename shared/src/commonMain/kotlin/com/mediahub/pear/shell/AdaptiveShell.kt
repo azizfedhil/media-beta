@@ -92,7 +92,7 @@ fun AdaptiveShell(
 
         val topRoute = shell.currentNav().top
         val heroPage = topRoute is Route.Detail
-        val targetAmbient = if (shell.heroAmbientKnown) shell.heroAmbientColor else env.theme.accent
+        val targetAmbient = if (shell.heroAmbientKnown) shell.heroAmbientColor else PearTheme.colors.accent
         val animatedAmbient by animateColorAsState(targetAmbient, tween(900, easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)))
         val ambientStrength by animateFloatAsState(if (heroPage) 1f else 0f, tween(1800))
 
