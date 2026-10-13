@@ -102,7 +102,9 @@ val generateP2pBindings by tasks.registering(Exec::class) {
         // The app's P2P code names these; if a new UniFFI or p2p-core renames one, fail here with the reason.
         val kt = p2pBindings.get().asFile.walkTopDown().firstOrNull { it.name == "p2p_core.kt" }
             ?: throw GradleException("UniFFI wrote no p2p_core.kt into ${p2pBindings.get().asFile}")
-        val text = kt.readText()
+        // UniFFI may quote identifiers with backticks (`defaultEngineConfig`); the Kotlin is the same either way, so the
+        // check reads the text without them. Without this, `fun defaultEngineConfig` never matches a quoted declaration.
+        val text = kt.readText().replace("`", "")
         val needed = listOf(
             "class P2pEngine", "class P2pException", "fun defaultEngineConfig", "libraryOverride",
             "class MetadataTimeout", "class NoFile", "class Stopped",
