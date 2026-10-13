@@ -60,6 +60,14 @@ import com.mediahub.pear.theme.weight
  */
 private const val PLAYER_OUTLINE = 0.5f
 
+/**
+ * The wash under the player's glass, tuned by eye against the iOS player (its Liquid Glass carries a light tint): the controls
+ * are a light smoke (the grey pill and round buttons), the panels a dark grey (the sub-menus). Both are drawn with a rim, as
+ * iOS draws its glass. The page cards, the sidebar and the bars keep `PearColors.panel`.
+ */
+private val PLAYER_CONTROL_WASH = Color.White.copy(alpha = 0.14f)
+private val PLAYER_CARD_WASH = Color(0xFF2C2C2E).copy(alpha = 0.72f)
+
 /** The look every overlay surface follows. Set once by [PlayerOverlay]. */
 internal val LocalPlayerLook = compositionLocalOf { PlayerLook.Flat }
 
@@ -84,9 +92,9 @@ internal fun PlayerSurface(
 ) {
     when (LocalPlayerLook.current) {
         PlayerLook.Blur -> {
-            // Cards take the neutral panel wash, the same dark as the page cards, so their text reads over the picture.
-            val wash = if (kind == SurfaceKind.Card) PearTheme.colors.panel else tint?.copy(alpha = 0.55f)
-            GlassSurface(modifier, shape, wash = wash, content = content)
+            // An active button keeps its accent tint; everything else takes the player's own light or dark wash, with a rim.
+            val wash = tint?.copy(alpha = 0.55f) ?: if (kind == SurfaceKind.Card) PLAYER_CARD_WASH else PLAYER_CONTROL_WASH
+            GlassSurface(modifier, shape, wash = wash, border = true, content = content)
         }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)

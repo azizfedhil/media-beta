@@ -37,6 +37,8 @@ object PrefKeys {
     const val PROFILES_LIST = "profiles.list"
     const val PROFILES_ACTIVE = "profiles.active"
     const val PINNED_SOURCES = "pinned.sources"
+    /** The download index (JSON): every download, finished or not. Per device, not per profile. */
+    const val DOWNLOADS = "downloads.records"
     const val ARTWORK_PINNED = "artwork.pinned"
 
     // Per-profile bases (see ProfileKeys.scoped).

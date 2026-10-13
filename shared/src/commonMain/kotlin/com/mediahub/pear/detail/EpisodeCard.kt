@@ -1,5 +1,9 @@
 package com.mediahub.pear.detail
 
+import androidx.compose.ui.geometry.Rect
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -120,11 +124,13 @@ fun EpisodeCard(
     isSelected: Boolean = false,
     isWatched: Boolean = false,
     isUpNext: Boolean = false,
-    onActionsClick: (() -> Unit)? = null,
+    /** Opens the episode's menu beside the card: from a right click, or the "..." button. */
+    onMenu: ((Rect) -> Unit)? = null,
     scale: Float = 1f,
 ) {
     fun d(v: Float): Dp = (v * scale).dp
     fun t(v: Float): TextUnit = (v * scale).sp
+    val anchor = remember { MenuAnchor() }
 
     val cardWidth = d(250f)
     val cardHeight = d(292f)
@@ -158,7 +164,8 @@ fun EpisodeCard(
             .pointerHoverIcon(PointerIcon.Hand)
             .clip(RoundedCornerShape(radius))
             .background(Color(0xFF171717)) // iOS: Color(white: 0.09)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .menuAnchor(anchor)
+            .clickOrMenu(interactionSource, onClick = onClick, onMenu = { onMenu?.invoke(anchor.rect()) })
             .selectionGlow(isSelected, radius, accent),
     ) {
         // Atmospheric tint behind the dissolved still
@@ -386,13 +393,13 @@ fun EpisodeCard(
         }
 
         // Bottom-end ellipsis menu button
-        if (onActionsClick != null) {
+        if (onMenu != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = d(6f), bottom = d(6f))
                     .size(width = d(44f), height = d(40f))
-                    .clickable(onClick = onActionsClick),
+                    .clickable(onClick = { onMenu?.invoke(anchor.rect()) }),
                 contentAlignment = Alignment.Center,
             ) {
                 PearIcon(

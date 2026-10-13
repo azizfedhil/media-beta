@@ -18,7 +18,13 @@ import com.mediahub.pear.net.Network
 import com.mediahub.pear.servers.MediaServerStore
 import com.mediahub.pear.simkl.SimklStore
 import kotlinx.coroutines.CoroutineDispatcher
+import com.mediahub.pear.downloads.DownloadManager
+import com.mediahub.pear.downloads.platformDownloadFiles
+import com.mediahub.pear.downloads.platformDownloadTransport
+import com.mediahub.pear.epochMillis
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class Storage(
     val prefs: PrefStore,
@@ -55,6 +61,15 @@ class AppData(
     }
 
     val pinned = PinnedSources(storage.prefs)
+
+    /** Downloads: one file each in the downloads folder. Its own single-threaded scope, so the list changes in one order. */
+    val downloads = DownloadManager(
+        storage.prefs,
+        platformDownloadFiles(),
+        platformDownloadTransport(),
+        CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1)),
+        now = { epochMillis() },
+    )
     val subtitles = OpenSubtitlesClient(
         http = network.http,
         enabled = { storage.prefs.bool(PrefKeys.SUBS_ONLINE, true) },

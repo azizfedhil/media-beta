@@ -1,5 +1,11 @@
 package com.mediahub.pear.detail
 
+import com.mediahub.pear.model.StreamSize
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.mediahub.pear.p2p.p2pSource
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.alpha
@@ -70,6 +76,7 @@ fun SourceSheet(
     var loading by remember { mutableStateOf(true) }
     var selectedAddonFilter by remember { mutableStateOf<String?>(null) }
     val pinned = env.data.pinned.pin(imdbId)
+    val owner = SourceOwner(imdbId, item, season, episode, episodeTitle, thumb, logo, runtime = null)
 
     LaunchedEffect(imdbId, season, episode) {
         streams.clear()
@@ -141,6 +148,7 @@ fun SourceSheet(
                             SourceItemRow(
                                 stream = stream,
                                 addon = addon,
+                                owner = owner,
                                 isPinned = isPinned,
                                 playable = stream.isPlayable(p2pReady),
                                 onClick = {
@@ -186,51 +194,71 @@ fun SourceSheet(
     }
 }
 
+/**
+ * One source in the phone sheet: its name and size, the description, the download's status, and a small download button for a
+ * direct link. A tap picks it; a long press (or a right click) opens its menu.
+ */
 @Composable
 private fun SourceItemRow(
     stream: StreamItem,
     addon: Addon,
+    owner: SourceOwner,
     isPinned: Boolean,
     playable: Boolean,
     onClick: () -> Unit,
 ) {
+    val env = LocalAppEnv.current
     val shape = RoundedCornerShape(PearRadii.sm)
+    val source = remember { MutableInteractionSource() }
+    val anchor = remember { MenuAnchor() }
     GlassSurface(
         Modifier.fillMaxWidth().alpha(if (playable) 1f else 0.45f)
-            .then(if (playable) Modifier.clickable(onClick = onClick) else Modifier),
+            .menuAnchor(anchor)
+            .clickOrMenu(
+                source,
+                onClick = { if (playable) onClick() },
+                onMenu = {
+                    env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), sourceMenuItems(env, owner, addon, stream, isPinned)))
+                },
+            ),
         shape,
         border = true,
     ) {
-    Row(
-        Modifier.fillMaxWidth().padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                PearText(
-                    text = stream.name ?: stream.title ?: "Stream",
-                    style = PearTheme.type.subheadline.weight(FontWeight.SemiBold),
-                    maxLines = 1,
-                )
-                if (isPinned) {
-                    PearIcon("pin.fill", size = 12.dp, tint = PearTheme.colors.accent)
+        Row(
+            Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PearText(
+                        text = stream.name ?: stream.title ?: "Stream",
+                        style = PearTheme.type.subheadline.weight(FontWeight.SemiBold),
+                        maxLines = 1,
+                    )
+                    stream.sizeBytes?.let {
+                        PearText(StreamSize.format(it), style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 1)
+                    }
+                    if (isPinned) {
+                        PearIcon("pin.fill", size = 12.dp, tint = PearTheme.colors.accent)
+                    }
+                }
+                stream.description?.let { desc ->
+                    PearText(desc, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 2)
+                }
+                if (stream.url != null) SourceDownloadStatus(env, owner)
+            }
+
+            if (stream.isTorrent) {
+                Box(
+                    Modifier.clip(RoundedCornerShape(PearRadii.xs))
+                        .background(Color.White.copy(alpha = 0.1f))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                ) {
+                    PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textSecondary)
                 }
             }
-            stream.description?.let { desc ->
-                PearText(desc, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary, maxLines = 2)
-            }
+            if (stream.url != null) SourceDownloadButton(env, owner, addon, stream)
         }
-
-        if (stream.isTorrent) {
-            Box(
-                Modifier.clip(RoundedCornerShape(PearRadii.xs))
-                    .background(Color.White.copy(alpha = 0.1f))
-                    .padding(horizontal = 6.dp, vertical = 3.dp),
-            ) {
-                PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textSecondary)
-            }
-        }
-    }
     }
 }

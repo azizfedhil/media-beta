@@ -1,5 +1,11 @@
 package com.mediahub.pear.home
 
+import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
+import com.mediahub.pear.shell.titleMenuItems
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -80,6 +86,8 @@ private fun ThemeCard(item: ThemedTitle, onClick: () -> Unit, scale: Float = 1f)
     val source = remember { MutableInteractionSource() }
     val hovered = source.collectIsHoveredAsState().value
     val hoverScale = if (hovered) 1.02f else 1f
+    val env = LocalAppEnv.current
+    val anchor = remember { MenuAnchor() }
 
     Box(
         Modifier.width(width).aspectRatio(4f / 5f)
@@ -88,7 +96,14 @@ private fun ThemeCard(item: ThemedTitle, onClick: () -> Unit, scale: Float = 1f)
             .background(PearTheme.colors.fill)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
+            .menuAnchor(anchor)
+            .clickOrMenu(
+                source,
+                onClick = onClick,
+                onMenu = {
+                    env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), titleMenuItems(env, item.item, onDetails = onClick)))
+                },
+            ),
     ) {
         RemoteImage(item.item.heroUrl(false) ?: item.item.backdropUrl ?: item.item.posterUrl, Modifier.fillMaxSize())
 

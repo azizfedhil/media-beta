@@ -181,12 +181,15 @@ data class StreamItem(
     val behaviorHints: Hints? = null,
 ) {
     /** Optional add-on hints. Some debrid add-ons require custom request headers to fetch the file. */
-    data class Hints(val filename: String? = null, val proxyRequestHeaders: Map<String, String>? = null)
+    data class Hints(val filename: String? = null, val proxyRequestHeaders: Map<String, String>? = null, val videoSize: Long? = null)
 
     /** A stable id for lists. Sources with no link at all get a random one (Swift made a new one on every read). */
     val id: String = url ?: infoHash ?: externalUrl ?: ("stream-" + Random.nextLong().toString(16))
 
     val requestHeaders: Map<String, String> get() = behaviorHints?.proxyRequestHeaders ?: emptyMap()
+
+    /** The file's size in bytes: the add-on's hint when it gives one, else the size its description or title names. */
+    val sizeBytes: Long? get() = behaviorHints?.videoSize ?: StreamSize.parse(description) ?: StreamSize.parse(title)
 
     /** What a pinned source is matched by: the add-on's display name, because stream links change per episode. */
     val signature: String get() = (name ?: title ?: "").trim()
@@ -227,7 +230,7 @@ data class StreamItem(
                     }
                     if (ok) m else null
                 }
-                Hints(filename = h["filename"].jStr(), proxyRequestHeaders = headers)
+                Hints(filename = h["filename"].jStr(), proxyRequestHeaders = headers, videoSize = h["videoSize"].jDouble()?.toLong())
             }
             val idx = o["fileIdx"].jInt() ?: o["fileIdx"].jStr()?.toIntOrNull()
             return StreamItem(

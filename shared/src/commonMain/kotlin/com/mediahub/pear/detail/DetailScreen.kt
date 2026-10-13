@@ -236,6 +236,7 @@ fun DetailScreen(
                         if (isSeries) {
                             SeasonsAndEpisodesSection(
                                 item = item,
+                                imdbId = imdbId,
                                 details = details,
                                 selectedSeason = selectedSeason,
                                 selectedEpisode = selectedEpisode,
@@ -339,6 +340,7 @@ fun DetailScreen(
                 if (isSeries) {
                     SeasonsAndEpisodesSection(
                         item = item,
+                        imdbId = imdbId,
                         details = details,
                         selectedSeason = selectedSeason,
                         selectedEpisode = selectedEpisode,
@@ -453,6 +455,7 @@ private fun DetailActionBar(
 @Composable
 private fun SeasonsAndEpisodesSection(
     item: MetaPreview,
+    imdbId: String,
     details: TmdbDetails?,
     selectedSeason: Int,
     selectedEpisode: Int,
@@ -525,6 +528,11 @@ private fun SeasonsAndEpisodesSection(
                             isWatched = isEpisodeWatched(ep.id),
                             isSelected = ep.id == selectedEpisode,
                             onClick = { onSelectEpisode(ep) },
+                            onMenu = { rect ->
+                                env.shell.openContextMenu(
+                                    ContextMenuRequest(rect, episodeMenuItems(env, item, imdbId, selectedSeason, ep) { onSelectEpisode(ep) }),
+                                )
+                            },
                             scale = scale,
                         )
                     }
@@ -537,6 +545,11 @@ private fun SeasonsAndEpisodesSection(
                             isWatched = isEpisodeWatched(ep.id),
                             isSelected = ep.id == selectedEpisode,
                             onClick = { onSelectEpisode(ep) },
+                            onMenu = { rect ->
+                                env.shell.openContextMenu(
+                                    ContextMenuRequest(rect, episodeMenuItems(env, item, imdbId, selectedSeason, ep) { onSelectEpisode(ep) }),
+                                )
+                            },
                             scale = scale,
                         )
                     }

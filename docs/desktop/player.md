@@ -311,8 +311,7 @@ As before, the authoring environment has no Gradle or Kotlin compiler. Run `grad
 - **Margins** (`PlayerOverlay.kt`). 72 dp at the sides and 44 dp at the bottom. The floating panels line up with the pill's
   right edge. `PLAYER_PANEL_CLEARANCE` is derived from the bottom margin, and the subtitle lift uses it.
 - **Glass panels** (`PlayerSurfaces.kt`). The player's cards (speed, sources, subtitles, audio, display, info card) are glass with no
-  gradient, as on iOS. The blur look puts the neutral `PearColors.panel` wash under them, the same as the page cards, so their text
-  reads over the picture. The hero's Details button is a solid accent pill with the accent's own text colour, in both hero layouts.
+  gradient, as on iOS. The blur look puts a dark grey wash under them (`PLAYER_CARD_WASH`) and a light one under the controls (`PLAYER_CONTROL_WASH`), with a rim, as the iOS player's glass does. An active button keeps its accent tint. The hero's Details button is a solid accent pill with the accent's own text colour, in both hero layouts.
 
 ### Check it
 1. Open a title: while the stream opens, the pear. loader plays on black. It moves smoothly (no 30 fps cap).

@@ -45,7 +45,7 @@ class PearColors(
     val gradient: Brush get() = Brush.horizontalGradient(listOf(accent, accent2))
 
     /**
-     * The neutral wash of the glass surfaces: the sidebar, the bars, menus and sheets, and the player's panels (cards are solid, see [surface]). It is
+     * The neutral wash of the glass surfaces: the sidebar, the bars, menus and sheets (cards are solid, see [surface]). It is
      * dark in dark mode (the player is always dark) and the light surface colour in light mode, so text stays readable over
      * the picture. It is never the accent: glass takes no accent gradient (the iOS glass does not either), and the accent
      * appears on selected and active controls alone.

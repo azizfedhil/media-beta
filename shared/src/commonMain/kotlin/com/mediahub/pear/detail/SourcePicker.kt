@@ -1,5 +1,11 @@
 package com.mediahub.pear.detail
 
+import com.mediahub.pear.model.StreamSize
+import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.shell.MenuAnchor
+import com.mediahub.pear.shell.clickOrMenu
+import com.mediahub.pear.shell.menuAnchor
+import androidx.compose.ui.graphics.Brush
 import com.mediahub.pear.p2p.p2pSource
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.alpha
@@ -200,6 +206,16 @@ private fun WideSourcePicker(
             Box(Modifier.width(1.dp).fillMaxHeight().background(PearTheme.colors.hairline))
             SourcesPane(
                 ordered = ordered,
+                owner = SourceOwner(
+                    imdb = request.imdbId,
+                    item = request.item,
+                    season = request.season,
+                    episode = request.episode,
+                    episodeTitle = request.episodeTitle,
+                    thumb = request.thumb,
+                    logo = request.logo,
+                    runtime = request.episodeInfo?.runtime,
+                ),
                 shown = shown,
                 filter = filter,
                 onFilter = { filter = it },
@@ -213,7 +229,10 @@ private fun WideSourcePicker(
     }
 }
 
-/** The left two thirds: the episode's large image, the show's logo, MDBList ratings, and the synopsis. */
+/**
+ * The left two thirds: the episode's still fills the top two thirds of the pane, edge to edge. Its bottom fades into the dark,
+ * and on that fade sit the show's logo, the episode's name, the MDBList ratings, the synopsis and the details (runtime, air date).
+ */
 @Composable
 private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, modifier: Modifier) {
     val info = request.episodeInfo
@@ -225,45 +244,58 @@ private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, 
     }
     val episodeName = info?.name?.takeIf { it.isNotBlank() } ?: request.episodeTitle
     val synopsis = info?.overview?.takeIf { it.isNotBlank() } ?: request.item.description
-    // The whole pane scrolls, so a long synopsis is always reachable. The still is 16:9 at the pane's width but never taller
-    // than 220 dp, so it leaves room for the title, ratings and synopsis in a window of ordinary height.
-    Column(
-        modifier.verticalScroll(rememberScrollState()).padding(28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val stillHeight = (maxWidth * 9f / 16f).coerceAtMost(220.dp)
-            Box(
-                Modifier.fillMaxWidth().height(stillHeight)
-                    .clip(RoundedCornerShape(PearRadii.card))
-                    .background(PearTheme.colors.fill),
-            ) {
-                RemoteImage(image, Modifier.fillMaxSize())
+    val details = listOfNotNull(formatEpisodeRuntime(info?.runtime), episodeAirsOn(info?.airDate)).joinToString(" · ")
+    val dark = PearTheme.colors.background
+    BoxWithConstraints(modifier) {
+        val paneHeight = maxHeight
+        Box(Modifier.fillMaxWidth().height(paneHeight * 0.67f)) {
+            RemoteImage(image, Modifier.fillMaxSize())
+        }
+        // Clear over the still, then dark over the lower part of the pane, where the text goes.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Transparent,
+                    0.2f to Color.Transparent,
+                    0.67f to dark.copy(alpha = 0.92f),
+                    1f to dark,
+                ),
+            ),
+        )
+        Column(
+            Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                .heightIn(max = paneHeight * 0.62f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 28.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val logo = request.logo
+            if (logo != null) {
+                Box(Modifier.widthIn(max = 420.dp).height(64.dp)) {
+                    RemoteImage(logo, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                }
+            } else {
+                PearText(request.item.name, style = PearTheme.type.largeTitle.weight(FontWeight.Bold), maxLines = 2)
             }
-        }
-        PearText(kicker, style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textTertiary, maxLines = 1)
-        val logo = request.logo
-        if (logo != null) {
-            Box(Modifier.widthIn(max = 420.dp).height(64.dp)) {
-                RemoteImage(logo, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            PearText(kicker, style = PearTheme.type.caption2.weight(FontWeight.Bold), color = PearTheme.colors.textTertiary, maxLines = 1)
+            episodeName?.let {
+                PearText(it, style = PearTheme.type.title3.weight(FontWeight.SemiBold), color = PearTheme.colors.textSecondary, maxLines = 1)
             }
-        } else {
-            PearText(request.item.name, style = PearTheme.type.largeTitle.weight(FontWeight.Bold), maxLines = 2)
-        }
-        episodeName?.let {
-            PearText(it, style = PearTheme.type.title3.weight(FontWeight.SemiBold), color = PearTheme.colors.textSecondary, maxLines = 1)
-        }
-        if (ratings.isNotEmpty()) {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ratings.forEach { RatingBadge(it) }
+            if (ratings.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ratings.forEach { RatingBadge(it) }
+                }
             }
-        }
-        synopsis?.let {
-            PearText(it, style = PearTheme.type.body, color = PearTheme.colors.textPrimary)
+            synopsis?.let {
+                PearText(it, style = PearTheme.type.body, color = PearTheme.colors.textPrimary)
+            }
+            if (details.isNotEmpty()) {
+                PearText(details, style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary, maxLines = 1)
+            }
         }
     }
 }
@@ -272,6 +304,7 @@ private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, 
 @Composable
 private fun SourcesPane(
     ordered: List<Pair<Addon, List<StreamItem>>>,
+    owner: SourceOwner,
     shown: List<Pair<Addon, List<StreamItem>>>,
     filter: String?,
     onFilter: (String?) -> Unit,
@@ -327,6 +360,8 @@ private fun SourcesPane(
                             items.forEach { stream ->
                                 SourceCard(
                                     stream = stream,
+                                    addon = addon,
+                                    owner = owner,
                                     isPinned = pinned?.addonID == addon.id && pinned.signature == stream.signature,
                                     playable = stream.isPlayable(p2pReady),
                                     onClick = { onSelect(addon, stream) },
@@ -359,19 +394,38 @@ private fun SourcesPane(
     }
 }
 
-/** One source, as a glass card: its name, the description under it, and a mark when it is the pinned one. */
+/**
+ * One source, as a glass card: its name and size, a small download button for a direct link, the download's status, and the
+ * description. A left click picks it; a right click (or a long press) opens its menu.
+ */
 @Composable
-private fun SourceCard(stream: StreamItem, isPinned: Boolean, playable: Boolean, onClick: () -> Unit) {
+private fun SourceCard(
+    stream: StreamItem,
+    addon: Addon,
+    owner: SourceOwner,
+    isPinned: Boolean,
+    playable: Boolean,
+    onClick: () -> Unit,
+) {
     val c = PearTheme.colors
+    val env = LocalAppEnv.current
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
+    val anchor = remember { MenuAnchor() }
     val detail = stream.description ?: stream.title
     GlassSurface(
         Modifier.fillMaxWidth()
             .alpha(if (playable) 1f else 0.45f)
             .hoverable(source)
             .pointerHoverIcon(PointerIcon.Hand)
-            .then(if (playable) Modifier.clickable(interactionSource = source, indication = null, onClick = onClick) else Modifier),
+            .menuAnchor(anchor)
+            .clickOrMenu(
+                source,
+                onClick = { if (playable) onClick() },
+                onMenu = {
+                    env.shell.openContextMenu(ContextMenuRequest(anchor.rect(), sourceMenuItems(env, owner, addon, stream, isPinned)))
+                },
+            ),
         RoundedCornerShape(PearRadii.card),
         highlight = hovered,
         border = true,
@@ -384,14 +438,19 @@ private fun SourceCard(stream: StreamItem, isPinned: Boolean, playable: Boolean,
                     maxLines = 2,
                     modifier = Modifier.weight(1f),
                 )
+                stream.sizeBytes?.let {
+                    PearText(StreamSize.format(it), style = PearTheme.type.caption, color = c.textSecondary, maxLines = 1)
+                }
                 if (stream.isTorrent) {
                     PearText("P2P", style = PearTheme.type.caption2.weight(FontWeight.Bold), color = c.textSecondary)
                 }
                 if (isPinned) PearIcon("pin.fill", size = 12.dp, tint = c.accent)
+                if (stream.url != null) SourceDownloadButton(env, owner, addon, stream)
             }
             if (detail != null && detail != stream.name) {
                 PearText(detail, style = PearTheme.type.footnote, color = c.textSecondary, maxLines = 3)
             }
+            if (stream.url != null) SourceDownloadStatus(env, owner)
         }
     }
 }
