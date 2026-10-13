@@ -324,3 +324,36 @@ As before, the authoring environment has no Gradle or Kotlin compiler. Run `grad
 
 ### Not compiled
 As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first, then `gradle :desktopApp:run`.
+
+## Keyboard and mouse (Batch 4.6a)
+
+- **Keys** (`player/ui/PlayerKeys.kt`, routed in `PlayerOverlay.kt`).
+
+  | Key | Action |
+  | --- | --- |
+  | Space | Play or pause |
+  | Left, Right | Seek back or forward 10 s (Shift: 30 s), as the buttons do |
+  | Up, Down | Volume up or down by 5 % |
+  | M | Mute, and unmute to the last audible level |
+  | F | Full screen |
+  | Escape | Leaves full screen first, then the player (the shell's, as before) |
+
+  The iOS player has no key commands and no chapters, so the number keys do nothing, as the plan's "if iOS has chapters" asked.
+- **Mouse**. The wheel changes the volume by 5 % a notch, unless a panel is open (then the wheel scrolls the panel). A
+  click puts the keyboard focus back on the player, so the keys work after a click. Hovering and any key show the controls.
+  Double-click still toggles full screen.
+- **No clash with the shell.** The shell handles its keys first, so Ctrl+1 to 4, Ctrl+F and Alt+Left are the shell's
+  even while the player is open. The player ignores Ctrl, Alt and Meta combinations for its own keys.
+
+### Check it
+1. Open a film: the keyboard works without a click (Space pauses, the arrows seek).
+2. Left and right seek by 10 s; with Shift held, by 30 s. Up and down change the volume, and the pill's speaker shows it.
+3. M mutes; M again returns to the level it was at.
+4. F enters full screen; F again leaves it. Escape leaves full screen first and closes the player on the next press.
+5. Scroll the wheel over the picture: the volume changes. Open the Subtitles panel and scroll it: the panel scrolls, the
+   volume doesn't change.
+6. Ctrl+F on the player opens the shell's search (the player doesn't take it).
+
+### Not compiled
+As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (new common test:
+`PlayerKeysTest`), then `gradle :desktopApp:run`.

@@ -39,6 +39,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -145,6 +153,15 @@ fun PlayerOverlay(
     // Play, pause, loading and so on start a fresh countdown, so resuming does not hide the controls at once.
     LaunchedEffect(state) { pings.tryEmit(Unit) }
 
+    // The keyboard and the wheel (4.6a). The player takes the keyboard when it opens, and a click brings the focus back.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    val volume by engine.volume.collectAsState()
+    // The level unmuting returns to: the last audible one (as the speaker in the pill does).
+    var lastAudible by remember { mutableFloatStateOf(1f) }
+    LaunchedEffect(volume) { if (volume > 0.01f) lastAudible = volume }
+    val panelOpen by rememberUpdatedState(panel != null)
+
     var scrubbing by remember { mutableStateOf(false) }
     var pillActive by remember { mutableStateOf(false) }
     val overTop = remember { mutableStateOf(false) }
@@ -177,15 +194,51 @@ fun PlayerOverlay(
     val onTap by rememberUpdatedState(tapAction)
     val onDoubleTap by rememberUpdatedState(onToggleFullscreen)
 
+    // Keys: Space pauses, the arrows seek (Shift for longer) and set the volume, M mutes, F goes full screen. A key shows the
+    // controls, as a move does. Escape is the shell's, and Ctrl, Alt and Meta combinations never reach here.
+    val handleKey: (KeyEvent) -> Boolean = { event ->
+        val action = if (event.type == KeyEventType.KeyDown) {
+            PlayerKeys.action(event.key, event.isShiftPressed, event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)
+        } else {
+            null
+        }
+        if (action != null) pings.tryEmit(Unit)
+        when (action) {
+            PlayerKeyAction.TogglePlay -> { playPause(); true }
+            PlayerKeyAction.SeekBack -> {
+                engine.seek(SeekMath.skipped(engine.positionSeconds.value, -PlayerKeys.seekSeconds(event.isShiftPressed), engine.durationSeconds.value))
+                true
+            }
+            PlayerKeyAction.SeekForward -> {
+                engine.seek(SeekMath.skipped(engine.positionSeconds.value, PlayerKeys.seekSeconds(event.isShiftPressed), engine.durationSeconds.value))
+                true
+            }
+            PlayerKeyAction.VolumeUp -> { engine.setVolume((engine.volume.value + PlayerKeys.VOLUME_STEP).coerceIn(0f, 1f)); true }
+            PlayerKeyAction.VolumeDown -> { engine.setVolume((engine.volume.value - PlayerKeys.VOLUME_STEP).coerceIn(0f, 1f)); true }
+            PlayerKeyAction.Mute -> { engine.setVolume(toggledMute(engine.volume.value, lastAudible)); true }
+            PlayerKeyAction.Fullscreen -> { onToggleFullscreen(); true }
+            null -> false
+        }
+    }
+
     GlassScene(
         store = glass,
         modifier = modifier.fillMaxSize().background(Color.Black)
             .pointerHoverIcon(if (visible) PointerIcon.Default else hiddenCursor)
+            .focusRequester(focus)
+            .focusable()
+            .onKeyEvent(handleKey)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
-                        awaitPointerEvent(PointerEventPass.Initial)
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
                         pings.tryEmit(Unit)
+                        if (event.type == PointerEventType.Press) runCatching { focus.requestFocus() }
+                        // The wheel sets the volume, unless a panel is open: then it scrolls that panel.
+                        if (event.type == PointerEventType.Scroll && !panelOpen) {
+                            val step = PlayerKeys.wheelStep(event.changes.firstOrNull()?.scrollDelta?.y ?: 0f)
+                            if (step != 0f) engine.setVolume((engine.volume.value + step).coerceIn(0f, 1f))
+                        }
                     }
                 }
             },
