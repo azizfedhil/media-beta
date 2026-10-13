@@ -58,6 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.brand.PearAnimation
 import com.mediahub.pear.brand.PearMode
+import com.mediahub.pear.player.media.MediaCommand
+import com.mediahub.pear.player.media.MediaKeys
 import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.player.PlaybackState
@@ -118,6 +120,8 @@ fun PlayerOverlay(
     errorMessage: String?,
     onClose: () -> Unit,
     onToggleFullscreen: () -> Unit,
+    /** A media key was pressed. The screen runs it, so Next can play the next episode (Batch 4.6b). */
+    onMediaCommand: (MediaCommand) -> Unit = {},
     /** Full screen is on: the way out stays on screen, whatever the controls are doing. */
     fullscreen: Boolean = false,
     /** A torrent is being opened through the engine: the loader shows, as it does for a link that is opening. */
@@ -193,31 +197,42 @@ fun PlayerOverlay(
     val tapAction: () -> Unit = { if (panel != null) onDismissPanel() else playPause() }
     val onTap by rememberUpdatedState(tapAction)
     val onDoubleTap by rememberUpdatedState(onToggleFullscreen)
+    val onMedia by rememberUpdatedState(onMediaCommand)
 
     // Keys: Space pauses, the arrows seek (Shift for longer) and set the volume, M mutes, F goes full screen. A key shows the
     // controls, as a move does. Escape is the shell's, and Ctrl, Alt and Meta combinations never reach here.
     val handleKey: (KeyEvent) -> Boolean = { event ->
-        val action = if (event.type == KeyEventType.KeyDown) {
-            PlayerKeys.action(event.key, event.isShiftPressed, event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)
+        // Media keys (Batch 4.6b) go to the screen, which decides what Next and Previous do. Ctrl, Alt and Meta
+        // combinations are left alone, as the player's own keys leave them.
+        val shellModifier = event.isCtrlPressed || event.isAltPressed || event.isMetaPressed
+        val media = if (event.type == KeyEventType.KeyDown && !shellModifier) MediaKeys.command(event.key) else null
+        if (media != null) {
+            pings.tryEmit(Unit)
+            onMedia(media)
+            true
         } else {
-            null
-        }
-        if (action != null) pings.tryEmit(Unit)
-        when (action) {
-            PlayerKeyAction.TogglePlay -> { playPause(); true }
-            PlayerKeyAction.SeekBack -> {
-                engine.seek(SeekMath.skipped(engine.positionSeconds.value, -PlayerKeys.seekSeconds(event.isShiftPressed), engine.durationSeconds.value))
-                true
+            val action = if (event.type == KeyEventType.KeyDown) {
+                PlayerKeys.action(event.key, event.isShiftPressed, shellModifier)
+            } else {
+                null
             }
-            PlayerKeyAction.SeekForward -> {
-                engine.seek(SeekMath.skipped(engine.positionSeconds.value, PlayerKeys.seekSeconds(event.isShiftPressed), engine.durationSeconds.value))
-                true
+            if (action != null) pings.tryEmit(Unit)
+            when (action) {
+                PlayerKeyAction.TogglePlay -> { playPause(); true }
+                PlayerKeyAction.SeekBack -> {
+                    engine.seek(SeekMath.skipped(engine.positionSeconds.value, -PlayerKeys.seekSeconds(event.isShiftPressed), engine.durationSeconds.value))
+                    true
+                }
+                PlayerKeyAction.SeekForward -> {
+                    engine.seek(SeekMath.skipped(engine.positionSeconds.value, PlayerKeys.seekSeconds(event.isShiftPressed), engine.durationSeconds.value))
+                    true
+                }
+                PlayerKeyAction.VolumeUp -> { engine.setVolume((engine.volume.value + PlayerKeys.VOLUME_STEP).coerceIn(0f, 1f)); true }
+                PlayerKeyAction.VolumeDown -> { engine.setVolume((engine.volume.value - PlayerKeys.VOLUME_STEP).coerceIn(0f, 1f)); true }
+                PlayerKeyAction.Mute -> { engine.setVolume(toggledMute(engine.volume.value, lastAudible)); true }
+                PlayerKeyAction.Fullscreen -> { onToggleFullscreen(); true }
+                null -> false
             }
-            PlayerKeyAction.VolumeUp -> { engine.setVolume((engine.volume.value + PlayerKeys.VOLUME_STEP).coerceIn(0f, 1f)); true }
-            PlayerKeyAction.VolumeDown -> { engine.setVolume((engine.volume.value - PlayerKeys.VOLUME_STEP).coerceIn(0f, 1f)); true }
-            PlayerKeyAction.Mute -> { engine.setVolume(toggledMute(engine.volume.value, lastAudible)); true }
-            PlayerKeyAction.Fullscreen -> { onToggleFullscreen(); true }
-            null -> false
         }
     }
 

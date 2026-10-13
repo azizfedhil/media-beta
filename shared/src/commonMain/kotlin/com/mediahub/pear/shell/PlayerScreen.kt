@@ -32,6 +32,11 @@ import com.mediahub.pear.player.EpisodeSupport
 import com.mediahub.pear.player.PlaybackProgress
 import com.mediahub.pear.player.PlaybackSnapshot
 import com.mediahub.pear.player.PlaybackState
+import com.mediahub.pear.player.media.MediaCommand
+import com.mediahub.pear.player.media.MediaEffect
+import com.mediahub.pear.player.media.MediaMetadata
+import com.mediahub.pear.player.media.MediaSessionRules
+import com.mediahub.pear.player.media.createSystemMediaSession
 import com.mediahub.pear.player.TrackKind
 import com.mediahub.pear.player.TrackPicker
 import com.mediahub.pear.player.ProgressRules
@@ -419,6 +424,35 @@ fun PlayerScreen(
         scope.launch { switchEpisode(season, episode) }
     }
 
+    // System media controls (Batch 4.6b): the media keys, inside the player and as global keys where the platform has
+    // them, and what the OS shows for this title. Every command runs here, so Next is the pill's Next, not a second path.
+    fun runMedia(command: MediaCommand) {
+        when (MediaSessionRules.effect(command, nextAvailable = nextEp != null)) {
+            MediaEffect.TogglePlay -> engine.togglePlay()
+            MediaEffect.Play -> engine.play()
+            MediaEffect.Pause -> engine.pause()
+            MediaEffect.PlayNext -> playNext()
+            MediaEffect.RestartTitle -> engine.seek(0.0)
+            MediaEffect.None -> Unit
+        }
+    }
+    // Created with the player and released with it, so the keys are only ours while a player is on screen.
+    val mediaSession = remember(engine) { createSystemMediaSession() }
+    DisposableEffect(mediaSession) { onDispose { mediaSession.release() } }
+    LaunchedEffect(mediaSession) { mediaSession.commands.collect { runMedia(it) } }
+    LaunchedEffect(mediaSession, state, current, nextEp) {
+        mediaSession.update(
+            status = MediaSessionRules.status(state),
+            metadata = MediaMetadata(
+                title = current.item.name,
+                subtitle = playerSubtitleLine(current.season, current.episode, current.episodeTitle, current.item.releaseInfo),
+                artworkUrl = current.thumb ?: current.item.background ?: current.item.poster,
+                durationSeconds = engine.durationSeconds.value,
+            ),
+            canGoNext = nextEp != null,
+        )
+    }
+
     // Adds an online file to this file and plays it (`useOnline` in PlayerView.swift). The engine reads it into the track
     // list; the new track is the one whose title is the source name and that wasn't there before.
     fun addOnline(s: OnlineSubtitle) {
@@ -468,6 +502,7 @@ fun PlayerScreen(
             errorMessage = error,
             onClose = { leave(); onBack() },
             onToggleFullscreen = { setFullscreen(!fullscreen) },
+            onMediaCommand = { runMedia(it) },
             fullscreen = fullscreen,
             p2pOpening = p2pOpening,
             p2pStatus = p2pStatus,

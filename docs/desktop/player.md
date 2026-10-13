@@ -357,3 +357,39 @@ As before, this environment has no Gradle or Kotlin compiler. Run `gradle :share
 ### Not compiled
 As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (new common test:
 `PlayerKeysTest`), then `gradle :desktopApp:run`.
+
+## System media controls (Batch 4.6b)
+
+Code: `shared/.../player/media/MediaSession.kt` (commands, metadata, the session interface, `MediaKeys`), `MediaSessionRules.kt` (the pure rules), `desktopMain/.../player/media/` (`WindowsMediaSession.kt`, `MediaVirtualKeys.kt`, the platform actual), `player/ui/PlayerOverlay.kt` (the keys inside the player), `shell/PlayerScreen.kt` (`runMedia`, the session's lifetime). Spec: none. The iOS app has no media keys and no Now Playing controls, so this batch adds no screen, no setting and no visible control. The on-screen behaviour it has to agree with is the pill's play button and Next.
+
+- **One command path.** Every command (a key in the player, a Windows media key, a system control) goes to `PlayerScreen.runMedia`, which asks `MediaSessionRules.effect` what to do. Next is therefore the pill's Next: it uses the same next-episode lookup and the same switch, and does nothing for a film or the last episode.
+- **Keys in the player.** Play/Pause, Play, Pause, Stop, Next and Previous are taken by `PlayerOverlay` before its own keys. Ctrl, Alt and Meta combinations are left to the shell, as before.
+- **Windows: global media keys.** `WindowsMediaSession` registers the four media keys (`RegisterHotKey`, virtual keys 0xB0 to 0xB3) on a message-loop thread that lives as long as the player is open. They work while another window has focus. A key another app already holds is skipped without an error, because Windows keeps it for that app.
+- **Session lifetime.** The session is created when the player opens and released when it closes (the same `DisposableEffect` that releases the engine). Outside the player the keys are not ours.
+- **Status and title.** `SystemMediaSession.update` receives the playback status (MPRIS names: Playing, Paused, Stopped), the title, the subtitle, the artwork (the episode still or backdrop) and whether Next is available. On Windows it is not sent anywhere yet: the overlay is WinRT (see below). On Linux it is the input MPRIS will need.
+
+### Differences from the plan and from iOS
+1. **Previous** goes to the start of the title. The iOS player has no previous-episode action, so there is nothing to match; the plan asked for the keys, not a behaviour.
+2. **Stop** pauses and keeps the player open. There is no stop state in the iOS player.
+3. **Windows overlay not built.** The plan said "system media controls, Windows". The visible part (the title and play state in the system's media flyout, and the lock screen) is System Media Transport Controls, which is WinRT. It needs a Windows-only native piece and is a later batch. The keys work now.
+
+### Open decision: MPRIS2 on Linux
+The Linux session is `NoSystemMediaSession`: the keys work inside the player only. MPRIS2 needs a D-Bus service that exports `org.mpris.MediaPlayer2.Player` and sends `PropertiesChanged`. Options:
+- **dbus-java** (LGPL-2.1, a Maven library). Least code, but the library and its version have to be checked before it is added: its API has changed between major versions, and this environment cannot download it.
+- **libdbus through JNA** (already a dependency, and libdbus is on almost every Linux desktop). No new library, but the wire marshalling is hand-written, which is more code to get wrong.
+
+Recommendation: dbus-java, pinned after its API has been checked against the release. Needs your yes before it is added to `gradle/libs.versions.toml`.
+
+### Not in 4.6b (still under 4.6)
+Prevent the screen saver and sleep during playback, remember the window state, and the mouse back button. These are small, and the iOS rule for the first is known (`updateIdleTimer` in PlayerView.swift: the screen stays awake while playing with no error). They are the next batch.
+
+### Check it
+1. Play a film. Press the keyboard's Play/Pause media key with Pear focused: it toggles once, not twice.
+2. With Pear in the player and another window focused, press Play/Pause: Pear's playback toggles. Leave the player: the key goes back to the other app (Spotify, for example).
+3. An episode with a next one: Next media key plays the next episode, and the title line changes to the new S·E. A film: Next does nothing.
+4. Previous media key: the title goes back to 0:00 and keeps its state (playing stays playing).
+5. Stop: playback pauses and the player stays open.
+6. Linux: the keys work while the player has focus; no system controls appear (expected until MPRIS).
+
+### Not compiled
+As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first (new common tests: `MediaSessionRulesTest`, `MediaKeysTest`; new desktop test: `MediaVirtualKeysTest`), then `gradle :desktopApp:run`. The Compose key names (`Key.MediaPlayPause`, `Key.MediaPlay`, `Key.MediaPause`, `Key.MediaStop`, `Key.MediaNext`, `Key.MediaPrevious`) and the JNA user32 signatures are the parts to check first if the build fails.
