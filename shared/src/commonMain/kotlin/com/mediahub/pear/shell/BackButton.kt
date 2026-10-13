@@ -1,9 +1,8 @@
 package com.mediahub.pear.shell
 
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.awaitPointerEvent
-import androidx.compose.ui.input.pointer.awaitPointerEventScope
 import androidx.compose.ui.input.pointer.pointerInput
 
 /*
@@ -34,7 +33,7 @@ fun Modifier.mouseBack(shell: ShellState): Modifier = pointerInput(shell) {
         val edge = BackButtonEdge()
         while (true) {
             val event = awaitPointerEvent(PointerEventPass.Initial)
-            if (edge.pressed(event.buttons.isBackPressed)) backFromMouse(shell)
+            if (edge.pressed(event.buttons.isPressed(PointerButton.Back))) backFromMouse(shell)
         }
     }
 }

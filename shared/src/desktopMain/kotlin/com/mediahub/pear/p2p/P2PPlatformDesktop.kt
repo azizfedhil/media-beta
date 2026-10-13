@@ -45,7 +45,7 @@ actual fun p2pPlatform(): P2PPlatform = DesktopP2PPlatform
 private class UniffiP2PNative(private val engine: P2pEngine) : P2PNative {
     override fun startStream(source: P2PSource): P2PStream = guarded {
         val info = engine.startStream(source.infoHash, source.trackers, source.fileIdx?.toUInt())
-        P2PStream(url = info.url, fileName = info.fileName, length = info.length, fileIndex = info.fileIndex.toInt())
+        P2PStream(url = info.url, fileName = info.fileName, length = info.length.toLong(), fileIndex = info.fileIndex.toInt())
     }
 
     override fun stopStream() = guarded { engine.stopStream() }
@@ -53,11 +53,11 @@ private class UniffiP2PNative(private val engine: P2pEngine) : P2PNative {
     override fun stats(): P2PStats? = guarded {
         engine.stats()?.let {
             P2PStats(
-                downloadedBytes = it.downloadedBytes,
-                uploadedBytes = it.uploadedBytes,
-                totalBytes = it.totalBytes,
+                downloadedBytes = it.downloadedBytes.toLong(),
+                uploadedBytes = it.uploadedBytes.toLong(),
+                totalBytes = it.totalBytes.toLong(),
                 peersLive = it.peersLive.toInt(),
-                downloadBps = it.downloadBps,
+                downloadBps = it.downloadBps.toLong(),
             )
         }
     }

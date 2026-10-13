@@ -1,5 +1,7 @@
 package com.mediahub.pear.model
 
+import com.mediahub.pear.p2p.P2PSource
+
 data class PlayRequest(
     val url: String,
     val headers: Map<String, String> = emptyMap(),
