@@ -126,7 +126,7 @@ fun GlassPillButton(symbol: String, onClick: () -> Unit, modifier: Modifier = Mo
     ) { PearIcon(symbol, size = 20.dp, tint = if (enabled) c.textPrimary else c.textDisabled) }
 }
 
-/** Content card. Clickable when [onClick] is given. */
+/** Content card: a solid surface with no contour, as on iOS. Clickable when [onClick] is given. */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
@@ -139,12 +139,9 @@ fun GlassCard(
     val interactive = if (onClick == null) Modifier else
         Modifier.hoverable(source).pointerHoverIcon(PointerIcon.Hand).clickable(interactionSource = source, indication = null, onClick = onClick)
     val c = PearTheme.colors
-    // Always lifted off the page (a neutral highlight, the dark panel wash and an edge in every glass mode), so a card on a
-    // black page is a visible surface. Hovering a clickable card lifts it a step more.
-    GlassSurface(
-        modifier.then(interactive), shape,
-        wash = c.panel, highlight = true, border = true,
-    ) {
+    // The card's face is the solid surface colour (#1C1C1E, the iOS dark cell colour), with no glass and no contour in any
+    // mode. Hovering a clickable card lifts it a step.
+    Box(modifier.then(interactive).clip(shape).background(c.surface)) {
         if (hovered && onClick != null) Box(Modifier.matchParentSize().background(c.fillSubtle))
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }

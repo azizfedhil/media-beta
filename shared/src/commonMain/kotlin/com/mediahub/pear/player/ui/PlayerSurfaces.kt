@@ -55,8 +55,8 @@ import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 
 /**
- * How strong the player's outlines are, against the theme's outline colour: half. Used for the blur border and the tint
- * edge. The Glass and Clear styles draw their own edge from Haze, which this doesn't reach.
+ * How strong the player's tint edge is, against the theme's outline colour: half. The blur look draws no outline; the glass
+ * styles draw their own edge through Haze.
  */
 private const val PLAYER_OUTLINE = 0.5f
 
@@ -86,7 +86,7 @@ internal fun PlayerSurface(
         PlayerLook.Blur -> {
             // Cards take the neutral panel wash, the same dark as the page cards, so their text reads over the picture.
             val wash = if (kind == SurfaceKind.Card) PearTheme.colors.panel else tint?.copy(alpha = 0.55f)
-            GlassSurface(modifier, shape, wash = wash, outlineStrength = PLAYER_OUTLINE, content = content)
+            GlassSurface(modifier, shape, wash = wash, content = content)
         }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)

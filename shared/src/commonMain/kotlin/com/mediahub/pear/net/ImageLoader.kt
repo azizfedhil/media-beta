@@ -1,11 +1,5 @@
 package com.mediahub.pear.net
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,8 +11,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -120,33 +112,29 @@ fun RemoteImage(
                 }
             }
             else -> {
-                Shimmer(Modifier.fillMaxSize())
+                ImagePlaceholder(Modifier.fillMaxSize())
             }
         }
     }
 }
 
+/** The placeholder while an image loads: a flat surface fill, as on iOS (a flat secondary fill, no animation). */
 @Composable
-fun Shimmer(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition()
-    val translateAnim by transition.animateFloat(
-        initialValue = -1000f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-    )
+fun ImagePlaceholder(modifier: Modifier = Modifier) {
+    Box(modifier.background(PearTheme.colors.surface))
+}
 
-    val brush = Brush.linearGradient(
-        colors = listOf(
-            PearTheme.colors.fillSubtle,
-            PearTheme.colors.fillStrong,
-            PearTheme.colors.fillSubtle,
-        ),
-        start = Offset(translateAnim, 0f),
-        end = Offset(translateAnim + 400f, 400f),
-    )
-
-    Box(modifier.background(brush))
+/**
+ * Loads and decodes [url] through the same memory cache [RemoteImage] uses. Null when the image cannot be loaded. Callers
+ * that must know whether an image arrived (a title logo replaces its text only once it has loaded) use this, not RemoteImage,
+ * which shows a placeholder or an icon instead.
+ */
+suspend fun loadRemoteBitmap(http: Http, url: String): ImageBitmap? {
+    ImageMemoryCache.get(url)?.let { return it }
+    val loaded = withContext(Dispatchers.Default) {
+        val bytes = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)).body }
+        bytes?.let { decodeImageBitmap(it) }
+    } ?: return null
+    ImageMemoryCache.put(url, loaded)
+    return loaded
 }

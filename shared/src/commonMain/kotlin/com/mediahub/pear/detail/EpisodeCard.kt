@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -506,11 +505,7 @@ private fun Modifier.selectionGlow(selected: Boolean, radius: Dp, accent: Color)
             style = Stroke(width = stroke * 2f),
         )
         drawRoundRect(
-            brush = Brush.linearGradient(
-                colors = listOf(accent.copy(alpha = 0.95f * k), accent.copy(alpha = 0.50f * k)),
-                start = Offset.Zero,
-                end = Offset(size.width, size.height),
-            ),
+            color = accent.copy(alpha = 0.7f * k),
             cornerRadius = corner,
             style = Stroke(width = stroke),
         )

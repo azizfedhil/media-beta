@@ -171,7 +171,7 @@ As before, the authoring environment has no Gradle or Kotlin compiler. Run `grad
 
 ## Outlines (brand pass)
 
-The outlines of the player's surfaces are half as strong as before: the blur border and the tint edge (`PLAYER_OUTLINE` in `player/ui/PlayerSurfaces.kt`, passed to `GlassSurface(outlineStrength = ...)`) and the info card's still. Frosted and Flat use the theme's outline colour at half its alpha. Glass and Clear draw their own edge through Haze, so that edge is unchanged.
+The player's tint edge (`PLAYER_OUTLINE`) is half as strong as before. The blur look draws no outline: Frosted and Flat never draw one, and Glass draws an outline only where a surface asks for it (`border = true`), through its own edge.
 
 ## Pill, full screen and folding (brand pass 2)
 

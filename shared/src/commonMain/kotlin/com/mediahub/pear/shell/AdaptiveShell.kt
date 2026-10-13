@@ -22,7 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -204,29 +204,21 @@ private fun KeepAlive(shown: Boolean, content: @Composable () -> Unit) {
 }
 
 /**
- * One soft colour wash over the whole page, from the hero's poster: strongest behind the hero, dissolving to near-black.
- * [strength] (0 to 1) fades the colour in and out; the dark base at the bottom is always drawn, so other pages keep their look.
+ * The ambient glow, drawn as iOS draws it on Home (HomeView's `ambient`): the hero's colour from the top at 70%, easing to 25%
+ * at the middle and to clear at 1100 dp. [strength] (0 to 1) fades it in and out between pages.
  */
 @Composable
 private fun AmbientWash(color: Color, strength: Float) {
     Box(
         Modifier.fillMaxSize().drawBehind {
+            val fadeHeight = minOf(size.height, 1100.dp.toPx())
             drawRect(
-                Brush.radialGradient(
-                    0f to color.copy(alpha = 0.75f * strength),
-                    0.40f to color.copy(alpha = 0.38f * strength),
-                    0.75f to color.copy(alpha = 0.12f * strength),
+                brush = Brush.verticalGradient(
+                    0f to color.copy(alpha = 0.70f * strength),
+                    0.5f to color.copy(alpha = 0.25f * strength),
                     1f to Color.Transparent,
-                    center = Offset(size.width * 0.30f, size.height * 0.38f),
-                    radius = maxOf(size.width, size.height) * 1.0f,
                 ),
-            )
-            drawRect(
-                Brush.verticalGradient(
-                    0f to color.copy(alpha = 0.20f * strength),
-                    0.55f to Color.Transparent,
-                    1f to Color.Black.copy(alpha = 0.55f),
-                ),
+                size = Size(size.width, fadeHeight),
             )
         },
     )

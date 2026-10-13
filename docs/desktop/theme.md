@@ -13,6 +13,7 @@ Code: `shared/.../theme/`. Preview screen: `preview/ThemePreview.kt` (Settings -
   (durations and the iOS push curve).
 - **Gradients**: the only gradient is `PearColors.gradient` (the accent into its neighbouring hue), used for progress fills and the profile
   stat card, as on iOS. Glass has none. The accent layers that used to sit under glass (`sheen`, `menu`, `card`, `button`) are gone.
+- **Cards** (`GlassCard`) are the `surface` colour, #1C1C1E, the iOS dark cell colour, with no contour. Glass surfaces use `panel` as their neutral wash.
 - **Type** (`PearType.kt`): the iOS text styles at default size (largeTitle 34/41 ... caption2 11/13). Face is Inter if its files are present in
   `shared/src/desktopMain/resources/fonts/` (see the README there), otherwise the system font.
 - **Icons** (`PearIcon.kt`): `PearIcon("house.fill")` takes the SF Symbol names the Swift app uses. Unknown names show a question mark.

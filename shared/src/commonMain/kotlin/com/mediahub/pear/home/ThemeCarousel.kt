@@ -109,7 +109,12 @@ private fun ThemeCard(item: ThemedTitle, onClick: () -> Unit, scale: Float = 1f)
             item.item.year?.let { y ->
                 PearText(y.toString(), style = PearTheme.type.caption2.weight(FontWeight.SemiBold).scaledBy(scale), color = Color.White.copy(alpha = 0.8f))
             }
-            PearText(item.item.name, style = PearTheme.type.title3.weight(FontWeight.Bold).scaledBy(scale), color = Color.White, maxLines = 2)
+            TitleArt(
+                item = item.item,
+                textStyle = PearTheme.type.title3.weight(FontWeight.Bold).scaledBy(scale),
+                maxWidth = 200.dp * scale,
+                maxHeight = 56.dp * scale,
+            )
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp * scale)) {
                 PearIcon(if (item.item.type == "series") "tv" else "film", size = 12.dp * scale, tint = Color.White)

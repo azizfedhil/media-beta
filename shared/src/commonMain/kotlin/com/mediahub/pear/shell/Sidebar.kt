@@ -68,6 +68,7 @@ internal fun Sidebar(
         modifier = modifier.width(width).fillMaxHeight(),
         shape = RoundedCornerShape(0.dp),
         wash = PearTheme.colors.panel,
+        border = true,
     ) {
         Column(
             Modifier.fillMaxHeight()
