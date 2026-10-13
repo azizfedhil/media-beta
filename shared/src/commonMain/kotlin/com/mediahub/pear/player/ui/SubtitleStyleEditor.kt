@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -119,7 +121,7 @@ private fun SubtitlePreview(style: SubtitleStyle) {
 private fun StyleRow(title: String, value: String? = null, control: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            PearText(title, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White)
+            PearText(title, style = PearTheme.type.footnote.weight(FontWeight.SemiBold), color = Color.White)
             if (value != null) PearText(value, style = PearTheme.type.footnote, color = Color.White.copy(alpha = 0.6f))
         }
         control()
@@ -127,10 +129,12 @@ private fun StyleRow(title: String, value: String? = null, control: @Composable 
 }
 
 /** One choice out of a few, as chips. Shared with the panel's own tabs. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChoiceRow(options: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        options.forEach { (value, label) -> DevChip(label, selected == value) { onPick(value) } }
+    // Wraps rather than squeezing a chip's label into a column of letters when the panel is narrow.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.forEach { (value, label) -> DevChip(label, selected == value, compact = true) { onPick(value) } }
     }
 }
 

@@ -56,6 +56,12 @@ class PearColors(
      */
     val panel: Color get() = Color(0xFF0D0D11).copy(alpha = 0.55f)
 
+    /**
+     * Menus and cards (the context menu, the player's panels): the accent, strong enough to read as a coloured box over the
+     * dark glass. Stronger than [sheen], which is for the glass boxes of the pages.
+     */
+    val menu: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.42f), accent2.copy(alpha = 0.16f)))
+
     /** Untinted buttons: a clear accent fill, so a button stands off its backdrop. */
     val button: Brush get() = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.6f), accent2.copy(alpha = 0.3f)))
 

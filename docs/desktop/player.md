@@ -296,3 +296,31 @@ As before, the authoring environment has no Gradle or Kotlin compiler. Run `grad
 
 ### Not compiled
 As before, the authoring environment has no Gradle or Kotlin compiler. Run `gradle :shared:desktopTest` first, then `gradle :desktopApp:run`.
+
+## Loader, full-screen exit, sub-menu text, margins, and contrast (review 8)
+
+- **Loader** (`PlayerOverlay.kt`, `LoadingScreen`). While a stream opens (`Loading`), the player shows the pear. loader on
+  black with the close button, as the iOS player does. Only the close button stays on screen then. The loader runs on the
+  frame clock, so it draws at the display's rate. iOS locks it to 30 fps; the desktop doesn't need to.
+- **Full screen** (`PlayerOverlay.kt`, `PlayerScreen.kt`, `ShellState.escapeHook`). The exit button is drawn at the top
+  right whenever the player is full screen, outside the auto-hiding controls. Escape leaves full screen before it leaves the
+  player: the shell asks the player's hook first (`handleShellKey`).
+- **Sub-menus** (`PlayerOverlay.kt`). The panels and the subtitle line are drawn at the base text size, not the controls'
+  1.25 scale, so the sub-menus are no longer too large. The style chips wrap (`FlowRow`) and use the compact size
+  (`DevChip(compact = true)`). The subtitle line is unscaled too, so it matches the preview in the panel.
+- **Margins** (`PlayerOverlay.kt`). 72 dp at the sides and 44 dp at the bottom. The floating panels line up with the pill's
+  right edge. `PLAYER_PANEL_CLEARANCE` is derived from the bottom margin, and the subtitle lift uses it.
+- **Contrast** (`PearColors.menu`). Menus and the player's cards take the accent layer, stronger than the glass sheen. The
+  hero's Details button is a solid accent pill with the accent's own text colour, in both hero layouts.
+
+### Check it
+1. Open a title: while the stream opens, the pear. loader plays on black. It moves smoothly (no 30 fps cap).
+2. Enter full screen (F or double-click). The exit button is in the top right and stays there. Press Escape: the window
+   leaves full screen and the player stays open. Press Escape again: the player closes.
+3. Open the Subtitles panel: the chips wrap and the labels are smaller. The preview's line size matches the line in the picture.
+4. The margins: the pill sits about 72 dp from the right and 44 dp from the bottom. Open a floating panel: its right edge
+   lines up with the pill.
+5. The context menu and the player's cards have a visible accent colour. The hero's Details button is a solid accent pill.
+
+### Not compiled
+As before, this environment has no Gradle or Kotlin compiler. Run `gradle :shared:build` first, then `gradle :desktopApp:run`.

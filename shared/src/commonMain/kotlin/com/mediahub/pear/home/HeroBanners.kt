@@ -282,17 +282,7 @@ private fun WideHeroText(item: MetaPreview, extras: TitleExtras?, onDetailsClick
         )
     }
 
-    // (i) Details: a glass pill
-    GlassSurface(Modifier.clickable(onClick = onDetailsClick), RoundedCornerShape(PearRadii.pill)) {
-        Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            PearIcon("info.circle", size = 16.dp, tint = Color.White)
-            PearText("Details", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White)
-        }
-    }
+    HeroDetailsButton(onDetailsClick)
 }
 
 /** "SERIES 2026" over the title, larger than the phone carousel's. */
@@ -359,18 +349,26 @@ private fun HeroMetaContent(item: MetaPreview, onDetailsClick: () -> Unit) {
         PearText(desc, style = PearTheme.type.caption, color = Color.White.copy(alpha = 0.80f), maxLines = 3)
     }
 
-    // (i) Details Button
+    HeroDetailsButton(onDetailsClick)
+}
+
+/**
+ * The hero's Details button: a solid accent pill with the accent's own text colour. The glass pill it replaces had no
+ * contrast over the artwork.
+ */
+@Composable
+private fun HeroDetailsButton(onClick: () -> Unit) {
+    val c = PearTheme.colors
     Row(
         Modifier
             .clip(RoundedCornerShape(PearRadii.pill))
-            .background(Color.White.copy(alpha = 0.12f))
-            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(PearRadii.pill))
-            .clickable(onClick = onDetailsClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .background(c.accent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        PearIcon("info.circle", size = 15.dp, tint = Color.White)
-        PearText("Details", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = Color.White)
+        PearIcon("info.circle", size = 16.dp, tint = c.onAccent)
+        PearText("Details", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), color = c.onAccent)
     }
 }

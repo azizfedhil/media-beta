@@ -27,9 +27,6 @@ import com.mediahub.pear.theme.PearText
 // Subtitle drawing (Batch 4.4c). Spec: `SubtitleOverlay` and its `label` in SubtitleSupport.swift. The player and the
 // settings preview both draw through [SubtitleLine], so the preview is the player's own drawing, not an imitation.
 
-/** Controls lift the subtitles above them (iOS: `lift: showControls ? 112 : 0`). */
-private const val CONTROLS_LIFT_DP = 112f
-
 /** The outline's four copies, each 1.3 px away (iOS: the four `shadow(radius: 0)` offsets). */
 private val OUTLINE_OFFSETS = listOf(1.3f to 0f, -1.3f to 0f, 0f to 1.3f, 0f to -1.3f)
 
@@ -104,9 +101,10 @@ internal fun SubtitleLine(text: String, style: SubtitleStyle, modifier: Modifier
 @Composable
 internal fun SubtitleLayer(text: String?, style: SubtitleStyle, controlsShown: Boolean) {
     if (text.isNullOrBlank()) return
-    val lift = if (controlsShown) CONTROLS_LIFT_DP else 0f
+    // Controls lift the line above them (iOS: `lift: showControls ? 112 : 0`); here the lift is the controls' real height.
+    val lift = if (controlsShown) PLAYER_PANEL_CLEARANCE else 0.dp
     BoxWithConstraints(
-        Modifier.fillMaxSize().padding(bottom = (style.bottom + lift).toFloat().dp),
+        Modifier.fillMaxSize().padding(bottom = style.bottom.toFloat().dp + lift),
         contentAlignment = Alignment.BottomCenter,
     ) {
         // At most 90% of the window wide, as on iOS, so a long line wraps rather than running off the edge.

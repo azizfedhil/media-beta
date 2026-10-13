@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -81,12 +82,18 @@ internal fun PlayerSurface(
     tint: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    // Cards (the player's panels) take the accent layer, so they read as coloured boxes over the picture, as the menus do.
+    val sheen = if (kind == SurfaceKind.Card) PearTheme.colors.menu else null
+    val layered: @Composable BoxScope.() -> Unit = {
+        if (sheen != null) Box(Modifier.matchParentSize().clip(shape).background(sheen))
+        content()
+    }
     when (LocalPlayerLook.current) {
-        PlayerLook.Blur -> GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), outlineStrength = PLAYER_OUTLINE, content = content)
+        PlayerLook.Blur -> GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), outlineStrength = PLAYER_OUTLINE, content = layered)
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            Box(modifier.clip(shape).background(fill).border(1.dp, Color.White.copy(alpha = 0.14f * PLAYER_OUTLINE), shape), content = content)
+            Box(modifier.clip(shape).background(fill).border(1.dp, Color.White.copy(alpha = 0.14f * PLAYER_OUTLINE), shape), content = layered)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {
@@ -94,7 +101,7 @@ internal fun PlayerSurface(
                 SurfaceKind.Capsule -> Color.Black.copy(alpha = 0.55f)
                 SurfaceKind.Card -> Color.Black.copy(alpha = 0.88f)
             }
-            Box(modifier.clip(shape).background(fill), content = content)
+            Box(modifier.clip(shape).background(fill), content = layered)
         }
     }
 }

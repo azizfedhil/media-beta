@@ -146,7 +146,7 @@ fun GlassCard(
 /** Dropdown / context menu panel. Place it where the menu should open; positioning is the caller's job. */
 @Composable
 fun GlassMenu(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg), sheen = PearTheme.colors.sheen) {
+    GlassSurface(modifier.widthIn(min = 220.dp), RoundedCornerShape(PearRadii.lg), sheen = PearTheme.colors.menu) {
         Column(Modifier.padding(6.dp), content = content)
     }
 }

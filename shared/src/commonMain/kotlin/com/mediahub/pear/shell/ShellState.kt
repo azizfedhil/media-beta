@@ -75,6 +75,9 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
 
     val feedCollapse = FeedCollapse()
 
+    /** Asked first when Escape is pressed. Returns true if it took the key (the player leaves full screen this way). */
+    var escapeHook: (() -> Boolean)? = null
+
     var heroAmbientColor: Color by mutableStateOf(Color(0xFF0F3B36))
 
     /** The source picker, if one is open. */

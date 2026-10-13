@@ -123,7 +123,10 @@ fun AdaptiveShell(
 internal fun handleShellKey(event: KeyEvent, shell: ShellState): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     if (event.isAltPressed && event.key == Key.DirectionLeft) return shell.back()
-    if (event.key == Key.Escape) return shell.back()
+    if (event.key == Key.Escape) {
+        if (shell.escapeHook?.invoke() == true) return true
+        return shell.back()
+    }
     if (event.isCtrlPressed) {
         val tab = when (event.key) {
             Key.One -> AppTab.Home

@@ -33,7 +33,14 @@ import com.mediahub.pear.theme.weight
  * (a season's menu, for example).
  */
 @Composable
-internal fun DevChip(label: String, selected: Boolean, onSecondary: (() -> Unit)? = null, onClick: () -> Unit) {
+internal fun DevChip(
+    label: String,
+    selected: Boolean,
+    /** A smaller chip, for the player's panels. */
+    compact: Boolean = false,
+    onSecondary: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val c = PearTheme.colors
     val source = remember { MutableInteractionSource() }
     val hovered by source.collectIsHoveredAsState()
@@ -56,8 +63,8 @@ internal fun DevChip(label: String, selected: Boolean, onSecondary: (() -> Unit)
     ) {
         PearText(
             label,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            style = PearTheme.type.footnote.weight(FontWeight.SemiBold),
+            modifier = if (compact) Modifier.padding(horizontal = 10.dp, vertical = 5.dp) else Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            style = (if (compact) PearTheme.type.caption else PearTheme.type.footnote).weight(FontWeight.SemiBold),
             color = if (selected) c.onAccent else c.textPrimary,
         )
     }

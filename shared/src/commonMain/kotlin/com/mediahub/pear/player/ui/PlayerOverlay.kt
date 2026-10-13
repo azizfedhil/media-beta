@@ -48,6 +48,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediahub.pear.brand.PearAnimation
+import com.mediahub.pear.brand.PearMode
 import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.player.PlaybackState
@@ -86,15 +88,17 @@ import kotlinx.coroutines.flow.onStart
  */
 /**
  * The controls' margins. iOS keeps its controls at 24 pt from the sides and 6 pt from the bottom, inside the safe area; a
- * landscape iPhone's notch and home indicator add to that, so the controls sit well in from the edges. A desktop window has
- * no safe area, so the margins are set here instead: 48 dp at the sides and 28 dp at the bottom, the nearest match to the
- * iOS player's look at window size. Change these two numbers to adjust them.
+ * landscape iPhone's notch and home indicator add to that. A desktop window has no safe area, so the margins are set here:
+ * 72 dp at the sides and 44 dp at the bottom. Change these two numbers to adjust them.
  */
-internal val PLAYER_SIDE_MARGIN = 48.dp
-internal val PLAYER_BOTTOM_MARGIN = 28.dp
+internal val PLAYER_SIDE_MARGIN = 72.dp
+internal val PLAYER_BOTTOM_MARGIN = 44.dp
 
-/** How far the speed and audio panels float above the bottom edge: clear of the pill, which moved up with the margin. */
-internal val PLAYER_PANEL_CLEARANCE = 132.dp
+/**
+ * How far the floating panels and the subtitle line rise above the bottom edge: the bottom margin, plus the controls' height
+ * (the pill and the seek bar). Derived, so it moves with the margin.
+ */
+internal val PLAYER_PANEL_CLEARANCE = PLAYER_BOTTOM_MARGIN + 104.dp
 
 @Composable
 fun PlayerOverlay(
@@ -106,6 +110,8 @@ fun PlayerOverlay(
     errorMessage: String?,
     onClose: () -> Unit,
     onToggleFullscreen: () -> Unit,
+    /** Full screen is on: the way out stays on screen, whatever the controls are doing. */
+    fullscreen: Boolean = false,
     modifier: Modifier = Modifier,
     openedAt: Double? = null,
     panel: PlayerPanel? = null,
@@ -204,16 +210,21 @@ fun PlayerOverlay(
                 )
             }
 
-            // Subtitles the app draws: above the picture, under the controls and panels.
-            subtitles(visible)
+            // Subtitles the app draws: above the picture, under the controls and panels. At the picture's own size, not the
+            // controls' scale, so the line matches the preview in the Subtitles panel.
+            CompositionLocalProvider(LocalDensity provides base) { subtitles(visible) }
+
+            // The stream is opening: the pear. loader on black, with the close button, as on iOS (launchOverlay).
+            val opening = state == PlaybackState.Loading && errorMessage == null
+            if (opening) LoadingScreen(onClose = onClose)
 
             // Waiting for data while the controls are hidden: just a spinner.
-            if (isWaiting(state) && errorMessage == null && !visible) {
+            if (isWaiting(state) && errorMessage == null && !visible && !opening) {
                 PlayerSpinner(Modifier.align(Alignment.Center), diameter = 44.dp)
             }
 
             AnimatedVisibility(
-                visible = visible && !covered,
+                visible = visible && !covered && !opening,
                 enter = fadeIn(tween(PearMotion.BASE)),
                 exit = fadeOut(tween(PearMotion.BASE)),
             ) {
@@ -239,12 +250,42 @@ fun PlayerOverlay(
             // Skip intro and next episode: hidden under a panel or an error (`skipLayer` in PlayerView.swift).
             if (errorMessage == null && panel == null) skip(visible)
 
-            // Panels last, so they sit above the controls. Only one is open at a time; the host decides which.
-            panels()
+            // Panels last, so they sit above the controls. Only one is open at a time; the host decides which. Their text is at
+            // the base size, not the controls' scale: the sub-menus were too large with it.
+            CompositionLocalProvider(LocalDensity provides Density(scaled.density, base.fontScale)) { panels() }
+
+            // Full screen: the controls fade with the pointer, so the way out is drawn here, always.
+            if (fullscreen && errorMessage == null) {
+                PlayerCircleButton(
+                    "arrow.down.right.and.arrow.up.left", size = 42.dp, icon = 16.dp,
+                    onClick = onToggleFullscreen,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = PLAYER_SIDE_MARGIN),
+                    contentDescription = "Exit full screen",
+                )
+            }
 
             PlayerNotice(notice)
         }
     }
+}
+
+/**
+ * The stream is opening (iOS: `launchOverlay`): black, the pear. loader in the middle, and the close button. The loader runs
+ * on the frame clock, so it draws at the display's rate; iOS locks it to 30 fps, the desktop doesn't need to.
+ */
+@Composable
+private fun BoxScope.LoadingScreen(onClose: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color.Black))
+    PearAnimation(
+        PearMode.Loader,
+        Modifier.align(Alignment.Center).widthIn(max = 340.dp).padding(horizontal = 24.dp),
+        speed = 2.0,
+    )
+    PlayerCircleButton(
+        "xmark", size = 42.dp, icon = 16.dp, onClick = onClose,
+        modifier = Modifier.align(Alignment.TopStart).padding(start = PLAYER_SIDE_MARGIN, top = 16.dp),
+        contentDescription = "Close",
+    )
 }
 
 @Composable

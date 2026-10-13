@@ -153,6 +153,10 @@ fun PlayerScreen(
         window?.mode = if (value) WindowMode.Fullscreen else windowAfterFullscreen
     }
     DisposableEffect(Unit) { onDispose { window?.mode = windowBefore } }
+    // Escape leaves full screen before it leaves the player: the shell asks this first (see handleShellKey).
+    val exitFullscreen: () -> Boolean = { setFullscreen(false); true }
+    LaunchedEffect(fullscreen) { env.shell.escapeHook = if (fullscreen) exitFullscreen else null }
+    DisposableEffect(Unit) { onDispose { env.shell.escapeHook = null } }
 
     var aspect by remember { mutableStateOf(AspectMode.Fit) }
     var performance by remember { mutableStateOf(false) }
@@ -428,6 +432,7 @@ fun PlayerScreen(
             errorMessage = error,
             onClose = { leave(); onBack() },
             onToggleFullscreen = { setFullscreen(!fullscreen) },
+            fullscreen = fullscreen,
             modifier = modifier,
             openedAt = loadAt.takeIf { it > 0.0 },
             panel = panel,
