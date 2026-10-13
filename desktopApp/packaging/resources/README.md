@@ -19,11 +19,14 @@ Everything in a platform's folder is copied into the installed app. **Do not put
 earlier build would be bundled, and the installer would stop fetching the pinned one. Delete any `libmpv*` file from this
 folder before packaging. The `.gitignore` already ignores binaries here, so none are committed.
 
-## The pin
+## The libmpv link and hash
 
-The libmpv the installer fetches is pinned by its SHA-256, in two places that must agree:
+Nothing about libmpv is committed. The link is `libmpvUrl` in the root `gradle.properties`, and an optional second copy is
+`libmpvMirrorUrl`. A Windows build downloads the link, checks that the file is a 64-bit DLL, and records its SHA-256 in
+`shared/build/libmpv/sha256.txt`. The app then accepts only a file with that hash, and the installer checks the same hash.
 
-- `desktopApp/installer/libmpv.pin.iss` (from `libmpv.pin.example.iss`), read by the installer;
-- `LibmpvSetup.SHA256` in `shared/src/desktopMain/.../player/mpv/LibmpvSetup.kt`, read by the app.
+The build prints the hash in its log. The first time, compare it with your own download:
 
-A test in `shared` fails if they differ. Get the hash with `python tools/inspect_binary.py <file>`.
+    python tools/inspect_binary.py <the downloaded libmpv-2.dll>
+
+A build with `-PlibmpvSkip=true` (for offline work) records no hash: it downloads nothing, and the app never fetches libmpv.

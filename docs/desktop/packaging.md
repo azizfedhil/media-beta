@@ -30,8 +30,8 @@ The installer:
 - closes Pear first (`CloseApplications`), and restarts it after a silent update (`RestartApplications`).
 
 **libmpv** is not in the app. It is fetched into `%LocalAppData%\Pear\native\libmpv-2.dll`, which is outside the app
-folder, so an update that replaces the app leaves it in place. The installer checks its SHA-256 against a pin
-(`desktopApp/installer/libmpv.pin.iss`, from `libmpv.pin.example.iss`). It does not build without that pin. The app's
+folder, so an update that replaces the app leaves it in place. The build downloads the libmpv link in `gradle.properties` and records its SHA-256. The installer downloads the same link
+(with the mirror as a fallback) with Windows PowerShell and checks the same hash. The app's
 loader searches that folder (`MpvNativeLoader`, `%LOCALAPPDATA%\Pear\native`).
 
 ### Build locally
@@ -39,7 +39,8 @@ loader searches that folder (`MpvNativeLoader`, `%LOCALAPPDATA%\Pear\native`).
 ```text
 :desktopApp:createDistributable            # the app image (needs the Rust engine built first, which Gradle does)
 python tools/make_icons.py <AppIcon-1024.png>   # once: pear.ico and pear.png
-ISCC.exe desktopApp\installer\pear.iss     # needs libmpv.pin.iss; see above
+ISCC.exe /DPearVersion=0.0.2-Alpha /DPearNumericVersion=0.0.2.0 /DLibmpvUrl=<link> /DLibmpvMirrorUrl= ^
+    /DLibmpvSha256=<hash from shared\build\libmpv\sha256.txt> desktopApp\installer\pear.iss
 ```
 
 ## Linux
@@ -88,10 +89,10 @@ new RPM.
 | Window and title-bar icon | Done (`Main.kt`). Falls back to Java's icon when the PNG is absent. Not compiled yet. |
 | libmpv search order on Windows (`%LOCALAPPDATA%\Pear\native`) | Done, with a JVM test. Not compiled or run yet. |
 | libmpv search order on Linux (`libmpv.so.2` first) | Done, with a test. Unverified on Fedora. |
-| libmpv fetch at launch, with the "Setting up Pear…" screen | Done and tested against a local HTTP server (`VerifiedDownloadTest`). **Inactive until the pin is set**: an unpinned build never downloads. Not compiled. |
-| libmpv download pin (URL and SHA-256) | **Blocked.** It needs the Drive file, which the build sandbox could not reach. Run `tools/inspect_binary.py` on it, then fill in `libmpv.pin.iss` and `LibmpvSetup.SHA256`. A test fails if the two differ. |
-| libmpv installer download (Inno Download Plugin) | Script written; not compiled. The IDP include and API must be checked against the pinned version. |
-| libmpv mirror | `LibmpvSetup.MIRROR_URL` is empty. Needs a GitHub Release asset with the same file. The app's fetch uses it once set; the installer does not yet. |
+| libmpv fetch at launch, with the "Setting up Pear…" screen | Done and tested against a local HTTP server (`VerifiedDownloadTest`). Inactive in a build without a hash (offline or not Windows). Not compiled. |
+| libmpv link and hash | Done in the build: no file to fill in. The first CI run prints the hash; compare it once with your own download (`python tools/inspect_binary.py`). |
+| libmpv installer download | Done with Windows PowerShell, no plugin. Not compiled yet. |
+| libmpv mirror | `libmpvMirrorUrl` in `gradle.properties`, empty until a GitHub Release asset exists. The app and the installer both try it after the Drive link. |
 | Startup cost of the check | The launch check hashes libmpv (about 100 MB) each time. Measure it on a real machine. If it is noticeable, check the size first and hash only then. |
 | p2p_core: static CRT | Config done. Not yet built and checked on Windows. |
 | Inno Setup script | Written; not compiled. |

@@ -1,6 +1,5 @@
 package com.mediahub.pear.player.mpv
 
-import com.mediahub.pear.net.isSha256Hex
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,18 +32,14 @@ class LibmpvSetupTest {
     }
 
     @Test
-    fun theDriveLinkIsTheOneWeDocument() {
-        assertTrue(LibmpvSetup.DRIVE_URL.startsWith("https://drive.usercontent.google.com/download?id=1zF1TbPHoSBVTRzjPVX7ktmwWb6rAUVM4"))
-        assertTrue(LibmpvSetup.DRIVE_URL.contains("export=download"))
+    fun theDriveLinkComesFromTheBuildAndIsTheDownloadForm() {
+        assertTrue(LibmpvSetup.DRIVE_URL.startsWith("https://drive.usercontent.google.com/download?id="), LibmpvSetup.DRIVE_URL)
+        assertTrue(LibmpvSetup.DRIVE_URL.contains("export=download"), LibmpvSetup.DRIVE_URL)
     }
 
     @Test
-    fun theKotlinPinAndTheInstallerPinAgreeOnceBothExist() {
-        // Tests run in shared/, so the installer's pin file is one folder up. Until it exists there is nothing to agree with.
-        val pinFile = File("../desktopApp/installer/libmpv.pin.iss")
-        if (!pinFile.isFile) return
-        val installer = Regex("#define\\s+LibmpvSha256\\s+\"([^\"]*)\"").find(pinFile.readText())?.groupValues?.get(1)
-        assertEquals(installer, LibmpvSetup.SHA256, "desktopApp/installer/libmpv.pin.iss and LibmpvSetup.SHA256 must match")
-        assertTrue(isSha256Hex(LibmpvSetup.SHA256), "the pin must be a real SHA-256 once the installer has one")
+    fun theSourcesAreOnlyHttpsAddresses() {
+        assertTrue(LibmpvSetup.sources.all { it.startsWith("https://") })
+        assertTrue(LibmpvSetup.sources.isNotEmpty())
     }
 }

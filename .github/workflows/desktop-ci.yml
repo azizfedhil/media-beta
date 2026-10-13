@@ -89,6 +89,20 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then tasks+=(":desktopApp:packageRpm"); fi
           gradle "${tasks[@]}" "-PpearVersion=$PEAR_VERSION" --console=plain
 
+      # The build has downloaded libmpv and recorded its hash. The installer uses the same link, mirror and hash.
+      - name: Read the libmpv link and hash (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          url="$(grep '^libmpvUrl=' gradle.properties | cut -d= -f2-)"
+          mirror="$(grep '^libmpvMirrorUrl=' gradle.properties | cut -d= -f2- || true)"
+          sha="$(cat shared/build/libmpv/sha256.txt)"
+          test -n "$url" && test -n "$sha"
+          echo "LIBMPV_URL=$url" >> "$GITHUB_ENV"
+          echo "LIBMPV_MIRROR_URL=$mirror" >> "$GITHUB_ENV"
+          echo "LIBMPV_SHA256=$sha" >> "$GITHUB_ENV"
+          echo "libmpv SHA-256 (from the build): $sha"
+
       - name: Check p2p_core.dll does not need the VC++ runtime (Windows)
         if: runner.os == 'Windows'
         run: |
@@ -132,7 +146,9 @@ jobs:
           done
           if [ -z "$iscc" ]; then echo "ISCC.exe not found after installing Inno Setup" >&2; exit 1; fi
           numeric="${PEAR_VERSION%%-*}"
-          "$iscc" "/DPearVersion=$PEAR_VERSION" "/DPearNumericVersion=$numeric.0" desktopApp/installer/pear.iss
+          "$iscc" "/DPearVersion=$PEAR_VERSION" "/DPearNumericVersion=$numeric.0" \
+            "/DLibmpvUrl=$LIBMPV_URL" "/DLibmpvMirrorUrl=$LIBMPV_MIRROR_URL" "/DLibmpvSha256=$LIBMPV_SHA256" \
+            desktopApp/installer/pear.iss
 
       - name: Sign PearSetup.exe (Windows, when a certificate is set)
         if: runner.os == 'Windows' && env.WINDOWS_SIGN_PFX_BASE64 != ''
