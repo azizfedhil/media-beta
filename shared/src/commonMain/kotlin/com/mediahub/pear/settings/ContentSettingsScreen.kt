@@ -18,10 +18,13 @@ import com.mediahub.pear.data.BuiltinRows
 import com.mediahub.pear.data.ContentCategory
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
+import com.mediahub.pear.addons.rowKey
+import com.mediahub.pear.data.isRowAdded
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.shell.SettingsRow
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
@@ -95,6 +98,25 @@ fun ContentSettingsScreen(
                         }
                     }
                 }
+            }
+
+            // AIOMetadata: the way into the catalogue picker. Without this row the screen it opens can't be reached.
+            val addons = env.data.addons
+            val pickerAddons = addons.addons.filter { addons.usesCatalogPicker(it) }
+            val addedCount = pickerAddons.sumOf { a -> a.homeCatalogs.count { rules.isRowAdded(a.rowKey(it)) } }
+            GlassCard(Modifier.fillMaxWidth()) {
+                PearText("AIOMetadata", style = PearTheme.type.headline)
+                SettingsRow(
+                    title = "AIOMetadata catalogues",
+                    subtitle = aioPickerSummary(pickerAddons.size, addedCount),
+                    onClick = onNavigateAIOMetadata,
+                    trailing = { PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary) },
+                )
+                PearText(
+                    "Pick which AIOMetadata catalogues get a row on Home. None show until you add them.",
+                    style = PearTheme.type.footnote,
+                    color = PearTheme.colors.textSecondary,
+                )
             }
 
             // Search filter toggle & Reset

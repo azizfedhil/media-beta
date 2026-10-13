@@ -72,6 +72,13 @@ class AIOMetadataGroupingTest {
     }
 
     @Test
+    fun theContentRowSaysWhetherAioIsSetUpAndHowManyAreOnHome() {
+        assertEquals("Not set up", aioPickerSummary(pickerAddons = 0, addedCount = 0))
+        assertEquals("None on Home", aioPickerSummary(pickerAddons = 1, addedCount = 0))
+        assertEquals("3 on Home", aioPickerSummary(pickerAddons = 1, addedCount = 3))
+    }
+
+    @Test
     fun anAddOnWithNoCataloguesSaysSo() {
         val empty = addon("https://addon.example/manifest.json", "AIOMetadata")
         assertTrue(manageFooter(empty).startsWith("This add-on offers no catalogues"))

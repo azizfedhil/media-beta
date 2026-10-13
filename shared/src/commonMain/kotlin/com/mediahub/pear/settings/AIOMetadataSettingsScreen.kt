@@ -251,6 +251,13 @@ internal fun catalogGroupsMatching(catalogs: List<AddonManifest.CatalogDef>, que
 internal fun manageHeader(name: String, enabled: Boolean, on: Int): String =
     name + (if (enabled) "" else " (add-on is off)") + " · $on on Home"
 
+/** What the Content & catalogues row says: whether AIOMetadata is set up, and how many of its catalogues are on Home. */
+internal fun aioPickerSummary(pickerAddons: Int, addedCount: Int): String = when {
+    pickerAddons == 0 -> "Not set up"
+    addedCount == 0 -> "None on Home"
+    else -> "$addedCount on Home"
+}
+
 /** Where an add-on's catalogues come from, or why it has none to offer. */
 internal fun manageFooter(addon: Addon): String =
     if (addon.homeCatalogs.isEmpty()) {
