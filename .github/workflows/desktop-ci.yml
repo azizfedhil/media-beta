@@ -89,6 +89,25 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then tasks+=(":desktopApp:packageRpm"); fi
           gradle "${tasks[@]}" "-PpearVersion=$PEAR_VERSION" --console=plain
 
+      # jpackage is asked for the requirement in desktopApp/build.gradle.kts. If it did not add it, add it to the finished RPM here.
+      - name: Add the libmpv requirement to the RPM if jpackage left it out (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          rpmfile="$(ls desktopApp/build/compose/binaries/main/rpm/*.rpm | head -n1)"
+          if rpm -qpR "$rpmfile" | grep -q 'libmpv\.so\.2'; then
+            echo "jpackage already added the libmpv requirement"
+            exit 0
+          fi
+          echo "jpackage did not add the libmpv requirement; adding it with rpmrebuild"
+          sudo apt-get install -y rpmrebuild
+          out="$(mktemp -d)"
+          rpmrebuild -p --notest-install -d "$out" \
+            --change-spec-requires="sed -e '\$a Requires: libmpv.so.2()(64bit)'" "$rpmfile"
+          new="$(find "$out" -name '*.rpm' | head -n1)"
+          test -n "$new"
+          mv -f "$new" "$rpmfile"
+
       # libmpv is loaded with dlopen, so rpmbuild cannot detect it: the RPM must declare it, or it installs without it.
       - name: Check the RPM requires libmpv (Linux)
         if: runner.os == 'Linux'
