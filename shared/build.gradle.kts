@@ -33,7 +33,7 @@ kotlin {
     // always configured. Desktop CI and the desktop dev setup both have one.
     androidLibrary {
         namespace = "com.mediahub.pear.shared"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 26
     }
 

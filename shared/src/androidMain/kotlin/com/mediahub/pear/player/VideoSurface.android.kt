@@ -1,5 +1,6 @@
 package com.mediahub.pear.player
 
+import androidx.compose.runtime.getValue
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.foundation.background

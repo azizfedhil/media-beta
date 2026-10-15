@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.mediahub.pear.android"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         // Same as the iOS bundle id. Open question 1 in docs/android/decisions.md: confirm before the first release.
