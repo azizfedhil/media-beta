@@ -16,6 +16,8 @@ import com.mediahub.pear.history.UpNextItem
 import com.mediahub.pear.localParts
 import com.mediahub.pear.meta.ThemeCatalog
 import com.mediahub.pear.meta.ThemeRow
+import com.mediahub.pear.model.Addon
+import com.mediahub.pear.model.AddonManifest
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.model.MetaPreview
@@ -40,6 +42,23 @@ class HomeModel(private val data: AppData) {
         private set
     var isLoading: Boolean by mutableStateOf(true)
         private set
+
+    /** Add-on catalogues still being fetched. Empty once every one has answered. */
+    var pendingCatalogs: List<Pair<Addon, AddonManifest.CatalogDef>> by mutableStateOf(emptyList())
+        private set
+
+    /** Add-on catalogues that could not be fetched (offline, error, timeout). Empty catalogues are not failures. */
+    var failedCatalogs: List<Pair<Addon, AddonManifest.CatalogDef>> by mutableStateOf(emptyList())
+        private set
+
+    /** The add-ons that are still loading, once each, in add-on order. */
+    val loadingAddons: List<Addon> get() = pendingCatalogs.map { it.first }.distinctBy { it.id }
+
+    /** The add-ons that failed to provide data, once each, in add-on order. An add-on that is retrying is not listed. */
+    val failedAddons: List<Addon> get() = failedCatalogs.map { it.first }.distinctBy { it.id }
+
+    /** Every add-on catalogue Home asked for, in order: the order the rows appear in. */
+    private var addonJobs: List<Pair<Addon, AddonManifest.CatalogDef>> = emptyList()
 
     companion object {
         fun currentDay(): Int {
@@ -129,15 +148,57 @@ class HomeModel(private val data: AppData) {
         suggested = out
     }
 
+    private fun rowId(job: Pair<Addon, AddonManifest.CatalogDef>) = "${job.first.id}/${job.second.type}/${job.second.id}"
+
     private suspend fun loadAddonRows(rules: ContentRules) {
         val jobs = HomeCatalogs.jobs(data.addons.enabledAddons, rules, data.addons.pickerIds)
-        val res = HomeCatalogs.loadRows(
-            client = data.addonClient,
-            jobs = jobs,
-            filter = { data.classifier.filter(it, rules) },
-        )
-        if (!res.allFailed || rows.isEmpty()) {
-            rows = res.rows
+        addonJobs = jobs
+        pendingCatalogs = jobs
+        failedCatalogs = emptyList()
+        // On a first load the rows appear as each add-on answers. On a refresh the rows already on screen stay until
+        // the new ones are ready, so a slow add-on doesn't blank Home.
+        val progressive = rows.isEmpty()
+        try {
+            val res = HomeCatalogs.loadRows(
+                client = data.addonClient,
+                jobs = jobs,
+                filter = { data.classifier.filter(it, rules) },
+                onProgress = { found -> if (progressive) rows = found },
+                onOutcome = { i, _ -> pendingCatalogs = pendingCatalogs - jobs[i] },
+            )
+            if (!res.allFailed || rows.isEmpty()) {
+                rows = res.rows
+            }
+            failedCatalogs = res.failedJobs
+        } finally {
+            // Cancelled (the profile changed, or Home was left): nothing is loading any more.
+            pendingCatalogs = emptyList()
+        }
+    }
+
+    /**
+     * Tries the catalogues of [addon] that failed again, or of every failed add-on when [addon] is null. The rows that
+     * arrive slot into their place among the rows Home already shows. Whatever fails again stays in [failedCatalogs].
+     */
+    suspend fun retryFailed(addon: Addon? = null) {
+        val retry = failedCatalogs.filter { addon == null || it.first.id == addon.id }
+        if (retry.isEmpty()) return
+        val rules = data.content.rules
+        failedCatalogs = failedCatalogs - retry.toSet()
+        pendingCatalogs = pendingCatalogs + retry
+        try {
+            val res = HomeCatalogs.loadRows(
+                client = data.addonClient,
+                jobs = retry,
+                filter = { data.classifier.filter(it, rules) },
+                onOutcome = { i, _ -> pendingCatalogs = pendingCatalogs - retry[i] },
+            )
+            val byId = (rows + res.rows).associateBy { it.id }
+            val order = addonJobs.map { rowId(it) }
+            rows = order.mapNotNull { byId[it] }
+            failedCatalogs = failedCatalogs + res.failedJobs
+        } finally {
+            pendingCatalogs = pendingCatalogs - retry.toSet()
         }
     }
 
