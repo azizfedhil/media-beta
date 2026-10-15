@@ -162,4 +162,21 @@ class HomeRowsLoadTest {
         assertFalse(res.allFailed)
         assertEquals(0, res.jobs)
     }
+
+    @Test
+    fun failedJobsNamesTheCataloguesThatCouldNotBeFetched() = runTest {
+        val jobs = HomeCatalogs.jobs(listOf(addon), ContentRules(), emptySet())
+        val res = HomeCatalogs.loadRows(AddonClient(http()), jobs)
+        assertEquals(listOf("c3"), res.failedJobs.map { it.second.id })
+        assertEquals(res.failures, res.failedJobs.size)
+    }
+
+    @Test
+    fun outcomeIsReportedOncePerJob() = runTest {
+        val jobs = HomeCatalogs.jobs(listOf(addon), ContentRules(), emptySet())
+        val seen = HashMap<Int, Boolean>()
+        HomeCatalogs.loadRows(AddonClient(http()), jobs, onOutcome = { i, failed -> seen[i] = failed })
+        assertEquals(jobs.size, seen.size)
+        assertEquals(listOf("c3"), seen.filterValues { it }.keys.map { jobs[it].second.id })
+    }
 }
