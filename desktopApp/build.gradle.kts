@@ -13,6 +13,7 @@ dependencies {
 
 val packagingResources = layout.projectDirectory.dir("packaging/resources")
 
+// NOTE: the RPM's libmpv requirement is added by the "Rebuild the RPM" step in .github/workflows/desktop-ci.yml, not here.
 // The version the app shows is pearVersion (set by CI from the git tag; 0.0.1-Alpha by default). The installers need a
 // numeric version: Windows' version resource and RPM accept only numbers. So the packages get MAJOR.MINOR.PATCH, and
 // the "-Alpha" part stays in the app and in the installer's display text.
@@ -51,7 +52,10 @@ compose.desktop {
             linux {
                 packageName = "pear"
                 appCategory = "AudioVideo"
-                menuGroup = "Video"
+                // Becomes Categories= in the .desktop file. It needs a main category (AudioVideo) or menus hide the app.
+                menuGroup = "AudioVideo;Video;"
+                // Without this jpackage writes no .desktop file: the RPM installs but the app is in no menu.
+                shortcut = true
                 rpmPackageVersion = pearNumericVersion
                 if (iconPng.isFile) iconFile.set(iconPng)
             }
