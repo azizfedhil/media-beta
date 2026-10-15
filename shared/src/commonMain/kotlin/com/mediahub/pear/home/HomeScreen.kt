@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,8 +26,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.mediahub.pear.player.ui.PlayerSpinner
+import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.theme.PearIcon
+import com.mediahub.pear.theme.PearText
+import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.data.BuiltinRows
 import com.mediahub.pear.data.isRowHidden
 import com.mediahub.pear.model.CatalogRow
@@ -137,6 +145,9 @@ private fun FeedRows(
     val env = LocalAppEnv.current
     val rules = env.data.content.rules
 
+    // 0. Which add-ons are still loading, and which failed (with a button to try them again)
+    AddonStatus(model)
+
     // 1. Continue Watching
     if (env.data.history.continueEntries.isNotEmpty() || model.upNext.isNotEmpty()) {
         ContinueRow(
@@ -174,4 +185,52 @@ private fun FeedRows(
             ThemeCarousel(model.themes[themeIdx], { onSelectTitle(it, null, null) })
         }
     }
+}
+
+/**
+ * What the add-ons are doing: a line while any are still loading, and one line per add-on that failed to provide data
+ * with a Reload button. Shows nothing when every add-on has answered.
+ */
+@Composable
+private fun AddonStatus(model: HomeModel) {
+    val loading = model.loadingAddons
+    val failed = model.failedAddons
+    if (loading.isEmpty() && failed.isEmpty()) return
+    val scope = rememberCoroutineScope()
+    val c = PearTheme.colors
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (loading.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlayerSpinner(diameter = 14.dp)
+                PearText(loadingText(loading.map { it.manifest.name }), style = PearTheme.type.footnote, color = c.textSecondary)
+            }
+        }
+        failed.forEach { addon ->
+            Row(
+                Modifier.fillMaxWidth().background(c.fill, RoundedCornerShape(14.dp)).padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                PearIcon("exclamationmark.triangle.fill", size = 16.dp, tint = c.orange)
+                PearText(
+                    "${addon.manifest.name} failed to provide data. Want to reload it?",
+                    style = PearTheme.type.footnote,
+                    modifier = Modifier.weight(1f),
+                )
+                PearCapsuleButton(
+                    label = "Reload",
+                    symbol = "arrow.clockwise",
+                    onClick = { scope.launch { model.retryFailed(addon) } },
+                )
+            }
+        }
+    }
+}
+
+internal fun loadingText(names: List<String>): String = when (names.size) {
+    0 -> ""
+    1 -> "Loading ${names[0]}…"
+    2 -> "Loading ${names[0]} and ${names[1]}…"
+    else -> "Loading ${names[0]} and ${names.size - 1} more add-ons…"
 }
