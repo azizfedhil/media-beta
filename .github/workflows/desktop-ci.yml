@@ -12,7 +12,7 @@ permissions:
 
 env:
   # The version of a manual run. A tag sets its own: desktop-v0.0.1-Alpha builds 0.0.1-Alpha.
-  PEAR_DEFAULT_VERSION: 0.0.1-Alpha
+  PEAR_DEFAULT_VERSION: 0.0.2-Alpha
 
 jobs:
   build:
@@ -89,31 +89,17 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then tasks+=(":desktopApp:packageRpm"); fi
           gradle "${tasks[@]}" "-PpearVersion=$PEAR_VERSION" --console=plain
 
-      # jpackage is asked for the requirement in desktopApp/build.gradle.kts. If the RPM still lacks it, build the RPM again here
-      # with the JDK's own jpackage, from the app image Gradle made, and pass the requirement directly.
-      - name: Rebuild the RPM with the libmpv requirement if it is missing (Linux)
+      # jpackage's own RPM had no menu entry and no libmpv requirement, so the RPM is built here with rpmbuild and our own
+      # spec (tools/build_rpm.sh), from the app image Gradle made. It replaces the RPM from :desktopApp:packageRpm.
+      - name: Build the RPM with our own spec (Linux)
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
           rpmdir=desktopApp/build/compose/binaries/main/rpm
-          rpmfile="$(ls "$rpmdir"/*.rpm | head -n1)"
-          if rpm -qpR "$rpmfile" | grep -q 'libmpv\.so\.2'; then
-            echo "The RPM already requires libmpv"
-            exit 0
-          fi
-          echo "The RPM does not require libmpv; building it again with jpackage"
           image="$(find desktopApp/build/compose/binaries/main/app -mindepth 1 -maxdepth 1 -type d | head -n1)"
           test -n "$image"
-          numeric="${PEAR_VERSION%%-*}"
-          out="$(mktemp -d)"
-          "$JAVA_HOME/bin/jpackage" --type rpm --app-image "$image" --dest "$out" \
-            --name pear --app-version "$numeric" \
-            --linux-package-name pear --linux-app-category AudioVideo --linux-menu-group Video \
-            --linux-package-deps 'libmpv.so.2()(64bit)'
-          new="$(ls "$out"/*.rpm | head -n1)"
-          test -n "$new"
-          rm -f "$rpmdir"/*.rpm
-          cp "$new" "$rpmdir"/
+          rm -rf "$rpmdir"; mkdir -p "$rpmdir"
+          bash tools/build_rpm.sh "$image" "${PEAR_VERSION%%-*}" desktopApp/src/main/resources/pear.png "$rpmdir"
 
       # libmpv is loaded with dlopen, so rpmbuild cannot detect it: the RPM must declare it, or it installs without it.
       - name: Check the RPM requires libmpv (Linux)
@@ -123,6 +109,12 @@ jobs:
           rpm="$(ls desktopApp/build/compose/binaries/main/rpm/*.rpm | head -n1)"
           rpm -qpR "$rpm"
           rpm -qpR "$rpm" | grep -q 'libmpv\.so\.2' || { echo "RPM does not require libmpv" >&2; exit 1; }
+          # The app must be in the menu: a .desktop file whose Exec points at a launcher that is in the package.
+          files="$(rpm -qpl "$rpm")"
+          echo "$files" | grep -E '\.desktop$' || { echo "RPM has no .desktop file" >&2; exit 1; }
+          echo "$files" | grep -qx '/usr/share/applications/pear.desktop' || { echo "RPM has no menu entry" >&2; exit 1; }
+          echo "$files" | grep -qx '/opt/pear/bin/Pear' || { echo "RPM has no bin/Pear launcher" >&2; exit 1; }
+          echo "$files" | grep -qx '/usr/share/icons/hicolor/512x512/apps/pear.png' || { echo "RPM has no icon" >&2; exit 1; }
 
       # The build has downloaded libmpv and recorded its hash. The installer uses the same link, mirror and hash.
       - name: Read the libmpv link and hash (Windows)
