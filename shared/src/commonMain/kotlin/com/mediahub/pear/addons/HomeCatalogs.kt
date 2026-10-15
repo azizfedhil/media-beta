@@ -31,6 +31,8 @@ class HomeRowsResult(
     /** How many of [jobs] could not be fetched at all (as opposed to being empty or fully filtered). */
     val failures: Int,
     val jobs: Int,
+    /** The catalogues counted in [failures], so the UI can name the add-on and offer to try it again. */
+    val failedJobs: List<Pair<Addon, AddonManifest.CatalogDef>> = emptyList(),
 ) {
     /** Every request failed (no connection): Home keeps what it already shows instead of swapping in an empty page. */
     val allFailed: Boolean get() = jobs > 0 && failures == jobs
@@ -83,11 +85,13 @@ object HomeCatalogs {
         jobs: List<Pair<Addon, AddonManifest.CatalogDef>>,
         filter: suspend (List<MetaPreview>) -> List<MetaPreview> = { it },
         onProgress: ((List<CatalogRow>) -> Unit)? = null,
+        /** Told as each job finishes, with its index in [jobs] and whether it could not be fetched. */
+        onOutcome: ((index: Int, failed: Boolean) -> Unit)? = null,
     ): HomeRowsResult {
         class Outcome(val index: Int, val row: CatalogRow?, val failed: Boolean)
 
         val done = HashMap<Int, CatalogRow>()
-        var failures = 0
+        val failedIdx = ArrayList<Int>()
         coroutineScope {
             val results = Channel<Outcome>(Channel.UNLIMITED)
             jobs.forEachIndexed { i, (addon, cat) ->
@@ -126,7 +130,8 @@ object HomeCatalogs {
             }
             repeat(jobs.size) {
                 val o = results.receive()
-                if (o.failed) failures += 1
+                if (o.failed) failedIdx.add(o.index)
+                onOutcome?.invoke(o.index, o.failed)
                 val row = o.row
                 if (row != null) {
                     done[o.index] = row
@@ -134,6 +139,11 @@ object HomeCatalogs {
                 }
             }
         }
-        return HomeRowsResult(done.keys.sorted().map { done.getValue(it) }, failures, jobs.size)
+        return HomeRowsResult(
+            rows = done.keys.sorted().map { done.getValue(it) },
+            failures = failedIdx.size,
+            jobs = jobs.size,
+            failedJobs = failedIdx.sorted().map { jobs[it] },
+        )
     }
 }
