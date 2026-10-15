@@ -19,6 +19,7 @@ import com.mediahub.pear.net.desktopNetwork
 import com.mediahub.pear.player.mpv.LibmpvSetupGate
 import com.mediahub.pear.glass.BatteryWatch
 import com.mediahub.pear.shell.AppExit
+import com.mediahub.pear.update.UpdateNotice
 import com.mediahub.pear.shell.NativeTitleBar
 import com.mediahub.pear.shell.RememberWindowGeometry
 import com.mediahub.pear.shell.WindowMemory
@@ -98,7 +99,7 @@ fun main(args: Array<String>) = application {
         RememberWindowGeometry(window, windowState, storage.prefs)
         // Windows: waits for libmpv (fetched on first run, or again if it went missing) before the app starts.
         LibmpvSetupGate {
-            App(windowControl = control, storage = storage, network = network)
+            App(windowControl = control, storage = storage, network = network, overlay = { UpdateNotice() })
         }
     }
 }
