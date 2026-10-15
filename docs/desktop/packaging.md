@@ -49,8 +49,9 @@ ISCC.exe /DPearVersion=0.0.2-Alpha /DPearNumericVersion=0.0.2.0 /DLibmpvUrl=<lin
 - The launcher uses `pear.png` (the Linux icon) and the category `AudioVideo`.
 - `p2p_core` (`libp2p_core.so`) is bundled. It is built on `ubuntu-22.04`, the oldest Ubuntu runner, so it runs on newer distributions.
 - **libmpv is a dependency, not a bundled file.** The RPM should require `mpv-libs` (Fedora; the package is in RPM Fusion)
-  or `libmpv2` (Debian and Ubuntu). **This is not wired yet.** Compose exposes no option for RPM `Requires`, so it needs
-  a post-build step (`rpm` tools) or a direct jpackage call with `--linux-package-deps`. Check the result with `rpm -qpR`.
+  or `libmpv2` (Debian and Ubuntu). Compose has no option for RPM `Requires`, so CI rebuilds the RPM from the app image with
+  `jpackage --linux-package-deps 'libmpv.so.2()(64bit)'` and checks it with `rpm -qpR`. The build also sets
+  `shortcut = true` and `menuGroup = "AudioVideo;Video;"`; without them the RPM has no menu entry.
 - **Testing needs RPM Fusion** on the Fedora VM, or `dnf` will fail on the missing dependency and say nothing about
   RPM Fusion. Consider making the failure message say so.
 - The loader asks for `libmpv.so.2` first on Linux, because that is the only name a runtime package ships
@@ -101,7 +102,7 @@ new RPM.
 | Update check: decision and manifest | Done and tested. No UI yet. |
 | Update: background download, "Restart to update" | **Not started.** |
 | jlink module list (size) | **Not started.** `includeAllModules = true` is still on. |
-| RPM `Requires: mpv-libs` | **Not started** (see Linux). |
+| RPM `Requires: libmpv.so.2` and menu entry | Done in CI; not yet verified on a clean Fedora VM. |
 | Test on a clean Fedora VM | **Not started.** |
 | `SimklStore` user agent `MediaHub/0.1.0` | Left as it is. It is a shared default, not the desktop version. Decide whether Simkl should see `0.0.1-Alpha`. |
 
