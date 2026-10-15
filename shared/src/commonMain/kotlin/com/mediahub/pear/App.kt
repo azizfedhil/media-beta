@@ -7,6 +7,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.mediahub.pear.addons.HomeCatalogs
@@ -31,7 +32,7 @@ import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.ThemeStore
 
 @Composable
-fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null, network: Network? = null) {
+fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null, network: Network? = null, overlay: @Composable BoxScope.() -> Unit = {}) {
     val data = remember(storage, network) { AppData(storage ?: Storage.inMemory(), network ?: Network.offline()) }
     DisposableEffect(data) { onDispose { data.close() } }
     val theme = remember(data) { ThemeStore(prefs = data.prefs) }
@@ -71,6 +72,8 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
                 AdaptiveShell(shell, glass, catalogues = catalogues)
                 // The first-launch setup covers the shell while it is pending; the launch intro still plays above it.
                 if (shell.onboardingVisible) OnboardingHost()
+                // Platform extras that sit over the app, such as the desktop's "new version" notice.
+                overlay()
                 PearLaunchOverlay()
             }
         }
