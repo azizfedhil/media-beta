@@ -89,6 +89,15 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then tasks+=(":desktopApp:packageRpm"); fi
           gradle "${tasks[@]}" "-PpearVersion=$PEAR_VERSION" --console=plain
 
+      # libmpv is loaded with dlopen, so rpmbuild cannot detect it: the RPM must declare it, or it installs without it.
+      - name: Check the RPM requires libmpv (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          rpm="$(ls desktopApp/build/compose/binaries/main/rpm/*.rpm | head -n1)"
+          rpm -qpR "$rpm"
+          rpm -qpR "$rpm" | grep -q 'libmpv\.so\.2' || { echo "RPM does not require libmpv" >&2; exit 1; }
+
       # The build has downloaded libmpv and recorded its hash. The installer uses the same link, mirror and hash.
       - name: Read the libmpv link and hash (Windows)
         if: runner.os == 'Windows'
