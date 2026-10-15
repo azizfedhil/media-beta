@@ -176,7 +176,7 @@ class MpvPlayerEngine private constructor(
             "sub-text" -> {
                 // Only while the app draws the track: mpv's own text is not what the viewer sees then.
                 if (prop.format == MpvFormat.STRING && appDrawsSubtitles) {
-                    _subtitleText.value = data.getPointer(0)?.getString(0)?.takeIf { it.isNotBlank() }
+                    _subtitleText.value = mpvUtf8(data.getPointer(0))?.takeIf { it.isNotBlank() }
                 }
             }
             "video-params/gamma" -> {
@@ -254,7 +254,7 @@ class MpvPlayerEngine private constructor(
         return native<String?>(null) {
             val ptr = mpv.mpv_get_property_string(handle, name)
             if (ptr == null) null else try {
-                ptr.getString(0)
+                mpvUtf8(ptr)
             } finally {
                 mpv.mpv_free(ptr)
             }
@@ -420,3 +420,10 @@ class MpvPlayerEngine private constructor(
         }
     }
 }
+
+/**
+ * mpv always returns UTF-8. JNA's bare `getString(0)` decodes with the platform default charset, which on a Western
+ * Windows install is Windows-1252, so every Arabic subtitle line (and Arabic track title) came out as mojibake.
+ * Decode explicitly as UTF-8 instead.
+ */
+internal fun mpvUtf8(ptr: Pointer?): String? = ptr?.getString(0, "UTF-8")

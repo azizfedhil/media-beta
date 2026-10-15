@@ -4,10 +4,10 @@ This page is the map of how a Pear desktop build becomes an installer, and what 
 
 ## Versions
 
-- The version the app shows is `pearVersion`, a Gradle property. It defaults to `0.0.1-Alpha` (`gradle.properties` and
-  `desktopApp/build.gradle.kts`). CI sets it from the tag: `desktop-v0.0.1-Alpha` builds `0.0.1-Alpha`.
+- The version the app shows is `pearVersion`, a Gradle property. It defaults to `0.0.2-Alpha` (`shared/build.gradle.kts` and
+  `desktopApp/build.gradle.kts`). CI sets it from the tag: `desktop-v0.0.2-Alpha` builds `0.0.2-Alpha`.
 - Installers need a numeric version. Windows' version resource and RPM accept only `MAJOR.MINOR.PATCH`, so the packages
-  get `0.0.1`, and the `-Alpha` part stays in the app and in the installer's display text.
+  get `0.0.2`, and the `-Alpha` part stays in the app and in the installer's display text.
 
 ## Windows
 

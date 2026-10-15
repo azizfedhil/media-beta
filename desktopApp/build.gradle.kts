@@ -14,10 +14,10 @@ dependencies {
 val packagingResources = layout.projectDirectory.dir("packaging/resources")
 
 // NOTE: the RPM's libmpv requirement is added by the "Rebuild the RPM" step in .github/workflows/desktop-ci.yml, not here.
-// The version the app shows is pearVersion (set by CI from the git tag; 0.0.1-Alpha by default). The installers need a
+// The version the app shows is pearVersion (set by CI from the git tag; 0.0.2-Alpha by default). The installers need a
 // numeric version: Windows' version resource and RPM accept only numbers. So the packages get MAJOR.MINOR.PATCH, and
 // the "-Alpha" part stays in the app and in the installer's display text.
-val pearVersion: String = providers.gradleProperty("pearVersion").orNull ?: "0.0.1-Alpha"
+val pearVersion: String = providers.gradleProperty("pearVersion").orNull ?: "0.0.2-Alpha"
 val pearNumericVersion: String = Regex("""^\d+\.\d+\.\d+""").find(pearVersion)?.value
     ?: throw GradleException("pearVersion must start with MAJOR.MINOR.PATCH (for example 0.0.1-Alpha), got '$pearVersion'.")
 

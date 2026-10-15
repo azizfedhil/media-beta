@@ -260,7 +260,7 @@ val generateLibmpvPin by tasks.registering {
 }
 
 // The version this build is (pearVersion, set by CI from the tag) and the repo the update check reads (updateRepo).
-val pearVersionValue: String = providers.gradleProperty("pearVersion").orNull ?: "0.0.1-Alpha"
+val pearVersionValue: String = providers.gradleProperty("pearVersion").orNull ?: "0.0.2-Alpha"
 val updateRepoValue: String = providers.gradleProperty("updateRepo").orNull.orEmpty()
 val pearBuildGenerated = layout.buildDirectory.dir("generated/pearbuild/kotlin")
 val generatePearBuild by tasks.registering {

@@ -10,10 +10,10 @@
 ; no plugin to vendor.
 
 #ifndef PearVersion
-  #define PearVersion "0.0.1-Alpha"
+  #define PearVersion "0.0.2-Alpha"
 #endif
 #ifndef PearNumericVersion
-  #define PearNumericVersion "0.0.1.0"
+  #define PearNumericVersion "0.0.2.0"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\build\compose\binaries\main\app\Pear"
