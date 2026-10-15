@@ -129,6 +129,10 @@ var
   ResultCode: Integer;
 begin
   Result := False;
+  // The script writes into this folder and does not create it. Nothing else in the installer does either, so without
+  // this the download fails every time, with the same error on Retry.
+  if not ForceDirectories(NativeDir()) then
+    Exit;
   ScriptPath := ExpandConstant('{tmp}\fetch-libmpv.ps1');
   if not SaveStringToFile(ScriptPath, FetchScript(), False) then
     Exit;
