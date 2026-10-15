@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -77,6 +78,7 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import kotlinx.coroutines.launch
 
 /**
  * The source picker, drawn over the whole app by the shell. Phone: a bottom sheet ([SourceSheet]). Wide: a panel in the
@@ -174,19 +176,42 @@ private fun WideSourcePicker(
     val env = LocalAppEnv.current
     val groups = remember { mutableStateListOf<Pair<Addon, List<StreamItem>>>() }
     var loading by remember { mutableStateOf(true) }
+    // Add-ons that could not be asked (offline, timeout, error), and the ones being asked again after a Reload.
+    val failed = remember { mutableStateListOf<Addon>() }
+    val retrying = remember { mutableStateListOf<Addon>() }
     var filter by remember { mutableStateOf<String?>(null) }
     var ratings by remember { mutableStateOf<List<MdbRating>>(emptyList()) }
     val pinned = env.data.pinned.pin(request.imdbId)
+    val scope = rememberCoroutineScope()
+    val streamId = if (request.season != null && request.episode != null) "${request.imdbId}:${request.season}:${request.episode}" else request.imdbId
 
     // The same query the bottom sheet runs: every add-on that serves this title or episode.
     LaunchedEffect(request.imdbId, request.season, request.episode) {
         groups.clear()
+        failed.clear()
         loading = true
-        val sid = if (request.season != null && request.episode != null) "${request.imdbId}:${request.season}:${request.episode}" else request.imdbId
-        env.data.addonClient.streamUpdates(sid, request.item.type, env.data.addons.enabledAddons).collect { group ->
-            groups.add(group)
+        env.data.addonClient.streamOutcomes(streamId, request.item.type, env.data.addons.enabledAddons).collect { outcome ->
+            outcome.items?.let { groups.add(outcome.addon to it) }
+            if (outcome.failed) failed.add(outcome.addon)
         }
         loading = false
+    }
+    // Reload: asks only that add-on again. Its sources slot into place, or it stays in the failed list.
+    val reload: (Addon) -> Unit = { addon ->
+        if (addon !in retrying) {
+            failed.remove(addon)
+            retrying.add(addon)
+            scope.launch {
+                try {
+                    env.data.addonClient.streamOutcomes(streamId, request.item.type, listOf(addon)).collect { outcome ->
+                        outcome.items?.let { groups.add(outcome.addon to it) }
+                        if (outcome.failed) failed.add(outcome.addon)
+                    }
+                } finally {
+                    retrying.remove(addon)
+                }
+            }
+        }
     }
     LaunchedEffect(request.imdbId) {
         ratings = if (env.data.meta.mdblist.hasKey) {
@@ -221,7 +246,9 @@ private fun WideSourcePicker(
                 shown = shown,
                 filter = filter,
                 onFilter = { filter = it },
-                loading = loading,
+                loading = loading || retrying.isNotEmpty(),
+                failed = failed.toList(),
+                onReload = reload,
                 pinned = pinned,
                 onSelect = { addon, stream -> onSelect(sourcePlayRequest(request, addon, stream)) },
                 onClose = onClose,
@@ -345,6 +372,8 @@ private fun SourcesPane(
     filter: String?,
     onFilter: (String?) -> Unit,
     loading: Boolean,
+    failed: List<Addon>,
+    onReload: (Addon) -> Unit,
     pinned: Pin?,
     onSelect: (Addon, StreamItem) -> Unit,
     onClose: () -> Unit,
@@ -372,13 +401,25 @@ private fun SourcesPane(
                 DevChip("${addon.manifest.name} (${items.size})", filter == addon.id) { onFilter(addon.id) }
             }
         }
+        // Right under the pills, so it is seen without scrolling: add-ons still being asked, then any that failed.
+        if (loading && ordered.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PearIcon("waveform", size = 14.dp, tint = PearTheme.colors.textSecondary)
+                PearText("Checking more add-ons…", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
+            }
+        }
+        failed.forEach { addon -> FailedAddonRow(addon, onReload = { onReload(addon) }) }
         Box(Modifier.fillMaxWidth().weight(1f)) {
             when {
                 shown.isEmpty() && loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     PearText("Finding sources…", style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
                 }
                 shown.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    PearText("No playable sources found for this title.", style = PearTheme.type.subheadline, color = PearTheme.colors.textSecondary)
+                    PearText(
+                        if (failed.isEmpty()) "No playable sources found for this title." else "No sources found yet. Reload the add-on above to try again.",
+                        style = PearTheme.type.subheadline,
+                        color = PearTheme.colors.textSecondary,
+                    )
                 }
                 else -> Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
@@ -417,14 +458,44 @@ private fun SourcesPane(
                             }
                         }
                     }
-                    if (loading) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PearIcon("waveform", size = 14.dp, tint = PearTheme.colors.textSecondary)
-                            PearText("Checking more add-ons…", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
-                        }
-                    }
                 }
             }
+        }
+    }
+}
+
+/** An add-on that could not be asked, with a clickable Reload that asks it again. */
+@Composable
+private fun FailedAddonRow(addon: Addon, onReload: () -> Unit) {
+    val c = PearTheme.colors
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(PearRadii.card))
+            .background(Color.White.copy(alpha = 0.07f))
+            .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PearIcon("exclamationmark.triangle.fill", size = 15.dp, tint = c.orange)
+        PearText(
+            "${addon.manifest.name} failed to provide data. Want to reload it?",
+            style = PearTheme.type.footnote,
+            modifier = Modifier.weight(1f),
+        )
+        Row(
+            Modifier.clip(RoundedCornerShape(percent = 50))
+                .background(if (hovered) c.fillStrong else c.fill)
+                .hoverable(source)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable(interactionSource = source, indication = null, onClick = onReload)
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PearIcon("arrow.clockwise", size = 13.dp, tint = c.accent)
+            PearText("Reload", style = PearTheme.type.footnote.weight(FontWeight.SemiBold), color = c.accent, maxLines = 1)
         }
     }
 }
