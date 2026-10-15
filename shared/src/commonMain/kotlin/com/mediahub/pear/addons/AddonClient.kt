@@ -23,6 +23,8 @@ import io.ktor.http.Url
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,6 +33,13 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
+
+/**
+ * What one add-on said when asked for the streams of a title. [items] is null when it had none to give (the add-on has
+ * no answer for this title, or a 404). [failed] is true when it could not be asked at all: no connection, a timeout, an
+ * error status, or an answer that would not read. An add-on that answered with an empty list has [items] empty and is not failed.
+ */
+class StreamOutcome(val addon: Addon, val items: List<StreamItem>?, val failed: Boolean)
 
 /** The two things Home's theme rows take from an add-on's `meta` response. */
 data class MetaExtras(val genres: List<String>, val logo: String?) {
@@ -123,15 +132,18 @@ class AddonClient(
 
     // MARK: Streams
 
-    fun streamUpdates(id: String, type: String, addons: List<Addon>): Flow<Pair<Addon, List<StreamItem>>> = channelFlow {
+    /** Every add-on's answer as it arrives, failures included, so the screen can offer to ask a failed add-on again. */
+    fun streamOutcomes(id: String, type: String, addons: List<Addon>): Flow<StreamOutcome> = channelFlow {
         for (addon in addons) {
             if (!addon.provides("stream", type, id)) continue
-            launch {
-                val found = streamsOf(addon, type, id)
-                if (found != null) send(addon to found)
-            }
+            launch { send(streamsOf(addon, type, id)) }
         }
     }
+
+    fun streamUpdates(id: String, type: String, addons: List<Addon>): Flow<Pair<Addon, List<StreamItem>>> =
+        streamOutcomes(id, type, addons)
+            .filter { it.items != null }
+            .map { it.addon to it.items!! }
 
     suspend fun streams(id: String, type: String, addons: List<Addon>): List<Pair<Addon, List<StreamItem>>> {
         val out = ArrayList<Pair<Addon, List<StreamItem>>>()
@@ -139,28 +151,55 @@ class AddonClient(
         return out
     }
 
-    private suspend fun streamsOf(addon: Addon, type: String, id: String): List<StreamItem>? {
+    private suspend fun streamsOf(addon: Addon, type: String, id: String): StreamOutcome {
         val server = MediaServerRegistry.backend(addon)
         if (server != null) {
-            val found = server.streams(type, id)
-            return if (found.isEmpty()) null else streamFilter(found)
+            return try {
+                val found = server.streams(type, id)
+                StreamOutcome(addon, if (found.isEmpty()) null else streamFilter(found), failed = false)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                StreamOutcome(addon, null, failed = true)
+            }
         }
         val url = addon.baseUrl + "stream/$type/${encodeId(id)}.json"
-        val data = lookup(url) ?: return null
-        val items = attempt { StreamItem.decodeStreams(data.decodeToString()) } ?: return null
-        return streamFilter(items)
-    }
-
-    private suspend fun lookup(url: String): ByteArray? {
-        if (attempt { Url(url) } == null) return null
-        return attempt {
-            withTimeoutOrNull(streamDeadlineMillis) {
-                val reply = http.execute(HttpRequest(url, headers = mapOf("Accept" to "application/json"), timeoutMillis = streamDeadlineMillis))
-                if (reply.status != 200) throw BadStatusException(reply.status)
-                reply.body
+        return when (val reply = lookupResult(url)) {
+            is Lookup.Failed -> StreamOutcome(addon, null, failed = true)
+            is Lookup.Missing -> StreamOutcome(addon, null, failed = false)
+            is Lookup.Body -> {
+                val items = attempt { StreamItem.decodeStreams(reply.bytes.decodeToString()) }
+                if (items == null) StreamOutcome(addon, null, failed = true) else StreamOutcome(addon, streamFilter(items), failed = false)
             }
         }
     }
+
+    private sealed interface Lookup {
+        class Body(val bytes: ByteArray) : Lookup
+        /** The add-on answered 404: it has nothing for this title. Not a failure. */
+        data object Missing : Lookup
+        data object Failed : Lookup
+    }
+
+    private suspend fun lookupResult(url: String): Lookup {
+        if (attempt { Url(url) } == null) return Lookup.Failed
+        return try {
+            withTimeoutOrNull(streamDeadlineMillis) {
+                val reply = http.execute(HttpRequest(url, headers = mapOf("Accept" to "application/json"), timeoutMillis = streamDeadlineMillis))
+                when (reply.status) {
+                    200 -> Lookup.Body(reply.body)
+                    404 -> Lookup.Missing
+                    else -> Lookup.Failed
+                }
+            } ?: Lookup.Failed
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Lookup.Failed
+        }
+    }
+
+    private suspend fun lookup(url: String): ByteArray? = (lookupResult(url) as? Lookup.Body)?.bytes
 
     companion object {
         fun ordered(groups: List<Pair<Addon, List<StreamItem>>>, by: List<Addon>): List<Pair<Addon, List<StreamItem>>> =
