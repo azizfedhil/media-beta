@@ -1,5 +1,6 @@
 package com.mediahub.pear.player.ui
 
+import com.mediahub.pear.player.PipState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -341,6 +342,11 @@ private fun PillButton(
             symbol = item.symbol,
             selected = audioOpen,
             onClick = onAudio,
+            contentDescription = item.title,
+        )
+        PillItem.Pip -> PlayerPillButton(
+            symbol = item.symbol,
+            onClick = { PipState.request() },
             contentDescription = item.title,
         )
         else -> Unit

@@ -13,5 +13,5 @@ interface P2PNetworkWatch {
     suspend fun ready()
 }
 
-/** The platform's network check. */
-expect fun p2pNetwork(): P2PNetworkWatch
+/** The platform's network check. [wifiOnly] is the Settings switch: on Android it limits P2P to unmetered Wi-Fi and Ethernet. */
+expect fun p2pNetwork(wifiOnly: StateFlow<Boolean>): P2PNetworkWatch

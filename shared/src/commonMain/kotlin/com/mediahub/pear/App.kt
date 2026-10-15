@@ -27,6 +27,7 @@ import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalHttp
 import com.mediahub.pear.shell.LocalWindowControl
 import com.mediahub.pear.shell.ShellState
+import com.mediahub.pear.shell.SystemBackHandler
 import com.mediahub.pear.shell.WindowControl
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.ThemeStore
@@ -44,6 +45,9 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
     }
     LaunchedEffect(setupNeeded) { shell.onboardingVisible = setupNeeded }
     val env = remember(data) { AppEnv(theme, glass, shell, data, devTools) }
+    // The system back action (Android's back button and gesture) closes the topmost page or the player. The system
+    // takes it only when nothing is open.
+    SystemBackHandler { env.shell.escape() }
     LaunchedEffect(data.profiles.activeID) { data.switchProfile(data.profiles.activeID) }
     // The P2P engine ends with the window: the close runs this hook before the process exits, and waits for the stop (4.5d).
     DisposableEffect(data) {

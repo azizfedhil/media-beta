@@ -4,3 +4,10 @@
 # (it must not list VCRUNTIME140.dll or MSVCP140.dll; the api-ms-win-crt-*.dll names are fine, Windows 10+ has them).
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
+
+# Android (plan P9). 16 KB page size for the 64-bit ABIs, which Android 15 and later require. armv7 is 32-bit: no flag.
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

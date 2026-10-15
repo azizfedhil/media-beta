@@ -1,5 +1,6 @@
 package com.mediahub.pear.settings
 
+import com.mediahub.pear.shell.PlatformCaps
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -191,7 +192,7 @@ fun SettingsScreen(
                         })
                     },
                 )
-                if (playerGlass) {
+                if (playerGlass && PlatformCaps.videoBlurSupported) {
                     SettingsDivider()
                     SettingsRow(
                         title = "Blur controls while playing",
@@ -271,7 +272,7 @@ fun SettingsScreen(
                     SettingsDivider()
                     SettingsRow(
                         title = "Wi-Fi only",
-                        subtitle = "On this computer Pear can't tell Wi-Fi from a hotspot or a metered link, so Wi-Fi only doesn't limit P2P here.",
+                        subtitle = if (PlatformCaps.canTellWifi) "Wi-Fi and Ethernet that aren't metered only. Off also allows cellular and hotspots." else "On this computer Pear can't tell Wi-Fi from a hotspot or a metered link, so Wi-Fi only doesn't limit P2P here.",
                         trailing = { PearSwitch(checked = p2pWifiOnly, onCheckedChange = { p2p.setWifiOnly(it) }) },
                     )
                 }

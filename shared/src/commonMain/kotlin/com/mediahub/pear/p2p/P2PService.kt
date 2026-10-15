@@ -23,7 +23,8 @@ class P2PService(
     private val prefs: PrefStore,
     /** The app's one engine. It is created by the first stream, not here. */
     val engine: P2PEngine = P2PEngine(p2pPlatform()),
-    private val network: P2PNetworkWatch = p2pNetwork(),
+    /** A network check to use instead of the platform's (tests). */
+    networkOverride: P2PNetworkWatch? = null,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val _enabled = MutableStateFlow(prefs.bool(PrefKeys.P2P_ENABLED, false))
@@ -33,8 +34,14 @@ class P2PService(
 
     private val _wifiOnly = MutableStateFlow(prefs.bool(PrefKeys.P2P_WIFI_ONLY, true))
 
+    /** The platform's network check. It reads Wi-Fi only from the switch, so a change applies at once. */
+    private val network: P2PNetworkWatch = networkOverride ?: p2pNetwork(_wifiOnly.asStateFlow())
+
     /** Wi-Fi only. On a desktop this is kept but has no effect (see [P2PNetworkWatch]). */
     val wifiOnly: StateFlow<Boolean> = _wifiOnly.asStateFlow()
+
+    /** Whether the current network may carry P2P traffic. The player ends a stream when this turns off (as iOS does). */
+    val networkAllowed: StateFlow<Boolean> get() = network.allowed
 
     /** On, and the network allows it: torrent sources can be played. A change to either takes effect at once. */
     val canStream: StateFlow<Boolean> = combine(_enabled, network.allowed) { on, allowed -> on && allowed }

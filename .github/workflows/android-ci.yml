@@ -1,0 +1,66 @@
+name: Android CI
+
+# Builds the Android app. From the Actions tab (workflow_dispatch) it builds a debug APK. On an android-v* tag it builds a
+# release APK, signed when the keystore secrets are set, and checks the 16 KB page alignment Android 15 requires.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "android-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      PEAR_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      PEAR_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      PEAR_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.1"
+
+      # The P2P engine for the phone: the Rust core for three ABIs, built with cargo-ndk (androidApp/build.gradle.kts).
+      # The hosted runner has the Android SDK and NDK (ANDROID_HOME, ANDROID_NDK_HOME) and Rust.
+      - name: Install the Android Rust targets and cargo-ndk
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          cargo install cargo-ndk --locked
+
+      - name: Decode the release keystore
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "PEAR_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build the debug APK
+        if: github.ref_type != 'tag'
+        run: gradle :androidApp:assembleDebug --console=plain
+
+      - name: Build the release APK
+        if: github.ref_type == 'tag'
+        run: gradle :androidApp:assembleRelease --console=plain
+
+      - name: Check 16 KB page alignment (Android 15 and later)
+        if: github.ref_type == 'tag'
+        run: |
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort -V | tail -1)
+          "$ZIPALIGN" -c -P 16 -v 4 androidApp/build/outputs/apk/release/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pear-android
+          path: androidApp/build/outputs/apk/**/*.apk
+          if-no-files-found: error

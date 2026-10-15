@@ -42,6 +42,7 @@ import com.mediahub.pear.player.media.createSystemMediaSession
 import com.mediahub.pear.player.TrackKind
 import com.mediahub.pear.player.TrackPicker
 import com.mediahub.pear.player.ProgressRules
+import com.mediahub.pear.player.PipState
 import com.mediahub.pear.player.VideoSurface
 import com.mediahub.pear.player.createDefaultPlayerEngine
 import com.mediahub.pear.player.withSource
@@ -149,6 +150,15 @@ fun PlayerScreen(
             }
         }
     }
+    // Leaving the app pauses the film (Android has no background playback, decisions D6). AppLifecycle fires only when
+    // no Picture in Picture window is open, so this is "pause unless PiP".
+    LaunchedEffect(engine) {
+        AppLifecycle.backgrounded.collect {
+            engine.pause()
+            // iOS ends a stream that is not playing when the app goes to the background. The film is paused just above.
+            data.p2p.engine.requestStop()
+        }
+    }
     LaunchedEffect(engine, progress) {
         while (true) {
             delay(ProgressRules.CHECKPOINT_MILLIS)
@@ -172,6 +182,8 @@ fun PlayerScreen(
     val exitFullscreen: () -> Boolean = { setFullscreen(false); true }
     LaunchedEffect(fullscreen) { env.shell.escapeHook = if (fullscreen) exitFullscreen else null }
     DisposableEffect(Unit) { onDispose { env.shell.escapeHook = null } }
+    // A phone opens the player full screen, as the iOS player is landscape. Leaving restores the window (above).
+    LaunchedEffect(Unit) { if (PlatformCaps.playerStartsFullscreen) setFullscreen(true) }
 
     var aspect by remember { mutableStateOf(AspectMode.Fit) }
     var performance by remember { mutableStateOf(false) }
@@ -205,6 +217,13 @@ fun PlayerScreen(
             p2pError = e.message ?: "Peer-to-peer playback failed."
         }
     }
+    // Leaving the network the stream was allowed on ends it at once (iOS: Wi-Fi only, no cellular P2P traffic). Desktop's
+    // network never changes, so this never fires there.
+    LaunchedEffect(data.p2p) {
+        data.p2p.networkAllowed.collect { allowed ->
+            if (!allowed && current.p2p != null) data.p2p.engine.requestStop()
+        }
+    }
     // The status line for a torrent (peers, speed, progress), read once a second. Nothing for a link.
     LaunchedEffect(current.url) {
         while (true) {
@@ -220,7 +239,12 @@ fun PlayerScreen(
     val glassOn = rememberPref(prefs, PrefKeys.PLAYER_GLASS) { it.bool(PrefKeys.PLAYER_GLASS, true) }
     // Glass while the video plays is on by default (the Settings switch turns it off if the machine can't keep up).
     val blurPlaying = rememberPref(prefs, PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING) { it.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true) }
-    val look = playerLook(glassOn, env.glass.mode, isVideoMoving(state), blurPlaying)
+    // The video blur is off where the picture is a separate surface (PlatformCaps); the controls keep their glass look.
+    val look = playerLook(glassOn, env.glass.mode, isVideoMoving(state), blurPlaying && PlatformCaps.videoBlurSupported)
+    // Picture in Picture follows the Settings switch. The platform opens the window; the player says when it may.
+    val pipAllowed = rememberPref(prefs, PrefKeys.PLAYER_PIP) { it.bool(PrefKeys.PLAYER_PIP, true) }
+    LaunchedEffect(state, pipAllowed) { PipState.wanted = pipAllowed && state == PlaybackState.Playing }
+    DisposableEffect(Unit) { onDispose { PipState.wanted = false } }
     // The viewer's subtitle look (Settings -> Subtitles -> Appearance), followed live. It draws the plain-text subtitles.
     val subStyle = rememberPref(prefs, PrefKeys.SUB_STYLE) { SubtitleStyle.decode(it.string(PrefKeys.SUB_STYLE, "")) }
 
@@ -314,11 +338,12 @@ fun PlayerScreen(
 
     // The subtitle button shows whenever online lookup is on, as on iOS (`pillHas` for subtitles).
     val hasSubtitleChoice = subtitleTracks.isNotEmpty() || data.subtitles.isEnabled
-    val layout = remember(pinnedRaw, orderRaw, nextEp, hasSubtitleChoice, audioTracks.size) {
+    val layout = remember(pinnedRaw, orderRaw, nextEp, hasSubtitleChoice, audioTracks.size, pipAllowed) {
         pillLayout(
             PillItem.decodeOrder(orderRaw),
             PillItem.decodePinned(pinnedRaw),
-            pillItemsAvailable(nextEp != null, hasSubtitles = hasSubtitleChoice, hasAudio = audioTracks.size > 1),
+            pillItemsAvailable(nextEp != null, hasSubtitles = hasSubtitleChoice, hasAudio = audioTracks.size > 1)
+                .let { if (pipAllowed) it else it - PillItem.Pip },
         )
     }
 

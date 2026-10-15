@@ -65,12 +65,15 @@ enum class PillItem(val raw: String, val title: String, val symbol: String) {
  */
 val desktopPillItems: Set<PillItem> = setOf(PillItem.Speed, PillItem.Sources, PillItem.Volume, PillItem.Display)
 
+/** What this platform can show besides the file's tracks and the episode: [desktopPillItems], plus Picture in Picture on Android. */
+expect val platformPillItems: Set<PillItem>
+
 /**
  * The buttons available right now (`pillHas` in PlayerView.swift): [desktopPillItems], plus Subtitles while the file has
  * subtitle tracks, Audio while it has more than one audio track, and Next while there is an episode after this one.
  */
 fun pillItemsAvailable(hasNext: Boolean, hasSubtitles: Boolean = false, hasAudio: Boolean = false): Set<PillItem> {
-    var items = desktopPillItems
+    var items = platformPillItems
     if (hasSubtitles) items = items + PillItem.Subtitles
     if (hasAudio) items = items + PillItem.Audio
     if (hasNext) items = items + PillItem.Next

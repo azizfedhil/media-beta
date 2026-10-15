@@ -1,3 +1,4 @@
-# androidApp (Phase 7)
-Stub. The Android entry point, manifest and Media3 player land in Phase 7, after the player (4) and phone layout (5) are done.
-Not included in settings.gradle.kts yet.
+# androidApp
+
+The Android entry point: application class, the one activity, the window control, the launcher resources and the CA
+bundle. Build notes, verification status and decisions: `docs/android/`.

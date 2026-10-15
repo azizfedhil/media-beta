@@ -1,2 +1,3 @@
-# Android source set (Phase 7)
-Not compiled yet: the android target is not enabled in shared/build.gradle.kts.
+# shared/src/androidMain
+
+The Android platform code for `:shared`: libmpv player, storage, network, and the `actual`s. See `docs/android/`.

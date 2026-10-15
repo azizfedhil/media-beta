@@ -26,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import com.mediahub.pear.player.PipState
+import com.mediahub.pear.shell.PlatformCaps
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -183,15 +185,26 @@ fun PlayerOverlay(
     val overCenter = remember { mutableStateOf(false) }
     val overBottom = remember { mutableStateOf(false) }
 
-    val visible = controlsVisible(
+    // Touch screens: the controls follow a tap (touchShown), not the pointer. Picture in Picture shows the picture alone.
+    val touch = PlatformCaps.isTouchFirst
+    var touchShown by remember { mutableStateOf(true) }
+    val pipOnly = PipState.active
+    val visible = !pipOnly && controlsVisible(
         state = state,
         hasError = errorMessage != null,
-        recentlyActive = recentlyActive,
+        recentlyActive = if (touch) touchShown else recentlyActive,
         scrubbing = scrubbing,
         pointerOverControls = overTop.value || overCenter.value || overBottom.value,
         volumeActive = pillActive,
         panelOpen = panel != null,
     )
+    // Touch: the controls go on their own after AUTO_HIDE_MILLIS while the film plays and nothing is being adjusted.
+    LaunchedEffect(touchShown, state, scrubbing, panel, pillActive) {
+        if (touch && touchShown && state == PlaybackState.Playing && !scrubbing && panel == null && !pillActive) {
+            delay(AUTO_HIDE_MILLIS)
+            touchShown = false
+        }
+    }
     val covered = panelCoversControls(panel)
 
     val hiddenCursor = remember { hiddenPointerIcon() }
@@ -205,7 +218,15 @@ fun PlayerOverlay(
         }
     }
     // A click on the picture closes an open panel first, as tapBackground does on iOS.
-    val tapAction: () -> Unit = { if (panel != null) onDismissPanel() else playPause() }
+    // A click on the picture closes an open panel first, as tapBackground does on iOS. On touch a tap shows or hides the
+    // controls; on desktop it plays or pauses.
+    val tapAction: () -> Unit = {
+        when {
+            panel != null -> onDismissPanel()
+            touch -> { touchShown = !touchShown }
+            else -> playPause()
+        }
+    }
     val onTap by rememberUpdatedState(tapAction)
     val onDoubleTap by rememberUpdatedState(onToggleFullscreen)
     val onMedia by rememberUpdatedState(onMediaCommand)
@@ -281,7 +302,7 @@ fun PlayerOverlay(
                 // Click and double-click on the picture. The controls and panels sit above and take their own clicks.
                 Box(
                     Modifier.fillMaxSize().pointerInput(Unit) {
-                        detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
+                        if (touch) detectTapGestures(onTap = { onTap() }) else detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
                     },
                 )
 
@@ -299,14 +320,14 @@ fun PlayerOverlay(
 
                 // Subtitles the app draws: above the picture, under the controls and panels. At the picture's own size, not the
                 // controls' scale, so the line matches the preview in the Subtitles panel.
-                CompositionLocalProvider(LocalDensity provides base) { subtitles(visible) }
+                if (!pipOnly) CompositionLocalProvider(LocalDensity provides base) { subtitles(visible) }
 
                 // The stream is opening: the pear. loader on black, with the close button, as on iOS (launchOverlay).
                 val opening = (state == PlaybackState.Loading || p2pOpening) && errorMessage == null
-                if (opening) LoadingScreen(onClose = onClose, status = p2pStatus)
+                if (opening && !pipOnly) LoadingScreen(onClose = onClose, status = p2pStatus)
 
                 // Waiting for data while the controls are hidden: just a spinner.
-                if (isWaiting(state) && errorMessage == null && !visible && !opening) {
+                if (isWaiting(state) && errorMessage == null && !visible && !opening && !pipOnly) {
                     PlayerSpinner(Modifier.align(Alignment.Center), diameter = 44.dp)
                     p2pStatus?.let {
                         PearText(
@@ -343,13 +364,13 @@ fun PlayerOverlay(
                 }
 
                 // Skip intro and next episode: hidden under a panel or an error (`skipLayer` in PlayerView.swift).
-                if (errorMessage == null && panel == null) skip(visible)
+                if (errorMessage == null && panel == null && !pipOnly) skip(visible)
 
                 // Panels last, so they sit above the controls. Only one is open at a time; the host decides which. Their text is at
                 // the base size, not the controls' scale: the sub-menus were too large with it.
-                CompositionLocalProvider(LocalDensity provides Density(scaled.density, base.fontScale)) { panels() }
+                if (!pipOnly) CompositionLocalProvider(LocalDensity provides Density(scaled.density, base.fontScale)) { panels() }
 
-                PlayerNotice(notice)
+                if (!pipOnly) PlayerNotice(notice)
             }
         }
     }

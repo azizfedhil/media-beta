@@ -14,4 +14,5 @@ private object DesktopP2PNetwork : P2PNetworkWatch {
     override suspend fun ready() {}
 }
 
-actual fun p2pNetwork(): P2PNetworkWatch = DesktopP2PNetwork
+/** Desktop: [wifiOnly] is kept but has no effect (see the object above). */
+actual fun p2pNetwork(wifiOnly: StateFlow<Boolean>): P2PNetworkWatch = DesktopP2PNetwork
