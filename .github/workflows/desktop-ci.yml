@@ -89,24 +89,31 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then tasks+=(":desktopApp:packageRpm"); fi
           gradle "${tasks[@]}" "-PpearVersion=$PEAR_VERSION" --console=plain
 
-      # jpackage is asked for the requirement in desktopApp/build.gradle.kts. If it did not add it, add it to the finished RPM here.
-      - name: Add the libmpv requirement to the RPM if jpackage left it out (Linux)
+      # jpackage is asked for the requirement in desktopApp/build.gradle.kts. If the RPM still lacks it, build the RPM again here
+      # with the JDK's own jpackage, from the app image Gradle made, and pass the requirement directly.
+      - name: Rebuild the RPM with the libmpv requirement if it is missing (Linux)
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
-          rpmfile="$(ls desktopApp/build/compose/binaries/main/rpm/*.rpm | head -n1)"
+          rpmdir=desktopApp/build/compose/binaries/main/rpm
+          rpmfile="$(ls "$rpmdir"/*.rpm | head -n1)"
           if rpm -qpR "$rpmfile" | grep -q 'libmpv\.so\.2'; then
-            echo "jpackage already added the libmpv requirement"
+            echo "The RPM already requires libmpv"
             exit 0
           fi
-          echo "jpackage did not add the libmpv requirement; adding it with rpmrebuild"
-          sudo apt-get install -y rpmrebuild
+          echo "The RPM does not require libmpv; building it again with jpackage"
+          image="$(find desktopApp/build/compose/binaries/main/app -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          test -n "$image"
+          numeric="${PEAR_VERSION%%-*}"
           out="$(mktemp -d)"
-          rpmrebuild -p --notest-install -d "$out" \
-            --change-spec-requires="sed -e '\$a Requires: libmpv.so.2()(64bit)'" "$rpmfile"
-          new="$(find "$out" -name '*.rpm' | head -n1)"
+          "$JAVA_HOME/bin/jpackage" --type rpm --app-image "$image" --dest "$out" \
+            --name pear --app-version "$numeric" \
+            --linux-package-name pear --linux-app-category AudioVideo --linux-menu-group Video \
+            --linux-package-deps 'libmpv.so.2()(64bit)'
+          new="$(ls "$out"/*.rpm | head -n1)"
           test -n "$new"
-          mv -f "$new" "$rpmfile"
+          rm -f "$rpmdir"/*.rpm
+          cp "$new" "$rpmdir"/
 
       # libmpv is loaded with dlopen, so rpmbuild cannot detect it: the RPM must declare it, or it installs without it.
       - name: Check the RPM requires libmpv (Linux)
