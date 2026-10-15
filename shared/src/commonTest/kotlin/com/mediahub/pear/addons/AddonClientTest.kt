@@ -293,6 +293,40 @@ class AddonClientStreamTest {
     }
 
     @Test
+    fun outcomesSeparateFailedFromEmptyFromFound() = runTest {
+        val http = FakeHttp { r ->
+            when {
+                r.url.startsWith("https://a.example/") -> reply(stream())
+                r.url.startsWith("https://c.example/") -> reply("", 500)
+                r.url.startsWith("https://d.example/") -> reply("{}", 404)
+                else -> reply("{}", 404)
+            }
+        }
+        val got = ArrayList<StreamOutcome>()
+        AddonClient(http).streamOutcomes("tt1", "movie", listOf(a, c, d)).collect { got.add(it) }
+        val by = got.associateBy { it.addon.manifest.id }
+        assertEquals(1, by.getValue("a").items?.size)
+        assertFalse(by.getValue("a").failed)
+        assertTrue(by.getValue("c").failed) // an error status is a failure
+        assertNull(by.getValue("c").items)
+        assertFalse(by.getValue("d").failed) // a 404 means "nothing for this title", not a failure
+        assertNull(by.getValue("d").items)
+    }
+
+    @Test
+    fun aTimeoutAndAMalformedAnswerAreFailures() = runTest {
+        val slow = FakeHttp { delay(20_000); reply(stream()) }
+        val s1 = ArrayList<StreamOutcome>()
+        AddonClient(slow).streamOutcomes("tt1", "movie", listOf(a)).collect { s1.add(it) }
+        assertTrue(s1.single().failed)
+
+        val bad = routes("https://a.example/stream/movie/tt1.json" to """{"nostreams":1}""")
+        val s2 = ArrayList<StreamOutcome>()
+        AddonClient(bad).streamOutcomes("tt1", "movie", listOf(a)).collect { s2.add(it) }
+        assertTrue(s2.single().failed)
+    }
+
+    @Test
     fun aMalformedAnswerIsSkipped() = runTest {
         val http = routes("https://a.example/stream/movie/tt1.json" to """{"nostreams":1}""")
         assertTrue(AddonClient(http).streams("tt1", "movie", listOf(a)).isEmpty())
