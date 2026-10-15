@@ -50,6 +50,11 @@ android {
 dependencies {
     implementation(project(":shared"))
     implementation(libs.androidx.activity.compose)
+    // :shared declares Compose as implementation dependencies, so they are not on this module's compile classpath.
+    // The activity uses Compose runtime, layout and UI types directly (LaunchedEffect, Box, Modifier, DpSize).
+    implementation("androidx.compose.runtime:runtime:${libs.versions.compose.get()}")
+    implementation("androidx.compose.foundation:foundation:${libs.versions.compose.get()}")
+    implementation("androidx.compose.ui:ui:${libs.versions.compose.get()}")
 }
 
 // The P2P engine for the phone (plan P9): the Rust core built for three ABIs into src/main/jniLibs before packaging.

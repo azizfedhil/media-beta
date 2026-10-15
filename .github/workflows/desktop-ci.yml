@@ -81,6 +81,8 @@ jobs:
           workspaces: |
             p2p-core
             p2p-core/uniffi-bindgen
+          # Save the crates even when this job fails, so a failed build does not make the next one compile them again.
+          cache-on-failure: true
 
       # No fallback: a failed build fails the job here.
       - name: Build, test, package

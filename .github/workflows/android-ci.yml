@@ -32,12 +32,22 @@ jobs:
         with:
           gradle-version: "9.5.1"
 
+      # The Rust crates of the P2P engine: p2p-core, and uniffi-bindgen (its own workspace). cache-on-failure saves them even
+      # when this job fails, so the next run doesn't compile them again.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-p2p
+          cache-on-failure: true
+          workspaces: |
+            p2p-core
+            p2p-core/uniffi-bindgen
       # The P2P engine for the phone: the Rust core for three ABIs, built with cargo-ndk (androidApp/build.gradle.kts).
       # The hosted runner has the Android SDK and NDK (ANDROID_HOME, ANDROID_NDK_HOME) and Rust.
       - name: Install the Android Rust targets and cargo-ndk
         run: |
           rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-          cargo install cargo-ndk --locked
+          # Restored from the cache when present: installing it compiles it.
+          command -v cargo-ndk >/dev/null || cargo install cargo-ndk --locked
 
       - name: Decode the release keystore
         if: env.KEYSTORE_B64 != ''
