@@ -41,6 +41,7 @@ jobs:
           workspaces: |
             p2p-core
             p2p-core/uniffi-bindgen
+
       # The P2P engine for the phone: the Rust core for three ABIs, built with cargo-ndk (androidApp/build.gradle.kts).
       # The hosted runner has the Android SDK and NDK (ANDROID_HOME, ANDROID_NDK_HOME) and Rust.
       - name: Install the Android Rust targets and cargo-ndk
