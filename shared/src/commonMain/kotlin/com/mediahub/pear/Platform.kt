@@ -2,6 +2,9 @@ package com.mediahub.pear
 
 import androidx.compose.ui.graphics.ImageBitmap
 
+/** The version this build shows: the same text as the update check and the logs (pearVersion in gradle.properties). */
+expect val appVersion: String
+
 /** Human-readable platform name; proves expect/actual wiring between commonMain and the platform source sets. */
 expect val platformName: String
 

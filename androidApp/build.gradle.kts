@@ -13,7 +13,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = (project.findProperty("pearVersion") as String?) ?: "0.0.2-Alpha"
+        versionName = project.property("pearVersion") as String
     }
 
     buildFeatures {

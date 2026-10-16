@@ -1,5 +1,6 @@
 package com.mediahub.pear.servers
 
+import com.mediahub.pear.appVersion
 import com.mediahub.pear.data.GenreNames
 import com.mediahub.pear.data.PrefStore
 import com.mediahub.pear.data.randomProfileId
@@ -76,7 +77,8 @@ object ServerIdentity {
         cachedId = newId
         return newId
     }
-    const val version: String = "0.1.0"
+    /** The app version, sent to Jellyfin and Plex as the client version. */
+    val version: String get() = appVersion
 }
 
 object ServerFormat {

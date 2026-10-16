@@ -1,7 +1,7 @@
 ; Pear's Windows installer, built by CI (.github/workflows/desktop-ci.yml) from the app image that
 ; ":desktopApp:createDistributable" makes. CI passes the version and the libmpv values the build recorded:
 ;
-;   ISCC.exe /DPearVersion=0.0.2-Alpha /DPearNumericVersion=0.0.2.0 /DLibmpvUrl=<link> /DLibmpvMirrorUrl=<link or empty>
+;   ISCC.exe /DPearVersion=0.0.3-Alpha /DPearNumericVersion=0.0.3.0 /DLibmpvUrl=<link> /DLibmpvMirrorUrl=<link or empty>
 ;            /DLibmpvSha256=<hash> desktopApp\installer\pear.iss
 ;
 ; Per-user: it needs no administrator rights and shows no UAC prompt. The app goes to %LocalAppData%\Pear.
@@ -10,10 +10,10 @@
 ; no plugin to vendor.
 
 #ifndef PearVersion
-  #define PearVersion "0.0.2-Alpha"
+  #define PearVersion "0.0.3-Alpha"
 #endif
 #ifndef PearNumericVersion
-  #define PearNumericVersion "0.0.2.0"
+  #define PearNumericVersion "0.0.3.0"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\build\compose\binaries\main\app\Pear"

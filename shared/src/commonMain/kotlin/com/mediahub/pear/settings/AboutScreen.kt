@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
+import com.mediahub.pear.appVersion
 import com.mediahub.pear.openUrl
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.theme.PearIcon
@@ -42,7 +43,7 @@ fun AboutScreen(
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PearText("Pear.", style = PearTheme.type.title.weight(FontWeight.Bold))
-                    PearText("v0.1.0", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
+                    PearText("v$appVersion", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
                 }
                 PearText(
                     "Pear. brings what you watch into one native interface across your desktop and mobile devices: library, watch tracking, trending catalogs, and streaming sources from add-ons and media servers.",

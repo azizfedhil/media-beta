@@ -109,7 +109,7 @@ class SimklStore(
     private val facts: FactStore = FactStore.None,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val now: () -> Long = ::epochMillis,
-    private val appVersion: String = "0.1.0",
+    private val appVersion: String = com.mediahub.pear.appVersion,
     private val builtInClientId: String = SIMKL_BUILT_IN_CLIENT_ID,
 ) : SimklLibrary {
     var token: String? by mutableStateOf(secrets.get(SecretKeys.SIMKL_TOKEN))
