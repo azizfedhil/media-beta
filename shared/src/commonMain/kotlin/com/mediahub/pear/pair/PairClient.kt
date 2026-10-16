@@ -9,8 +9,10 @@ import com.mediahub.pear.model.jStr
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /**
@@ -92,9 +94,9 @@ class PairClient(private val api: CloudApi) {
                         put("profileId", c.profileId)
                         put("kind", c.kind.wire)
                         put("key", c.key)
-                        put("updatedAt", c.updatedAt)
+                        put("updatedAt", JsonPrimitive(c.updatedAt))
                         val data = c.data
-                        if (data == null) put("deleted", true) else put("data", data)
+                        if (data == null) put("deleted", JsonPrimitive(true)) else put("data", data)
                     }
                 }
             }

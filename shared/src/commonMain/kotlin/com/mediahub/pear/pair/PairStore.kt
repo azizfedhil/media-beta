@@ -9,7 +9,9 @@ import com.mediahub.pear.model.jObject
 import com.mediahub.pear.model.jStr
 import com.mediahub.pear.net.attempt
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /** What the snapshot keeps for one record: its fingerprint, and the timestamp the server holds for it. */
 class SyncedRecord(val fingerprint: String, val updatedAt: Long)
@@ -93,7 +95,7 @@ class PairStore(private val prefs: PrefStore, private val secrets: SecretStore) 
                     k,
                     buildJsonObject {
                         put("f", r.fingerprint)
-                        put("u", r.updatedAt)
+                        put("u", JsonPrimitive(r.updatedAt))
                     },
                 )
             }

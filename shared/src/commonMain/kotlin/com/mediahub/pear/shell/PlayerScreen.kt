@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.addons.OpenSubtitlesClient
 import com.mediahub.pear.data.PrefKeys
