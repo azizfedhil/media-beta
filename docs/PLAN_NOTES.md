@@ -6,7 +6,7 @@ Written after applying the plan. Nothing has been compiled or run. Checks so far
 
 - `:shared:compileAndroidMain` passed. That compile covers commonMain, jvmCommonMain and androidMain, so every shared change compiles for Android, and OkHttp's `okhttp3` types are visible from `AndroidNetwork.kt`.
 - `:shared:compileKotlinDesktop` failed on four redeclarations that were already in the uploaded repo: `FilePrefsPersistence`, `FileFactStore`, `FileResponseCache` and `PlistCodec`. Each had a copy in `desktopMain` and an identical copy in `jvmCommonMain`. The four `desktopMain` copies were removed. The `jvmCommonMain` copies are used by Android and by the desktop tests.
-- The desktop compile reported no other errors, so the desktop-only code has not been fully checked yet. The next CI run will show whether it passes. `desktopApp` has not been compiled.
+- Second CI run: `:shared:compileKotlinDesktop`, `:desktopApp:compileKotlin` and `:desktopApp:createDistributable` all passed. The desktop tests ran: 716 tests, one failed. `AddonClientMetaTest.aFailureIsNotRememberedButAnUnreadableAnswerIs` failed because the Task 9 retry also covered meta lookups. A meta lookup that fails is supposed to be asked again on the next call, not retried. The retry now applies only to stream lookups, and meta lookups behave as before. The fix has not been rerun yet.
 
 ## Task 1. Crash briefing and logging: done, with corrections
 

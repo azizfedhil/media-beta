@@ -200,15 +200,16 @@ class AddonClient(
     }
 
     /**
-     * One lookup, with one automatic retry for a failure that often clears by itself (a timeout, a dropped connection, a 429 or a
-     * 5xx). Before the retry the pooled connections are dropped: after a sleep or a network change the old ones are dead. [label]
-     * names the add-on in the log; null (the meta lookups) logs nothing.
+     * One lookup. A stream lookup ([label] given) gets one automatic retry for a failure that often clears by itself (a timeout, a
+     * dropped connection, a 429 or a 5xx), after the pooled connections are dropped: after a sleep or a network change the old ones
+     * are dead. Meta lookups (label null) are never retried: their cache asks again next time, as before. [label] also names the
+     * add-on in the log.
      */
     private suspend fun lookupResult(url: String, label: String?): Lookup {
         if (attempt { Url(url) } == null) return Lookup.Failed("bad address", retryable = false)
         val started = now()
         val first = lookupOnce(url)
-        if (first !is Lookup.Failed || !first.retryable) {
+        if (label == null || first !is Lookup.Failed || !first.retryable) {
             if (label != null && first is Lookup.Failed) logFailure(label, url, first.reason, started, retried = false)
             return first
         }
