@@ -1,5 +1,0 @@
-# Library binaries are bundled at build time, not committed (see README.md).
-*.dll
-*.so
-*.so.*
-*.dylib

@@ -1,6 +1,0 @@
-local.properties
-androidApp/build/
-*.apk
-*.aab
-shared/build/generated/libmpv/
-androidApp/src/main/jniLibs/

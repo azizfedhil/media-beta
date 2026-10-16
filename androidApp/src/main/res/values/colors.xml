@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- The dark palette's background (theme/PearColors.kt). The app is dark-only on Android v1. -->
-    <color name="pear_background">#FF000000</color>
-</resources>
