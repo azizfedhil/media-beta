@@ -2,6 +2,7 @@ package com.mediahub.pear.player.mpv
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import com.mediahub.pear.log.PearLog
 import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.Pointer
@@ -18,8 +19,46 @@ import java.util.concurrent.Semaphore
 import kotlin.math.max
 import kotlin.math.sqrt
 
-/** One rendered frame. [image] may be wider than [width] (rows are padded to 16 px); draw only the top-left [width] x [height]. */
-class VideoFrame(val image: ImageBitmap, val width: Int, val height: Int)
+/**
+ * One rendered frame. [image] may be wider than [width] (rows are padded to 16 px); draw only the top-left [width] x [height].
+ *
+ * Reference-counted: the renderer holds one reference until it publishes a newer frame, and every draw holds one for as
+ * long as it is drawing. The native memory is freed only when the last reference is released, so a frame can never be
+ * freed while the UI is still drawing it.
+ */
+class VideoFrame internal constructor(
+    val image: ImageBitmap,
+    private val source: Image,
+    val width: Int,
+    val height: Int,
+) {
+    private val lock = Any()
+    private var refs = 1 // the renderer's reference
+    private var freed = false
+
+    /** Takes a reference for one draw. Returns false if the frame is already freed; the caller then draws nothing. */
+    fun retain(): Boolean {
+        synchronized(lock) {
+            if (freed) return false
+            refs++
+            return true
+        }
+    }
+
+    /** Drops a reference. The last one frees the native image. */
+    fun release() {
+        val free = synchronized(lock) {
+            refs--
+            if (refs == 0) {
+                freed = true
+                true
+            } else {
+                false
+            }
+        }
+        if (free) source.close()
+    }
+}
 
 /**
  * mpv software renderer: mpv draws each frame straight into Skia-owned pixel memory ("bgr0" into a BGRA bitmap), so
@@ -43,7 +82,6 @@ class MpvVideoRenderer private constructor(
     private var bitmap: Bitmap? = null
     private var bitmapW = 0
     private var bitmapH = 0
-    private val recent = ArrayDeque<Image>()
 
     // Parameter blocks, allocated once. mpv_render_param is { int type; void *data }.
     private val ptrSize = Native.POINTER_SIZE
@@ -119,11 +157,19 @@ class MpvVideoRenderer private constructor(
         if (mpv.mpv_render_context_render(ctx, params) < 0) return
         bmp.notifyPixelsChanged()
 
-        val image = Image.makeFromBitmap(bmp)
-        _frames.value = VideoFrame(image.toComposeImageBitmap(), w, h)
-        // The UI may still be drawing one of the last frames, so close only the older ones.
-        recent.addLast(image)
-        while (recent.size > 5) recent.removeFirst().close()
+        // Skia copies the pixels (the shared bitmap is mutable), so the frame never refers to memory the next render writes.
+        // On failure keep showing the last good frame; the next render tries again instead of killing this thread.
+        val source = try {
+            Image.makeFromBitmap(bmp)
+        } catch (e: RuntimeException) {
+            PearLog.w("Player", "Video frame skipped: could not copy the rendered picture", e)
+            return
+        }
+        val frame = VideoFrame(source.toComposeImageBitmap(), source, w, h)
+        val previous = _frames.value
+        _frames.value = frame
+        // Drops only the renderer's reference. A draw still using the previous frame keeps it alive until it finishes.
+        previous?.release()
     }
 
     /** Render size in pixels. Above [maxPixels] it is scaled down, keeping the shape (4K performance mode). */
@@ -146,8 +192,10 @@ class MpvVideoRenderer private constructor(
             mpv.mpv_render_context_free(ctx)
             bitmap?.close()
             bitmap = null
+            val last = _frames.value
+            _frames.value = null
+            last?.release()
         }
-        _frames.value = null
     }
 
     companion object {

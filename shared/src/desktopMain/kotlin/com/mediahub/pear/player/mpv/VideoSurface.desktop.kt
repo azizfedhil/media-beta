@@ -55,14 +55,20 @@ actual fun VideoSurface(
         // The frame is read inside the draw block, so a new frame redraws without recomposing anything.
         Canvas(Modifier.fillMaxSize()) {
             val frame = frameState.value ?: return@Canvas
-            drawImage(
-                image = frame.image,
-                srcOffset = IntOffset.Zero,
-                srcSize = IntSize(frame.width, frame.height),
-                dstOffset = IntOffset.Zero,
-                dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                filterQuality = FilterQuality.Low,
-            )
+            // Hold the frame while it is drawn. The renderer may already have replaced it; then it is freed after this release.
+            if (!frame.retain()) return@Canvas
+            try {
+                drawImage(
+                    image = frame.image,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(frame.width, frame.height),
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                    filterQuality = FilterQuality.Low,
+                )
+            } finally {
+                frame.release()
+            }
         }
     }
 }
