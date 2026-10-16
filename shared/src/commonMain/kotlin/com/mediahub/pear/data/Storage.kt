@@ -1,0 +1,131 @@
+package com.mediahub.pear.data
+
+import com.mediahub.pear.p2p.P2PService
+import com.mediahub.pear.addons.AddonClient
+import com.mediahub.pear.addons.AddonStore
+import com.mediahub.pear.addons.OpenSubtitlesClient
+import com.mediahub.pear.addons.PinnedSources
+import com.mediahub.pear.addons.SubtitleSources
+import com.mediahub.pear.history.EpisodeLoader
+import com.mediahub.pear.history.LibraryPrefs
+import com.mediahub.pear.history.LocalLibrary
+import com.mediahub.pear.history.WatchHistory
+import com.mediahub.pear.history.WatchLog
+import com.mediahub.pear.meta.IntroClient
+import com.mediahub.pear.meta.MetaServices
+import com.mediahub.pear.meta.TitleClassifier
+import com.mediahub.pear.net.Network
+import com.mediahub.pear.servers.MediaServerStore
+import com.mediahub.pear.shell.SidebarPins
+import com.mediahub.pear.simkl.SimklHistorySync
+import com.mediahub.pear.simkl.SimklStore
+import kotlinx.coroutines.CoroutineDispatcher
+import com.mediahub.pear.downloads.DownloadManager
+import com.mediahub.pear.downloads.platformDownloadFiles
+import com.mediahub.pear.downloads.platformDownloadTransport
+import com.mediahub.pear.epochMillis
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
+class Storage(
+    val prefs: PrefStore,
+    val secrets: SecretStore,
+    val location: String = "memory (nothing is saved)",
+) {
+    fun flush() = prefs.flush()
+
+    companion object {
+        fun inMemory() = Storage(PrefStore(), InMemorySecretStore())
+    }
+}
+
+class AppData(
+    val storage: Storage,
+    val network: Network = Network.offline(),
+    addonDispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
+) {
+    val prefs: PrefStore get() = storage.prefs
+    val secrets: SecretStore get() = storage.secrets
+    val profiles = ProfileStore(storage.prefs)
+    val content = ContentPrefs(storage.prefs, profiles.activeID)
+
+    val meta = MetaServices(network, storage.prefs, storage.secrets)
+    val classifier = TitleClassifier.forTmdb(meta.tmdb, network.facts)
+
+    val mediaServers = MediaServerStore(storage.prefs, storage.secrets, network.http)
+
+    /** P2P: the switch, the network check and the one engine (4.5b). Off until the user turns it on. */
+    val p2p = P2PService(storage.prefs)
+    val addonClient = AddonClient(network.http, network.cache, streamFilter = { p2p.gate(it) })
+    val addons = AddonStore(storage.prefs, addonClient, addonDispatcher).apply {
+        serverAddons = { mediaServers.addons }
+    }
+
+    val pinned = PinnedSources(storage.prefs)
+
+    /** Downloads: one file each in the downloads folder. Its own single-threaded scope, so the list changes in one order. */
+    val downloads = DownloadManager(
+        storage.prefs,
+        platformDownloadFiles(),
+        platformDownloadTransport(),
+        CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1)),
+        now = { epochMillis() },
+    )
+    val subtitles = OpenSubtitlesClient(
+        http = network.http,
+        enabled = { storage.prefs.bool(PrefKeys.SUBS_ONLINE, true) },
+        baseUrl = { storage.prefs.string(PrefKeys.SUBS_BASE_URL) },
+    )
+
+    /** Online subtitles for the player: OpenSubtitles plus the add-ons that offer them (4.4b). */
+    val subtitleSources = SubtitleSources(network.http, subtitles, { addons.enabledAddons })
+
+    val history = WatchHistory(storage.prefs, profiles.activeID)
+    val watchLog = WatchLog(storage.prefs, profiles.activeID)
+    val library = LocalLibrary(storage.prefs, profiles.activeID)
+    val libraryPrefs = LibraryPrefs(storage.prefs, profiles.activeID)
+    /** Titles pinned to the sidebar. Per profile. */
+    val sidebarPins = SidebarPins(storage.prefs, profiles.activeID)
+    val simkl = SimklStore(network.http, storage.secrets, network.facts)
+
+    /** Progress made in other apps, read back from Simkl. Writes only what Simkl says is newer. */
+    val simklHistory = SimklHistorySync(
+        simkl,
+        history,
+        usesSimkl = { libraryPrefs.usesSimkl(simkl.isConnected) },
+        minutesOf = { item -> meta.tmdb.cachedDetails(item.id, item.type)?.minutes },
+    )
+
+    val intro = IntroClient(
+        network.http,
+        enabled = { storage.prefs.bool(PrefKeys.SKIP_ENABLED, true) },
+        tmdbId = { id, type -> meta.tmdb.tmdbIdentifier(id, type) },
+    )
+
+    val episodes = EpisodeLoader(meta.tmdb, meta.tvdb)
+
+    fun switchProfile(profile: String) {
+        content.load(profile)
+        history.load(profile)
+        watchLog.load(profile)
+        library.load(profile)
+        libraryPrefs.load(profile)
+        sidebarPins.load(profile)
+    }
+
+    fun close() {
+        flush()
+        mediaServers.close()
+        addons.close()
+        simkl.close()
+    }
+
+    fun flush() {
+        meta.flush()
+        classifier.flushOnExit()
+        watchLog.flush()
+        mediaServers.flush()
+        storage.flush()
+    }
+}

@@ -1,0 +1,182 @@
+package com.mediahub.pear.desktop
+
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
+import com.mediahub.pear.App
+import com.mediahub.pear.data.AppDirs
+import com.mediahub.pear.data.desktopStorage
+import com.mediahub.pear.net.desktopNetwork
+import com.mediahub.pear.player.mpv.LibmpvSetupGate
+import com.mediahub.pear.glass.BatteryWatch
+import com.mediahub.pear.log.FileCrashReportSource
+import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.PearLogFile
+import com.mediahub.pear.shell.AppExit
+import com.mediahub.pear.shell.CrashReports
+import com.mediahub.pear.update.PearBuild
+import com.mediahub.pear.update.UpdateNotice
+import com.mediahub.pear.shell.NativeTitleBar
+import com.mediahub.pear.shell.RememberWindowGeometry
+import com.mediahub.pear.shell.WindowMemory
+import com.mediahub.pear.shell.restoredWindow
+import com.mediahub.pear.shell.WindowControl
+import com.mediahub.pear.shell.WindowMode
+import kotlinx.coroutines.delay
+import java.awt.Desktop
+import java.awt.Dimension
+import java.awt.Toolkit
+import javax.swing.SwingUtilities
+import java.io.File
+
+fun main(args: Array<String>) = application {
+    startLogging()
+    System.setProperty("awt.useSystemAAFontSettings", "lcd")
+    System.setProperty("swing.aatext", "true")
+
+    val smoke = "--smoke" in args
+    if (smoke) LaunchedEffect(Unit) { delay(3000); exitApplication() }
+
+    val storage = remember { desktopStorage() }
+    val network = remember { desktopNetwork() }
+
+    val opening = remember { restoredWindow(WindowMemory.read(storage.prefs)) }
+    val windowState = rememberWindowState(
+        placement = opening.placement,
+        position = opening.position,
+        size = opening.size,
+    )
+    val awtWindow = remember { arrayOfNulls<java.awt.Window>(1) }
+    val control = remember {
+        object : WindowControl {
+            override val size: DpSize get() = windowState.size
+
+            override var mode: WindowMode
+                get() = when (windowState.placement) {
+                    WindowPlacement.Fullscreen -> WindowMode.Fullscreen
+                    WindowPlacement.Maximized -> WindowMode.Maximized
+                    else -> WindowMode.Windowed
+                }
+                set(value) {
+                    PearLog.w("Window", "mode $mode -> $value")
+                    val target = when (value) {
+                        WindowMode.Fullscreen -> WindowPlacement.Fullscreen
+                        WindowMode.Maximized -> WindowPlacement.Maximized
+                        WindowMode.Windowed -> WindowPlacement.Floating
+                    }
+                    if (windowState.placement == target) return
+
+                    PearLog.context("window", value.name)
+                    val id = ++changeId
+                    SwingUtilities.invokeLater {
+                        val win = awtWindow[0]
+                        val was = windowState.placement
+                        if (target == WindowPlacement.Fullscreen && was != WindowPlacement.Fullscreen) {
+                            beforeFullscreen = if (was == WindowPlacement.Maximized) WindowMode.Maximized else WindowMode.Windowed
+                        }
+                        if (was == WindowPlacement.Fullscreen && target != WindowPlacement.Fullscreen) {
+                            if (win != null && heldInFullscreen(win)) {
+                                runCatching { win.graphicsConfiguration.device.fullScreenWindow = null }
+                            }
+                        }
+                        windowState.placement = target
+                        if (was == WindowPlacement.Fullscreen && target == WindowPlacement.Maximized) reassertMaximized(id)
+                    }
+                }
+
+            /** The state the window had before it went full screen, so leaving full screen returns to it. */
+            private var beforeFullscreen = WindowMode.Windowed
+
+            /** Counts mode changes, so a re-check scheduled by an earlier change does nothing. */
+            private var changeId = 0
+
+            override val modeBeforeFullscreen: WindowMode get() = beforeFullscreen
+
+            /**
+             * Leaving full screen can bring the window back as a restored (floating) one. Three checks after the change put it back to
+             * maximized, unless the person changed the window again in the meantime.
+             */
+            private fun reassertMaximized(id: Int) {
+                for (delayMillis in listOf(80, 220, 500)) {
+                    javax.swing.Timer(delayMillis) { _ ->
+                        if (id == changeId && windowState.placement != WindowPlacement.Fullscreen) {
+                            val frame = awtWindow[0] as? java.awt.Frame
+                            val maximized = frame != null && (frame.extendedState and java.awt.Frame.MAXIMIZED_BOTH) == java.awt.Frame.MAXIMIZED_BOTH
+                            if (!maximized) {
+                                windowState.placement = WindowPlacement.Maximized
+                                frame?.extendedState = java.awt.Frame.MAXIMIZED_BOTH
+                            }
+                        }
+                    }.apply {
+                        isRepeats = false
+                        start()
+                    }
+                }
+            }
+
+            override fun resize(width: Dp, height: Dp) {
+                val screenHeight = Toolkit.getDefaultToolkit().screenSize.height
+                val maxHeight = (screenHeight - 120).coerceAtLeast(600)
+                windowState.size = DpSize(width, height.coerceAtMost(maxHeight.dp))
+            }
+        }
+    }
+
+    val appIcon = remember { loadAppIcon() }
+    Window(
+        onCloseRequest = { AppExit.runAll(); PearLogFile.markCleanExit(); storage.flush(); exitApplication() },
+        title = "Pear.",
+        state = windowState,
+        icon = appIcon,
+    ) {
+        window.minimumSize = Dimension(360, 600)
+        SideEffect { awtWindow[0] = window }
+        LaunchedEffect(windowState.placement, windowState.isMinimized) {
+            PearLog.i("Window", "placement=${windowState.placement} minimized=${windowState.isMinimized} size=${windowState.size}")
+        }
+        BatteryWatch()
+        NativeTitleBar(window)
+        RememberWindowGeometry(window, windowState, storage.prefs)
+        // Windows: waits for libmpv (fetched on first run, or again if it went missing) before the app starts.
+        LibmpvSetupGate {
+            App(windowControl = control, storage = storage, network = network, overlay = { UpdateNotice() })
+        }
+    }
+}
+
+/**
+ * Starts the file log and the crash briefing before anything else runs. The logs live in the app's config folder, in logs/.
+ * Nothing here can stop the app from starting: the logger never throws.
+ */
+private fun startLogging() {
+    val logs = File(AppDirs.detect().config, "logs")
+    PearLogFile.init(logs, PearBuild.VERSION, "desktop", trackSessions = true)
+    val opener: ((File) -> Unit)? = if (Desktop.isDesktopSupported()) ::openInFileManager else null
+    CrashReports.source = FileCrashReportSource(logs, opener)
+}
+
+private fun openInFileManager(dir: File) {
+    Desktop.getDesktop().open(dir)
+}
+
+/**
+ * The Pear icon for the title bar and the taskbar, from `src/main/resources/pear.png` (made by tools/make_icons.py).
+ * Null if the file is not in the build: the window then keeps the default icon, and the app still starts.
+ */
+private fun loadAppIcon(): Painter? {
+    val stream = Thread.currentThread().contextClassLoader?.getResourceAsStream("pear.png") ?: return null
+    return runCatching { stream.use { BitmapPainter(loadImageBitmap(it)) } }.getOrNull()
+}
+
+private fun heldInFullscreen(window: java.awt.Window): Boolean =
+    runCatching { window.graphicsConfiguration.device.fullScreenWindow === window }.getOrDefault(false)
