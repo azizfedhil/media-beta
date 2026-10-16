@@ -1,6 +1,7 @@
 package com.mediahub.pear.shell
 
 import androidx.compose.foundation.background
+import com.mediahub.pear.log.PearLog
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +59,7 @@ private val PageMaxWidth = 900.dp
 
 @Composable
 internal fun RouteContent(route: Route, nav: NavController<Route>) {
+    PearLog.context("route", route::class.simpleName)
     val env = LocalAppEnv.current
     when (route) {
         is Route.Root -> when (route.tab) {

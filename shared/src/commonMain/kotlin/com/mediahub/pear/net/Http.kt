@@ -15,6 +15,9 @@ interface Http {
     suspend fun execute(request: HttpRequest): HttpReply
 
     fun close() {}
+
+    /** Drops the pooled connections. After a sleep or a network change they can be dead; the next request makes new ones. */
+    fun resetConnections() {}
 }
 
 class HttpRequest(

@@ -9,6 +9,7 @@ import com.mediahub.pear.data.Profile
 import com.mediahub.pear.data.SecretKeys
 import com.mediahub.pear.data.SecretStore
 import com.mediahub.pear.epochMillis
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.history.SimklLibrary
 import com.mediahub.pear.history.SimklListAdd
 import com.mediahub.pear.model.CatalogRow
@@ -32,8 +33,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -52,6 +59,13 @@ private const val LIBRARY_FILE = "simkl-library.json"
 private const val DAY_MILLIS = 86_400_000L
 private const val EXPIRED_CODE = "The code expired. Tap Connect to get a new one."
 
+/** Scrobbles that Simkl did not take, kept for the next try. Per device (FactStore), replayed oldest first. */
+private const val OUTBOX_FILE = "simkl-outbox.json"
+private const val OUTBOX_MAX = 50
+
+/** A start or a pause this old describes a moment that has passed, so it is dropped instead of replayed. A stop is always replayed. */
+private const val OUTBOX_STALE_MILLIS = 600_000L
+
 /** MediaHub's own Simkl app. A client id is public (it is sent with every request), so shipping it is fine. */
 const val SIMKL_BUILT_IN_CLIENT_ID = "653eaa33050575583f36100891b3e999ed0b6334a1fe5329fc91013142c36b4e"
 
@@ -64,6 +78,19 @@ private sealed interface PollResult {
 }
 
 private class LibraryCache(val activity: String, val removed: String, val entries: List<SimklEntry>)
+
+/** One scrobble that has not reached Simkl yet. */
+@Serializable
+private data class ScrobbleOutboxItem(
+    val action: String,
+    val imdb: String,
+    val season: Int? = null,
+    val episode: Int? = null,
+    val progress: Double,
+    val at: Long,
+)
+
+private val outboxSerializer = ListSerializer(ScrobbleOutboxItem.serializer())
 
 /**
  * Simkl: sign-in, library, scrobbling (spec: `SimklStore`).
@@ -122,6 +149,9 @@ class SimklStore(
     private var tokenExpiry: Long? = secrets.get(SecretKeys.SIMKL_TOKEN_EXPIRY)?.toLongOrNull()
     private val syncLock = Mutex()
     private val refreshLock = Mutex()
+    /** Scrobbles on their way to Simkl. The window waits for these as it closes, so a stop is not cut off. */
+    private val inFlight = MutableStateFlow(0)
+    private val outboxLock = Mutex()
 
     /** One refresh at a time: V2 refreshing replaces the access token, so two overlapping refreshes would invalidate each other. */
     private var refreshJob: Deferred<Boolean>? = null
@@ -197,6 +227,10 @@ class SimklStore(
         if (auth && t != null) headers["Authorization"] = "Bearer $t"
         return HttpRequest(buildUrl(API + path, q), method, headers, body?.toString(), 20_000)
     }
+
+    /** A signed GET, for the history sync (`SimklHistorySync`). Refreshes the token first, like every authenticated call. */
+    internal suspend fun getJson(path: String, query: Map<String, String> = emptyMap()): JsonElement =
+        sendAuthed { request(path, query) }
 
     /** OAuth endpoints take a form-encoded body and no Authorization header. */
     private fun oauthRequest(path: String, form: Map<String, String>): HttpRequest {
@@ -511,6 +545,7 @@ class SimklStore(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                PearLog.w("Simkl", "sync failed: ${e::class.simpleName}")
                 syncErrorState = when {
                     e is SimklHttpException && (e.code == 401 || e.code == 403) -> "Simkl rejected the saved login. Disconnect and connect again."
                     e is SimklHttpException && e.code == 429 -> "Simkl asked the app to slow down. It will try again shortly."
@@ -525,6 +560,7 @@ class SimklStore(
     }
 
     private suspend fun doSync() {
+        flushOutbox() // our own unsent progress goes first, so the pull below cannot overwrite it
         val act = sendAuthed { request("/sync/activities") }.jObject() ?: JsonObject(emptyMap())
         val stamp = act["all"].jStr() ?: ""
         val removed = removedSignature(act)
@@ -625,18 +661,79 @@ class SimklStore(
     /** [action] is `start`, `pause` or `stop`; [progress] is 0 to 100. Does nothing when not connected. */
     fun scrobble(action: String, target: ScrobbleTarget, progress: Double) {
         if (!isConnected) return
-        val body = buildJsonObject {
-            put("progress", progress)
-            if (target.season != null && target.episode != null) {
-                putJsonObject("show") { putJsonObject("ids") { put("imdb", target.imdb) } }
-                putJsonObject("episode") { put("season", target.season); put("number", target.episode) }
-            } else {
-                putJsonObject("movie") { putJsonObject("ids") { put("imdb", target.imdb) } }
+        val body = scrobbleBody(target, progress)
+        inFlight.update { it + 1 }
+        scope.launch {
+            try {
+                refreshIfNeeded()
+                val reply = attempt { http.execute(request("/scrobble/$action", method = "POST", body = body)) }
+                if (reply == null || (reply.status !in 200..299 && reply.status != 409)) {
+                    PearLog.w("Simkl", "scrobble $action not taken (status ${reply?.status ?: "none"}); kept to send later")
+                    keepForLater(ScrobbleOutboxItem(action, target.imdb, target.season, target.episode, progress, now()))
+                }
+            } finally {
+                inFlight.update { it - 1 }
             }
         }
-        scope.launch {
+    }
+
+    private fun scrobbleBody(target: ScrobbleTarget, progress: Double): JsonObject = buildJsonObject {
+        put("progress", progress)
+        if (target.season != null && target.episode != null) {
+            putJsonObject("show") { putJsonObject("ids") { put("imdb", target.imdb) } }
+            putJsonObject("episode") { put("season", target.season); put("number", target.episode) }
+        } else {
+            putJsonObject("movie") { putJsonObject("ids") { put("imdb", target.imdb) } }
+        }
+    }
+
+    /** Waits, for at most [timeoutMillis], until no scrobble is on its way. Called as the app closes. */
+    suspend fun awaitPendingScrobbles(timeoutMillis: Long = 2500) {
+        withTimeoutOrNull(timeoutMillis) { inFlight.first { it == 0 } }
+    }
+
+    // MARK: Outbox (scrobbles Simkl did not take)
+
+    private fun readOutbox(): List<ScrobbleOutboxItem> =
+        facts.load(OUTBOX_FILE)?.takeIf { it.isNotBlank() }
+            ?.let { text -> attempt { PearJson.decodeFromString(outboxSerializer, text) } }
+            .orEmpty()
+
+    private fun writeOutbox(list: List<ScrobbleOutboxItem>) {
+        facts.save(OUTBOX_FILE, PearJson.encodeToString(outboxSerializer, list.takeLast(OUTBOX_MAX)))
+    }
+
+    private suspend fun keepForLater(item: ScrobbleOutboxItem) {
+        outboxLock.withLock { writeOutbox(readOutbox() + item) }
+    }
+
+    /**
+     * Sends the saved scrobbles, oldest first, and stops at the first failure so nothing goes out of order. Starts and pauses
+     * older than [OUTBOX_STALE_MILLIS] are dropped; stops are always sent. Called before each sync.
+     */
+    suspend fun flushOutbox() {
+        if (!isConnected) return
+        outboxLock.withLock {
+            val pending = readOutbox()
+            if (pending.isEmpty()) return
             refreshIfNeeded()
-            attempt { http.execute(request("/scrobble/$action", method = "POST", body = body)) }
+            val cutoff = now() - OUTBOX_STALE_MILLIS
+            val keep = ArrayList<ScrobbleOutboxItem>()
+            var failed = false
+            for (item in pending) {
+                if (failed) {
+                    keep.add(item)
+                    continue
+                }
+                if (item.action != "stop" && item.at < cutoff) continue
+                val body = scrobbleBody(ScrobbleTarget(item.imdb, item.season, item.episode), item.progress)
+                val reply = attempt { http.execute(request("/scrobble/${item.action}", method = "POST", body = body)) }
+                if (reply == null || (reply.status !in 200..299 && reply.status != 409)) {
+                    failed = true
+                    keep.add(item)
+                }
+            }
+            writeOutbox(keep)
         }
     }
 }

@@ -45,6 +45,7 @@ import com.mediahub.pear.player.TrackPicker
 import com.mediahub.pear.player.ProgressRules
 import com.mediahub.pear.player.PipState
 import com.mediahub.pear.player.VideoSurface
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.player.createDefaultPlayerEngine
 import com.mediahub.pear.player.withSource
 import com.mediahub.pear.player.ui.AudioPanel
@@ -96,7 +97,7 @@ fun PlayerScreen(
     val env = LocalAppEnv.current
     val data = env.data
     val prefs = data.prefs
-    val engine = remember(request) { createDefaultPlayerEngine() }
+    val engine = remember(request) { createDefaultPlayerEngine().also { PearLog.i("Player", "engine created") } }
     val scope = rememberCoroutineScope()
 
     // Resume, progress and history (4.3b). The resume point is read once, before the first save can replace it.
@@ -144,6 +145,7 @@ fun PlayerScreen(
         onDispose {
             unregister()
             leave() // before release: the engine's clock is still readable, and the screen may go away without onClose
+            PearLog.i("Player", "engine released")
             engine.release()
         }
     }
@@ -227,6 +229,7 @@ fun PlayerScreen(
         } catch (e: Exception) {
             p2pOpening = false
             p2pError = e.message ?: "Peer-to-peer playback failed."
+            PearLog.w("P2P", "playback failed: $p2pError")
         }
     }
     // Leaving the network the stream was allowed on ends it at once (iOS: Wi-Fi only, no cellular P2P traffic). Desktop's
@@ -246,6 +249,7 @@ fun PlayerScreen(
 
     val state by engine.state.collectAsState()
     val engineError by engine.errorMessage.collectAsState()
+    LaunchedEffect(engineError) { engineError?.let { PearLog.w("Player", "load error: $it") } }
     val error = p2pError ?: engineError
 
     val glassOn = rememberPref(prefs, PrefKeys.PLAYER_GLASS) { it.bool(PrefKeys.PLAYER_GLASS, true) }

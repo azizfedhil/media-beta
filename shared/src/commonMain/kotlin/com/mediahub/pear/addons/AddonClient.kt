@@ -2,6 +2,8 @@ package com.mediahub.pear.addons
 
 import com.mediahub.pear.data.PearJson
 import com.mediahub.pear.epochMillis
+import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.safeLogUrl
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.AddonManifest
 import com.mediahub.pear.model.MetaPreview
@@ -51,6 +53,12 @@ data class MetaExtras(val genres: List<String>, val logo: String?) {
 private const val MANIFEST_TTL = 6 * Ttl.HOUR
 private const val CATALOG_TTL = 30 * Ttl.MINUTE
 private const val REQUEST_TIMEOUT_MILLIS = 12_000L
+
+/** The one retry of a stream lookup waits this long first. */
+private const val RETRY_DELAY_MILLIS = 600L
+
+/** Pooled connections are dropped at most once per this long, however many add-ons fail together. */
+private const val RESET_GAP_MILLIS = 5_000L
 private const val HEX = "0123456789ABCDEF"
 
 /**
@@ -61,13 +69,15 @@ class AddonClient(
     cache: ResponseCache = ResponseCache.None,
     private val now: () -> Long = ::epochMillis,
     private val streamFilter: suspend (List<StreamItem>) -> List<StreamItem> = { it },
-    private val streamDeadlineMillis: Long = 8_000,
+    private val streamDeadlineMillis: Long = 15_000,
     private val retryDelayMillis: (Int) -> Long = { it * 1_500L },
 ) {
     private val scoped = ScopedCache(cache, now)
     private val fetcher = CachedFetcher(http, scoped, now)
     private val metaLock = Mutex()
     private val metaCache = HashMap<String, MetaExtras>()
+    private val resetLock = Mutex()
+    private var lastReset = 0L
 
     // MARK: Manifests and catalogues
 
@@ -164,42 +174,97 @@ class AddonClient(
             }
         }
         val url = addon.baseUrl + "stream/$type/${encodeId(id)}.json"
-        return when (val reply = lookupResult(url)) {
+        return when (val reply = lookupResult(url, addon.manifest.name)) {
             is Lookup.Failed -> StreamOutcome(addon, null, failed = true)
             is Lookup.Missing -> StreamOutcome(addon, null, failed = false)
             is Lookup.Body -> {
                 val items = attempt { StreamItem.decodeStreams(reply.bytes.decodeToString()) }
-                if (items == null) StreamOutcome(addon, null, failed = true) else StreamOutcome(addon, streamFilter(items), failed = false)
+                if (items == null) {
+                    PearLog.w("Addons", "${addon.manifest.name} failed: bad body [${hostOf(url)}]")
+                    StreamOutcome(addon, null, failed = true)
+                } else {
+                    StreamOutcome(addon, streamFilter(items), failed = false)
+                }
             }
         }
     }
 
     private sealed interface Lookup {
         class Body(val bytes: ByteArray) : Lookup
+
         /** The add-on answered 404: it has nothing for this title. Not a failure. */
         data object Missing : Lookup
-        data object Failed : Lookup
+
+        /** [retryable]: a timeout, a dropped connection, or a status that often clears by itself. */
+        class Failed(val reason: String, val retryable: Boolean) : Lookup
     }
 
-    private suspend fun lookupResult(url: String): Lookup {
-        if (attempt { Url(url) } == null) return Lookup.Failed
-        return try {
-            withTimeoutOrNull(streamDeadlineMillis) {
-                val reply = http.execute(HttpRequest(url, headers = mapOf("Accept" to "application/json"), timeoutMillis = streamDeadlineMillis))
-                when (reply.status) {
-                    200 -> Lookup.Body(reply.body)
-                    404 -> Lookup.Missing
-                    else -> Lookup.Failed
-                }
-            } ?: Lookup.Failed
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Lookup.Failed
+    /**
+     * One lookup, with one automatic retry for a failure that often clears by itself (a timeout, a dropped connection, a 429 or a
+     * 5xx). Before the retry the pooled connections are dropped: after a sleep or a network change the old ones are dead. [label]
+     * names the add-on in the log; null (the meta lookups) logs nothing.
+     */
+    private suspend fun lookupResult(url: String, label: String?): Lookup {
+        if (attempt { Url(url) } == null) return Lookup.Failed("bad address", retryable = false)
+        val started = now()
+        val first = lookupOnce(url)
+        if (first !is Lookup.Failed || !first.retryable) {
+            if (label != null && first is Lookup.Failed) logFailure(label, url, first.reason, started, retried = false)
+            return first
+        }
+        delay(RETRY_DELAY_MILLIS)
+        resetConnectionsOnce()
+        val second = lookupOnce(url)
+        if (label != null) {
+            if (second is Lookup.Failed) {
+                logFailure(label, url, second.reason, started, retried = true)
+            } else {
+                PearLog.i("Addons", "$label answered after one retry in ${now() - started} ms [${hostOf(url)}]")
+            }
+        }
+        return second
+    }
+
+    private suspend fun lookupOnce(url: String): Lookup = try {
+        withTimeoutOrNull(streamDeadlineMillis) {
+            val reply = http.execute(HttpRequest(url, headers = mapOf("Accept" to "application/json"), timeoutMillis = streamDeadlineMillis))
+            when (reply.status) {
+                200 -> Lookup.Body(reply.body)
+                404 -> Lookup.Missing
+                429, 500, 502, 503, 504 -> Lookup.Failed("status ${reply.status}", retryable = true)
+                else -> Lookup.Failed("status ${reply.status}", retryable = false)
+            }
+        } ?: Lookup.Failed("timeout", retryable = true)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Lookup.Failed("network ${e::class.simpleName ?: "error"}", retryable = true)
+    }
+
+    /** Drops the pooled connections at most once per [RESET_GAP_MILLIS], so a burst of failures resets once. */
+    private suspend fun resetConnectionsOnce() {
+        resetLock.withLock {
+            val t = now()
+            if (t - lastReset < RESET_GAP_MILLIS) return
+            lastReset = t
+            http.resetConnections()
         }
     }
 
-    private suspend fun lookup(url: String): ByteArray? = (lookupResult(url) as? Lookup.Body)?.bytes
+    /** Drops the pooled connections now, so the next request makes new ones. The picker's Reload calls it before asking again. */
+    fun resetConnections() {
+        http.resetConnections()
+    }
+
+    private fun logFailure(label: String, url: String, reason: String, started: Long, retried: Boolean) {
+        val after = if (retried) " (after one retry)" else ""
+        PearLog.w("Addons", "$label failed: $reason in ${now() - started} ms$after [${hostOf(url)}]")
+    }
+
+    /** The host of an address, with no path or query: what the log may show of an add-on. */
+    private fun hostOf(url: String): String = safeLogUrl(url).substringBefore('/')
+
+    private suspend fun lookup(url: String): ByteArray? = (lookupResult(url, null) as? Lookup.Body)?.bytes
 
     companion object {
         fun ordered(groups: List<Pair<Addon, List<StreamItem>>>, by: List<Addon>): List<Pair<Addon, List<StreamItem>>> =

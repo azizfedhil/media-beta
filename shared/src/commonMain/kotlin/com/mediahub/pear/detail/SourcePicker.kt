@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import com.mediahub.pear.shell.dragHorizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -198,6 +199,8 @@ private fun WideSourcePicker(
     }
     // Reload: asks only that add-on again. Its sources slot into place, or it stays in the failed list.
     val reload: (Addon) -> Unit = { addon ->
+        // Asking again through a pool that has gone stale fails the same way: start with new connections.
+        env.data.addonClient.resetConnections()
         if (addon !in retrying) {
             failed.remove(addon)
             retrying.add(addon)
@@ -392,7 +395,7 @@ private fun SourcesPane(
             GlassButton(onClick = onClose, symbol = "xmark", size = 36.dp)
         }
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            Modifier.fillMaxWidth().dragHorizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

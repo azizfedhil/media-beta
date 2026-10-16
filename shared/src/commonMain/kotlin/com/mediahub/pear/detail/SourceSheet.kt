@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
+import com.mediahub.pear.shell.dragHorizontalScroll
 import com.mediahub.pear.glass.GlassSheet
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.MetaPreview
@@ -101,9 +102,10 @@ fun SourceSheet(
             GlassButton(onClick = onClose, symbol = "xmark", size = 32.dp)
         }
 
+        val chipScroll = rememberScrollState()
         if (streams.size > 1) {
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                Modifier.fillMaxWidth().padding(vertical = 4.dp).dragHorizontalScroll(chipScroll),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 DevChip("All (${streams.sumOf { it.second.size }})", selectedAddonFilter == null) {

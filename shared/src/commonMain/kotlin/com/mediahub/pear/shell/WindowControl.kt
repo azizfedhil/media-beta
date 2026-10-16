@@ -19,6 +19,10 @@ interface WindowControl {
     var mode: WindowMode
         get() = WindowMode.Windowed
         set(_) {}
+
+    /** The state to return to when leaving full screen. Desktop remembers the one the window was in before it went full screen. */
+    val modeBeforeFullscreen: WindowMode
+        get() = WindowMode.Maximized
 }
 
 val LocalWindowControl = staticCompositionLocalOf<WindowControl?> { null }

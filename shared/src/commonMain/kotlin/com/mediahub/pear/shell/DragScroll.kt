@@ -4,9 +4,12 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -29,9 +32,10 @@ fun DragLazyRow(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+    /** Where the row is scrolled. Pass one to scroll it from outside. Placed before [content] so trailing-lambda calls still compile. */
+    state: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
-    val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
     // Rows on the wide Home feed tell the shell how far they've been dragged (it folds the sidebar and hero away).
@@ -80,4 +84,16 @@ fun DragLazyGrid(
         verticalArrangement = verticalArrangement,
         content = content,
     )
+}
+
+/**
+ * Makes a Row (or any horizontal content) scroll by the wheel, by touch, and by holding the mouse button and dragging. A plain
+ * `horizontalScroll` takes the wheel only, so a row of chips wider than the window could not be pulled along on desktop. The
+ * outer drag takes a mouse drag; touch is consumed by the inner scroller first, as in [DragLazyRow].
+ */
+@Composable
+fun Modifier.dragHorizontalScroll(state: ScrollState): Modifier {
+    val scope = rememberCoroutineScope()
+    val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
+    return this.draggable(drag, Orientation.Horizontal).horizontalScroll(state)
 }

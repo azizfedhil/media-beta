@@ -146,6 +146,7 @@ object SettingsBackup {
         data.watchLog.reload()
         data.pinned.reload()
         data.libraryPrefs.reload()
+        data.sidebarPins.reload()
         data.addons.reloadFromPrefs()
         return count
     }

@@ -65,13 +65,14 @@ fun AdaptiveShell(
 ) {
     val env = LocalAppEnv.current
     val focus = remember { FocusRequester() }
+    val layoutMemory = remember { ShellLayoutMemory() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     val window = LocalWindowControl.current
     DisposableEffect(shell, window) {
         shell.leaveWindowFullscreen = {
             if (window != null && window.mode == WindowMode.Fullscreen) {
-                window.mode = WindowMode.Maximized
+                window.mode = window.modeBeforeFullscreen
                 true
             } else {
                 false
@@ -89,6 +90,10 @@ fun AdaptiveShell(
         val windowWidth = maxWidth
         val mode = layoutModeFor(windowWidth, shell.layoutOverride, allowWide = PlatformCaps.supportsWideLayout)
         val playerOnTop = shell.currentNav().top is Route.Player
+        // While a film is on top, the layout does not follow the window size. A brief resize or minimise (the Windows key in full
+        // screen causes one) must not switch the layout branch: that rebuilds the player and restarts the film.
+        if (!playerOnTop && windowWidth > 1.dp) layoutMemory.mode = mode
+        val shownMode = if (playerOnTop) layoutMemory.mode ?: mode else mode
 
         val topRoute = shell.currentNav().top
         val heroPage = topRoute is Route.Detail
@@ -96,8 +101,8 @@ fun AdaptiveShell(
         val animatedAmbient by animateColorAsState(targetAmbient, tween(900, easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)))
         val ambientStrength by animateFloatAsState(if (heroPage) 1f else 0f, tween(1800))
 
-        CompositionLocalProvider(LocalWideLayout provides (mode == LayoutMode.Expanded)) {
-            if (mode == LayoutMode.Expanded) {
+        CompositionLocalProvider(LocalWideLayout provides (shownMode == LayoutMode.Expanded)) {
+            if (shownMode == LayoutMode.Expanded) {
                 val homeShown = shell.tab == AppTab.Home && shell.catalogue == null
                 val fold by animateFloatAsState(if (homeShown) shell.feedCollapse.progress else 0f, tween(140))
                 val sidebarW = lerp(sidebarWidthFor(windowWidth), Breakpoints.sidebarIconsOnly, fold)
@@ -279,4 +284,9 @@ private fun <T : Any> retainedWhilePresent(current: T?): T? {
 
 private class RetainedValue<T> {
     var value: T? = null
+}
+
+/** The layout the shell last showed outside the player. Plain state, read while the player is on top. */
+private class ShellLayoutMemory {
+    var mode: LayoutMode? = null
 }

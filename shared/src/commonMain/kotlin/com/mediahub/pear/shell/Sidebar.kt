@@ -10,7 +10,6 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -57,6 +56,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.mediahub.pear.detail.openSourceChooser
 import com.mediahub.pear.history.HistoryEntry
+import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.upgradeTmdbStill
 import com.mediahub.pear.net.RemoteImage
 import kotlinx.coroutines.launch
@@ -94,10 +94,16 @@ internal fun Sidebar(
             }
 
             if (!iconsOnly) {
-                CatalogueList(catalogues, shell.catalogue?.id) { shell.selectCatalogue(it) }
-                HistoryRows(shell.catalogue?.id) { shell.selectCatalogue(it) }
+                // One scrolling column for the rest: catalogues at full height, then Continue Watching and Recently Watched.
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    PinnedList()
+                    CatalogueList(catalogues, shell.catalogue?.id) { shell.selectCatalogue(it) }
+                    HistoryRows(shell.catalogue?.id) { shell.selectCatalogue(it) }
+                    Spacer(Modifier.height(8.dp))
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
             }
-            Spacer(Modifier.weight(1f))
         }
         // The hairline on the trailing edge, as the iPad sidebar has it (0.5 pt, white at 7%).
         Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(0.5f.dp).background(Color.White.copy(alpha = SIDEBAR_HAIRLINE_ALPHA)))
@@ -171,9 +177,9 @@ private fun NavRow(tab: AppTab, isSelected: Boolean, iconsOnly: Boolean, onClick
 }
 
 @Composable
-private fun ColumnScope.CatalogueList(items: List<CatalogueItem>, selectedId: String?, onPick: (CatalogueItem) -> Unit) {
+private fun CatalogueList(items: List<CatalogueItem>, selectedId: String?, onPick: (CatalogueItem) -> Unit) {
     val t = PearTheme.type
-    Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PearText(
             "Catalogues",
             style = t.subheadline.weight(FontWeight.Medium),
@@ -181,10 +187,7 @@ private fun ColumnScope.CatalogueList(items: List<CatalogueItem>, selectedId: St
             modifier = Modifier.padding(start = 14.dp, top = 28.dp, bottom = 4.dp),
         )
 
-        Column(
-            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             items.forEach { item ->
                 CatalogueRow(item, item.id == selectedId) { onPick(item) }
             }
@@ -386,6 +389,93 @@ private fun ContinueSidebarRow(entry: HistoryEntry) {
                 )
             }
         }
+        Box(
+            Modifier.size(22.dp)
+                .clip(CircleShape)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable(onClick = { openMenu() }),
+            contentAlignment = Alignment.Center,
+        ) {
+            PearIcon("ellipsis", size = 16.dp, tint = Color.White.copy(alpha = 0.6f), contentDescription = "More")
+        }
+    }
+}
+
+/**
+ * The titles pinned to the sidebar, under the tabs and above the catalogues. Nothing is drawn when nothing is pinned, so the
+ * sidebar is unchanged for anyone who never pins. A click opens the title's page; the menu unpins it.
+ */
+@Composable
+private fun PinnedList() {
+    val env = LocalAppEnv.current
+    val pins = env.data.sidebarPins.items
+    if (pins.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        PearText(
+            "Pinned",
+            style = PearTheme.type.subheadline.weight(FontWeight.Medium),
+            color = Color.White.copy(alpha = 0.5f),
+            modifier = Modifier.padding(start = 14.dp, top = 28.dp, bottom = 4.dp),
+        )
+        pins.forEach { item -> PinnedRow(item) }
+    }
+}
+
+/** One pinned title: a small poster, its name, and a menu button. Styled as [ContinueSidebarRow], without the progress bar. */
+@Composable
+private fun PinnedRow(item: MetaPreview) {
+    val env = LocalAppEnv.current
+    val source = remember { MutableInteractionSource() }
+    val anchor = remember { MenuAnchor() }
+    val hovered by source.collectIsHoveredAsState()
+    val bg by animateColorAsState(
+        if (hovered) Color.White.copy(alpha = 0.08f) else Color.Transparent,
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+
+    fun openDetails() {
+        env.shell.currentNav().push(Route.Detail(item))
+    }
+
+    fun openMenu() {
+        env.shell.openContextMenu(
+            ContextMenuRequest(
+                anchor.rect(),
+                listOf(
+                    ContextMenuItem("Unpin from Sidebar", "pin.slash") {
+                        env.data.sidebarPins.unpin(item.id)
+                    },
+                ) + titleMenuItems(env, item, onDetails = { openDetails() }),
+            ),
+        )
+    }
+
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(PearRadii.sm))
+            .background(bg)
+            .hoverable(source)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .menuAnchor(anchor)
+            .clickable(interactionSource = source, indication = null, onClick = { openDetails() })
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier.size(width = 28.dp, height = 40.dp)
+                .clip(RoundedCornerShape(PearRadii.xs))
+                .background(PearTheme.colors.fill),
+        ) {
+            RemoteImage(item.posterUrl, Modifier.fillMaxSize())
+        }
+        PearText(
+            item.name,
+            style = PearTheme.type.footnote.weight(FontWeight.Medium),
+            color = Color.White.copy(alpha = 0.85f),
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
         Box(
             Modifier.size(22.dp)
                 .clip(CircleShape)

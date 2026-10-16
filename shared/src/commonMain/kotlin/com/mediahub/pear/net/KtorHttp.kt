@@ -21,6 +21,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class KtorHttp(
     private val client: HttpClient,
     private val userAgent: String = "Pear/1.0",
+    private val onResetConnections: () -> Unit = {},
 ) : Http {
     override suspend fun execute(request: HttpRequest): HttpReply {
         try {
@@ -56,4 +57,6 @@ class KtorHttp(
     }
 
     override fun close() = client.close()
+
+    override fun resetConnections() = onResetConnections()
 }

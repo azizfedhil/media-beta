@@ -4,6 +4,9 @@ import android.app.Application
 import com.mediahub.pear.AndroidHost
 import com.mediahub.pear.data.Storage
 import com.mediahub.pear.data.androidStorage
+import com.mediahub.pear.log.FileCrashReportSource
+import com.mediahub.pear.log.PearLogFile
+import com.mediahub.pear.shell.CrashReports
 import java.io.File
 
 class PearApplication : Application() {
@@ -17,6 +20,10 @@ class PearApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         AndroidHost.attach(this)
+        // The log and the crash briefing. Android has no window-close hook, so no session tracking; crash reports are still written.
+        val logs = File(filesDir, "logs")
+        PearLogFile.init(logs, "unknown", "android", trackSessions = false)
+        CrashReports.source = FileCrashReportSource(logs, folderOpener = null)
         installCaBundle()
         storage = androidStorage(this)
     }

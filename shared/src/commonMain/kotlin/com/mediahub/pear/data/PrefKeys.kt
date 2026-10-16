@@ -51,6 +51,8 @@ object PrefKeys {
     const val LIBRARY_LOCAL = "library.local"
     const val LIBRARY_PREFS = "library.prefs"
     const val CONTENT_PREFS = "content.prefs"
+    /** Titles pinned to the sidebar (JSON list of MetaPreview), per profile. */
+    const val SIDEBAR_PINS = "sidebar.pins"
 
     // Desktop-only. Not in the iOS app and not in backups.
     const val DESKTOP_GLASS_MODE = "desktop.glassMode"
@@ -99,7 +101,7 @@ object ProfileKeys {
     /** Per-profile data that is wiped when its profile is deleted. */
     val scopedBases = listOf(
         PrefKeys.WATCH_HISTORY, PrefKeys.WATCH_ARCHIVE, PrefKeys.WATCH_LOG,
-        PrefKeys.LIBRARY_LOCAL, PrefKeys.LIBRARY_PREFS, PrefKeys.CONTENT_PREFS,
+        PrefKeys.LIBRARY_LOCAL, PrefKeys.LIBRARY_PREFS, PrefKeys.CONTENT_PREFS, PrefKeys.SIDEBAR_PINS,
     )
 
     /** "watch.history" for the first profile (the legacy key), "watch.history.<id>" for the rest. */
@@ -127,6 +129,7 @@ object BackupRules {
     /** Per-profile data: only when the user asks for it. */
     val dataPrefixes = listOf(
         PrefKeys.WATCH_HISTORY, PrefKeys.WATCH_ARCHIVE, PrefKeys.WATCH_LOG, PrefKeys.LIBRARY_LOCAL, PrefKeys.LIBRARY_PREFS,
+        PrefKeys.SIDEBAR_PINS,
     )
 
     fun isAllowed(key: String, includeData: Boolean): Boolean {

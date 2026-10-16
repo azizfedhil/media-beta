@@ -145,6 +145,15 @@ fun titleMenuItems(env: AppEnv, item: MetaPreview, onDetails: (() -> Unit)?): Li
                 if (inList) library.remove(item.id) else library.set(item, LibraryStatus.PlanToWatch)
             },
         )
+        val pinned = env.data.sidebarPins.isPinned(item.id)
+        add(
+            ContextMenuItem(
+                label = if (pinned) "Unpin from Sidebar" else "Pin to Sidebar",
+                symbol = if (pinned) "pin.slash" else "pin",
+            ) {
+                env.data.sidebarPins.toggle(item)
+            },
+        )
         if (onDetails != null) add(ContextMenuItem("Details", "info.circle") { onDetails() })
     }
 }

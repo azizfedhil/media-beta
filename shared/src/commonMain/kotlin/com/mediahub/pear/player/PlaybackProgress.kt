@@ -145,6 +145,10 @@ class PlaybackProgress(
         if (finished) return
         logPlayTime(snapshot.playing)
         save(request, snapshot, isFinal = false)
+        // Simkl's own progress follows the pause, so a title paused past 80% is marked from another app too.
+        if (snapshot.duration > 0.0 && request.imdb.isNotBlank()) {
+            scrobbler.scrobble("pause", request.scrobbleTarget, ProgressRules.scrobblePercent(snapshot.position, snapshot.duration))
+        }
     }
 
     /**

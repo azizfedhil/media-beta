@@ -16,6 +16,8 @@ import com.mediahub.pear.meta.MetaServices
 import com.mediahub.pear.meta.TitleClassifier
 import com.mediahub.pear.net.Network
 import com.mediahub.pear.servers.MediaServerStore
+import com.mediahub.pear.shell.SidebarPins
+import com.mediahub.pear.simkl.SimklHistorySync
 import com.mediahub.pear.simkl.SimklStore
 import kotlinx.coroutines.CoroutineDispatcher
 import com.mediahub.pear.downloads.DownloadManager
@@ -83,7 +85,17 @@ class AppData(
     val watchLog = WatchLog(storage.prefs, profiles.activeID)
     val library = LocalLibrary(storage.prefs, profiles.activeID)
     val libraryPrefs = LibraryPrefs(storage.prefs, profiles.activeID)
+    /** Titles pinned to the sidebar. Per profile. */
+    val sidebarPins = SidebarPins(storage.prefs, profiles.activeID)
     val simkl = SimklStore(network.http, storage.secrets, network.facts)
+
+    /** Progress made in other apps, read back from Simkl. Writes only what Simkl says is newer. */
+    val simklHistory = SimklHistorySync(
+        simkl,
+        history,
+        usesSimkl = { libraryPrefs.usesSimkl(simkl.isConnected) },
+        minutesOf = { item -> meta.tmdb.cachedDetails(item.id, item.type)?.minutes },
+    )
 
     val intro = IntroClient(
         network.http,
@@ -99,6 +111,7 @@ class AppData(
         watchLog.load(profile)
         library.load(profile)
         libraryPrefs.load(profile)
+        sidebarPins.load(profile)
     }
 
     fun close() {

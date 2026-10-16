@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.history.EpisodeItem
+import com.mediahub.pear.history.UpNext
 import com.mediahub.pear.history.LibraryStatus
 import com.mediahub.pear.home.CatalogRowView
 import com.mediahub.pear.home.heroAmbientFor
@@ -111,6 +114,10 @@ fun DetailScreen(
     var selectedSeason by remember { mutableIntStateOf(startSeason ?: 1) }
     var selectedEpisode by remember { mutableIntStateOf(startEpisode ?: 1) }
     var episodes by remember { mutableStateOf<List<EpisodeItem>>(emptyList()) }
+    // Set once the person picks a season or an episode, so the page's own landing choice never overrides it.
+    var userChose by remember { mutableStateOf(false) }
+    // The one-row episode list's scroll state: it brings the selected episode into view when a season arrives.
+    val episodeListState = rememberLazyListState()
 
     val isWatched = env.data.history.entry(item.id)?.isTitleWatched == true
     val isInLibrary = env.data.library.entry(item.id) != null
@@ -171,6 +178,37 @@ fun DetailScreen(
         if (isSeries) {
             episodes = env.data.episodes.load(item.id, "series", selectedSeason) { imdbId.ifEmpty { null } }
         }
+    }
+
+    // Opened without a target (a poster, search, the Details menu): land on the episode you are in the middle of, or else
+    // the one after the last you finished, rather than S1 E1. When the show has nothing further aired, the last one you
+    // watched. Once the person picks an episode, this does not move the page.
+    LaunchedEffect(item.id) {
+        if (!isSeries || startSeason != null || startEpisode != null) return@LaunchedEffect
+        val entry = env.data.history.entry(item.id) ?: return@LaunchedEffect
+        val load: suspend (Int) -> List<EpisodeItem> = { s ->
+            env.data.episodes.load(item.id, "series", s) { imdbId.ifEmpty { null } }
+        }
+        val target: Pair<Int, Int>? = if (entry.isInProgress) {
+            entry.seasonEpisode?.let { it.season to it.episode }
+        } else {
+            UpNext.resolve(entry, load)?.let { it.season to it.episode }
+                ?: (entry.watchedThrough ?: entry.seasonEpisode)?.let { it.season to it.episode }
+        }
+        if (target != null && !userChose) {
+            selectedSeason = target.first
+            selectedEpisode = target.second
+        }
+    }
+
+    // Arrival only. When a season's episodes come in, the one-row list brings the selected episode into view, once and without
+    // animation. Keyed on the list itself: keying on the season would scroll the previous season's list before the new one is
+    // in, and an emptiness check would miss a season change made while a list is already showing. The guard keeps a season the
+    // person picks from moving the row.
+    LaunchedEffect(item.id, episodes) {
+        if (userChose || episodes.isEmpty()) return@LaunchedEffect
+        val index = episodes.indexOfFirst { it.id == selectedEpisode }
+        if (index >= 0) episodeListState.scrollToItem(index)
     }
 
     val wideScroll = rememberScrollState()
@@ -240,8 +278,10 @@ fun DetailScreen(
                                     selectedSeason = selectedSeason,
                                     selectedEpisode = selectedEpisode,
                                     episodes = episodes,
-                                    onSelectSeason = { selectedSeason = it; selectedEpisode = 1 },
+                                    episodeListState = episodeListState,
+                                    onSelectSeason = { userChose = true; selectedSeason = it; selectedEpisode = 1 },
                                     onSelectEpisode = { ep ->
+                                        userChose = true
                                         selectedEpisode = ep.id
                                         openSourcePicker()
                                     },
@@ -342,8 +382,10 @@ fun DetailScreen(
                         selectedSeason = selectedSeason,
                         selectedEpisode = selectedEpisode,
                         episodes = episodes,
-                        onSelectSeason = { selectedSeason = it; selectedEpisode = 1 },
+                        episodeListState = episodeListState,
+                        onSelectSeason = { userChose = true; selectedSeason = it; selectedEpisode = 1 },
                         onSelectEpisode = { ep ->
+                            userChose = true
                             selectedEpisode = ep.id
                             openSourcePicker()
                         },
@@ -483,6 +525,7 @@ private fun SeasonsAndEpisodesSection(
     onSelectSeason: (Int) -> Unit,
     onSelectEpisode: (EpisodeItem) -> Unit,
     isEpisodeWatched: (Int) -> Boolean,
+    episodeListState: LazyListState,
 ) {
     val env = LocalAppEnv.current
     val seasons = details?.seasons?.filter { (it.episodeCount ?: 1) > 0 } ?: (1..1).map { SeasonInfo(it, "Season 1", it) }
@@ -552,7 +595,11 @@ private fun SeasonsAndEpisodesSection(
                     }
                 }
             } else {
-                DragLazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                DragLazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    state = episodeListState,
+                ) {
                     items(episodes) { ep ->
                         EpisodeCard(
                             ep = ep,
