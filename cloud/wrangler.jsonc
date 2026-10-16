@@ -6,7 +6,7 @@
     {
       "binding": "DB",
       "database_name": "pear-pair",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "a1ea9a53-bcac-4617-8fff-7e320ee042a1",
       "migrations_dir": "migrations"
     }
   ],
