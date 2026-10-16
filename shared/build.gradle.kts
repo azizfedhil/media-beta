@@ -84,6 +84,8 @@ kotlin {
                 implementation(libs.jna)
                 implementation(libs.jna.platform)
                 implementation(libs.ktor.client.okhttp)
+                // Provides Dispatchers.Main on desktop (Storage.kt uses it for Pear.pair and watch party).
+                implementation(libs.kotlinx.coroutines.swing)
             }
         }
         commonTest.dependencies {

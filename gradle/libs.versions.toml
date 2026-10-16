@@ -22,6 +22,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
 libmpv-android = { module = "dev.jdtech.mpv:libmpv", version.ref = "libmpvAndroid" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
