@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
@@ -49,6 +50,9 @@ class MainActivity : ComponentActivity() {
     private val control by lazy { AndroidWindowControl(this) }
     private var powerReceiver: BroadcastReceiver? = null
 
+    // systemBarsIgnoringVisibility is marked experimental in Compose; the CI compile reported it (MainActivity.kt:71).
+    // Opted in for this function only, as the shared module does for its layout APIs (PearControls.kt).
+    @OptIn(ExperimentalLayoutApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AndroidHost.activity = WeakReference(this)
@@ -65,7 +69,7 @@ class MainActivity : ComponentActivity() {
             // Full screen the video is edge to edge, but the player's controls must clear the notch, the rounded corners and
             // the gesture bar. Outside full screen the app is already padded by safeDrawing, so none are passed on.
             val density = LocalDensity.current
-            // VERIFY: these WindowInsets members and union need the imports above; confirm on the first build.
+            // The CI compile reported one error in this file (the experimental member, opted in on onCreate) and no other.
             // The bars are hidden in full screen, so the plain sets would read zero: the ...IgnoringVisibility set is needed.
             val systemAreas = WindowInsets.displayCutout
                 .union(WindowInsets.systemBarsIgnoringVisibility)

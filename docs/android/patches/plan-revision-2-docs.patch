@@ -1,0 +1,24 @@
+--- a/docs/android/PROGRESS.md
++++ b/docs/android/PROGRESS.md
+@@ -47,3 +47,10 @@
+ - Storage: sign in to Simkl, kill and relaunch (tokens survive); settings backup export and import.
+ - Keep-awake: screen stays on while playing and off while paused.
+ - P2P: asking for a torrent stream shows "Peer-to-peer is not available in this build yet."
++
++## Android fix plan (docs/android/FIX_PLAN.md)
++
++- [x] Plan revision 2: corrections checked against the code and the iOS source (`Pear.-main/MediaHub`). Decision labels PD1 to PD4, git fallback, B1 status, T3 decision record, themes-hidden switch (T9-a), background-save note (T8-b.3), T7 touch test. WRITTEN.
++- [x] T7 touch long press and touch slop in `clickOrMenu` (`shell/Clicks.kt`). Touch and stylus take a new path (`withTimeoutOrNull` for the long press, `viewConfiguration.touchSlop` and `longPressTimeoutMillis`, haptic, swallow until up). Mouse path logic unchanged. WRITTEN. Not compiled (no Gradle, no Compose jars in the sandbox). Owed: section 4 item 8 (device long press and tap), item 11 (desktop right-click smoke test). Compose names to check first on the first build: `PointerInputScope.viewConfiguration`, `AwaitPointerEventScope`, `HapticFeedbackType.LongPress`.
++- Optional polish in T7 (context menu placement below the anchor on touch): not done, as the plan says.
++- Note: the iOS source is `Pear.-main`, not `Pear_ios_app` as written above in this file.
+--- a/docs/android/BLOCKERS.md
++++ b/docs/android/BLOCKERS.md
+@@ -4,6 +4,8 @@
+ 
+ ## B1. commonMain uses java.awt (blocks the Android compile of :shared)
+ 
++**Status: RESOLVED in code (checked in the Android fix plan, revision 2).** No file in `commonMain` imports `java.awt`. `DesktopClipboard` is an `expect` in `commonMain`, with `desktopMain/.../DesktopClipboard.desktop.kt` and `androidMain/.../DesktopClipboard.android.kt`. The text below is kept as the record of the decision.
++
+ `shared/src/commonMain/.../data/DesktopClipboard.kt` imports `java.awt.Toolkit`, `java.awt.datatransfer.DataFlavor` and
+ `java.awt.datatransfer.StringSelection`. Android has no `java.awt`, so the Android target cannot compile commonMain. It is
+ used by two commonMain files: `settings/SettingsScreen.kt` (lines 293 and 301) and `simkl/SimklConnect.kt` (lines 21 and 111).

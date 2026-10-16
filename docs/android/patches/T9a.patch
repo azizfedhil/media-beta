@@ -1,0 +1,128 @@
+--- /dev/null
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/home/HomeFeedOrder.kt
+@@ -0,0 +1,50 @@
++package com.mediahub.pear.home
++
++/**
++ * One block of the Home feed, in the order it is drawn. [Theme] and [Addon] carry their index: into the theme list, or
++ * into the add-on rows that are still shown after the user has hidden some.
++ */
++sealed interface FeedSlot {
++    /** Continue Watching. Only in the feed when [feedOrder] is told there is something to show. */
++    data object Continue : FeedSlot
++
++    /** The [index]-th themed collection of today. */
++    data class Theme(val index: Int) : FeedSlot
++
++    /** The suggested rows (trending, because you watched): all of them, in order. */
++    data object Suggested : FeedSlot
++
++    /** The MDBList rows: all of them, in order. */
++    data object Lists : FeedSlot
++
++    /** The [index]-th add-on catalogue row that is shown. */
++    data class Addon(val index: Int) : FeedSlot
++}
++
++/**
++ * The order of the Home feed, as iOS draws it (`HomeView.swift`, `feedRows`): Continue Watching; theme 0; the suggested
++ * rows; theme 1; the MDBList rows; theme 2; then each add-on row, and after every second add-on row the next theme. Any
++ * themes left over close the feed, so none is lost when there are few add-on rows.
++ *
++ * [themeCount] is how many themes may show: 0 when the built-in themes row is hidden. [addonRowCount] counts the add-on
++ * rows after the user's hidden rows are removed, as iOS does. A theme exists when its index is below [themeCount].
++ */
++fun feedOrder(showContinue: Boolean, themeCount: Int, addonRowCount: Int): List<FeedSlot> {
++    val out = mutableListOf<FeedSlot>()
++    fun theme(index: Int) {
++        if (index < themeCount) out.add(FeedSlot.Theme(index))
++    }
++
++    if (showContinue) out.add(FeedSlot.Continue)
++    theme(0)
++    out.add(FeedSlot.Suggested)
++    theme(1)
++    out.add(FeedSlot.Lists)
++    theme(2)
++    for (i in 0 until addonRowCount) {
++        out.add(FeedSlot.Addon(i))
++        if (i % 2 == 1) theme(3 + i / 2)
++    }
++    for (index in (3 + addonRowCount / 2) until themeCount) out.add(FeedSlot.Theme(index))
++    return out
++}
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/home/HomeScreen.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/home/HomeScreen.kt
+@@ -148,41 +148,39 @@
+     // 0. Which add-ons are still loading, and which failed (with a button to try them again)
+     AddonStatus(model)
+ 
+-    // 1. Continue Watching
+-    if (env.data.history.continueEntries.isNotEmpty() || model.upNext.isNotEmpty()) {
+-        ContinueRow(
+-            entries = env.data.history.continueEntries,
+-            upNext = model.upNext,
+-            onSelectTitle = onSelectTitle,
+-        )
+-    }
+-
+-    // 2. Theme Row 0
+-    if (model.themes.isNotEmpty()) {
+-        ThemeCarousel(model.themes[0], { onSelectTitle(it, null, null) })
+-    }
+-
+-    // 3. Suggestions
++    // The rows the user has not hidden (iOS `visible`). The add-on count is taken after hiding, as iOS does.
+     val visibleSuggested = model.suggested.filter { !rules.isRowHidden(it.prefKey) }
+-    visibleSuggested.forEach { row ->
+-        CatalogRowView(
+-            row = row,
+-            onSelectTitle = { onSelectTitle(it, null, null) },
+-            onSeeAll = { onSeeAll(row) },
+-        )
+-    }
+-
+-    // 4. Remaining Theme rows & Addon catalogues
+     val visibleAddonRows = model.rows.filter { !rules.isRowHidden(it.prefKey) }
+-    visibleAddonRows.forEachIndexed { index, row ->
+-        CatalogRowView(
+-            row = row,
+-            onSelectTitle = { onSelectTitle(it, null, null) },
+-            onSeeAll = { onSeeAll(row) },
+-        )
+-        val themeIdx = 1 + index / 2
+-        if (index % 2 == 1 && themeIdx < model.themes.size) {
+-            ThemeCarousel(model.themes[themeIdx], { onSelectTitle(it, null, null) })
++    // iOS `themesHidden`: with the built-in themes row hidden, no theme appears anywhere in the feed.
++    val themeCount = if (rules.isRowHidden(BuiltinRows.THEMES)) 0 else model.themes.size
++    val showContinue = env.data.history.continueEntries.isNotEmpty() || model.upNext.isNotEmpty()
++
++    // The blocks of the feed, in iOS order (see feedOrder).
++    feedOrder(showContinue, themeCount, visibleAddonRows.size).forEach { slot ->
++        when (slot) {
++            FeedSlot.Continue -> ContinueRow(
++                entries = env.data.history.continueEntries,
++                upNext = model.upNext,
++                onSelectTitle = onSelectTitle,
++            )
++            is FeedSlot.Theme -> ThemeCarousel(model.themes[slot.index], { onSelectTitle(it, null, null) })
++            FeedSlot.Suggested -> visibleSuggested.forEach { row ->
++                CatalogRowView(
++                    row = row,
++                    onSelectTitle = { onSelectTitle(it, null, null) },
++                    onSeeAll = { onSeeAll(row) },
++                )
++            }
++            // The MDBList rows are filled in by T9-b.
++            FeedSlot.Lists -> Unit
++            is FeedSlot.Addon -> {
++                val row = visibleAddonRows[slot.index]
++                CatalogRowView(
++                    row = row,
++                    onSelectTitle = { onSelectTitle(it, null, null) },
++                    onSeeAll = { onSeeAll(row) },
++                )
++            }
+         }
+     }
+ }

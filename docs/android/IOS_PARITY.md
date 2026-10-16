@@ -1,0 +1,267 @@
+# iOS parity audit (T10)
+
+Status: WRITTEN. Static reading only: not compiled, not run on a device.
+
+This compares the Android app with the iOS app, screen by screen, as section 3 (T10) of `FIX_PLAN.md` asks. For each
+difference it gives the evidence, a proposed fix and a size. It changes no code. Where a task in T1 to T9 already
+covers a difference, the row says which task.
+
+## 1. How to read this
+
+**Reference trees.** iOS is `Pear.-main/MediaHub/`. iOS paths below start at `MediaHub/`, so `Features/HomeView.swift`
+means `Pear.-main/MediaHub/Features/HomeView.swift`. Android is the T3 tree, `media-beta-main`. Android paths below start
+at `shared/src/commonMain/kotlin/com/mediahub/pear/` unless they begin with `androidApp/` or `shared/src/`.
+
+**Method.** Layout values (sizes, spacing, padding, corner radii, timings) were read from both sides and compared.
+User-visible strings were taken from each iOS screen and searched for in the Android code. Default preference values and
+the theme catalogue were compared key by key. Feature presence was checked by name. Line numbers were checked against the
+trees as supplied.
+
+**Limits.** No build, no screenshots, no device. Values are the ones written in the code, not measured on screen.
+Section 6 lists what was not compared.
+
+**Status words.** These are the words from `PROGRESS.md`, plus one more:
+- `TODO`: a gap that no task in T1 to T9 covers.
+- `WRITTEN`: covered by a task in T1 to T9. The task is named. Not compiled.
+- `NEEDS-DEVICE`: needs a look on a phone or tablet before anyone decides.
+- `DECIDE`: the owner has to choose. Each choice is listed in section 5.
+- `NO CHANGE`: the two sides match, or the difference is deliberate and a plan decision is named. This word is not in
+  `PROGRESS.md`. It is here so that intended differences are not reported as gaps.
+
+**Sizes.** `S`: one value, one string, or one small component. `M`: one component or several small files, or a small new
+behaviour. `L`: a new feature or a platform-level change.
+
+## 2. Summary
+
+| Area | Rows | TODO | WRITTEN | NEEDS-DEVICE | DECIDE | NO CHANGE |
+|---|---|---|---|---|---|---|
+| Home feed and hero | 28 | 18 | 1 | 2 | 5 | 2 |
+| Theme rows and catalogue | 9 | 7 | 0 | 0 | 1 | 1 |
+| Detail | 12 | 8 | 0 | 0 | 1 | 3 |
+| Player | 13 | 1 | 2 | 3 | 1 | 6 |
+| Search and Explore | 9 | 6 | 0 | 1 | 2 | 0 |
+| Library | 2 | 2 | 0 | 0 | 0 | 0 |
+| Settings and onboarding | 8 | 4 | 1 | 1 | 0 | 2 |
+| Downloads | 3 | 2 | 1 | 0 | 0 | 0 |
+| Profiles | 7 | 5 | 0 | 0 | 1 | 1 |
+| Shell and app-wide | 5 | 2 | 0 | 0 | 1 | 2 |
+| **Total** | **96** | **55** | **5** | **7** | **12** | **17** |
+
+Counts were taken from the rows in the tables below. `SET-03` repeats `HOME-14` on purpose, so it is counted as TODO
+on its own line.
+
+**Highest priority gaps** (a visible control or a whole feature is missing or does nothing):
+
+1. `HOME-14`: the "Network icons on posters" switch does nothing on Android.
+2. `SET-01`: Android has no file backup, only the clipboard. The T9 user note cannot be followed as written.
+3. `DL-01`, `DL-02`: Android Downloads has no Pause All, Resume All, Delete All or free-space line.
+4. `DETAIL-04`: the Play button has no download long-press menu on Android.
+5. `EXPLORE-01`, `EXPLORE-02`: no empty states for a missing TMDB key or for "nothing found".
+6. `PLAYER-05`: the Episodes button is missing.
+7. `PROF-02`: the Simkl identity flag can only be set during onboarding, not in the profile editor.
+
+## 3. Items by screen
+
+### 3.1 Home (`home/*`, iOS `Features/HomeView.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| HOME-01 | Phone hero is 480 dp (`HeroBanners.kt:81`). iOS compact hero is 600 pt, wide 640 pt (`HomeView.swift:461`). | 600 dp on phones. The wide hero panel is a separate component and is not compared here. | S | TODO |
+| HOME-02 | Hero title is 32 sp black, max 300 × 72 dp (`HeroBanners.kt:203-204`). iOS TitleArt is 38 pt heavy rounded, max 270 × 86 (`HomeView.swift:559`). | Match the iOS sizes. | S | TODO |
+| HOME-03 | Hero type pill: Android draws the year inside the pill at 9 sp (`HeroBanners.kt`, `HeroTypePill`). iOS pill is caption2 heavy with tracking 1.2 and the label only; the year sits beside it at subheadline (`HomeView.swift:552-556`). | Match iOS. | S | TODO |
+| HOME-04 | Hero description: Android shows 3 lines with More/Less (`HeroBanners.kt:224`). iOS shows 2 lines and no toggle (`HomeView.swift:562`). | Keep the More/Less (it helps on long text), or match iOS. | S | DECIDE |
+| HOME-05 | Details button: Android is a solid accent pill with an info icon and dark text (`HeroBanners.kt:268-283`, fill at 273). iOS is a white 20% pill with a white 28% edge and no icon (`HomeView.swift:565-569`). | Match iOS, or keep the accent and record the choice. | S | DECIDE |
+| HOME-06 | Hero text bottom inset is 34 dp (`HeroBanners.kt:338`). iOS is 46 pt (`HomeView.swift:572`). | 46 dp. | S | TODO |
+| HOME-07 | Wide hero advances every 8 s (`HeroBanners.kt:368`). iOS wide hero advances every 7 s (`WideLayout.swift:434`). The phone hero matches at 7 s (`HeroBanners.kt:314`). | 7 s on wide. | S | TODO |
+| HOME-08 | Feed gap is 28 dp on wide and 26 dp on phone (`HomeScreen.kt:110,128`). iOS uses 30 for both (`HomeView.swift:359,373`). | 30 dp both. | S | TODO |
+| HOME-09 | Horizontal inset: Android uses 20 dp for row headers and rows (`CatalogRowView.kt:50,62`; `ThemeCarousel.kt:71,75`). iOS uses 16 (`HomeView.swift:887`; `Themerows.swift:261`). The Continue row already uses 16 (`ContinueRow.kt`, `ROW_MARGIN`). Named in the plan's list of known deviations. | One inset for Home. 16 dp matches iOS and the Continue row. Also affects theme rows (THEME-07) and search (SEARCH-04). | M | DECIDE |
+| HOME-10 | Row header: Android icon is 18 dp, gap 8, and the title-to-cards gap is 10 dp (`CatalogRowView.kt:48-55`). iOS icon is 15 pt bold and the gap is 12 (`HomeView.swift:876-883`). | Match iOS. | S | TODO |
+| HOME-11 | Row posters are 110 dp (`CatalogRowView.kt:41`). `PosterCard` defaults to 104 dp (`PosterCard.kt:60`), and wide posters are × 1.5, which gives 165 dp (`PosterCard.kt:83`). iOS rows use 102 pt on phone and 140 pt on wide (`HomeView.swift:873`); its default is 102 (`HomeView.swift:948`). | Row posters 102 dp on phone and 140 dp on wide. Keep grid cell sizes separate (see EXPLORE-03). | S | TODO |
+| HOME-12 | Poster corner radius is 12 dp for every poster (`PosterCard.kt:100`). iOS uses 9 for small posters and 12 otherwise (`HomeView.swift:992`). | 9 dp when the poster is under 115 dp wide. | S | TODO |
+| HOME-13 | Network badge: Android draws the network name at bottom-start on a black 65% plate (`PosterCard.kt:115-125`). iOS draws the network logo at top-leading on a white 92% plate (`HomeView.swift:996`). The Android `NetworkBadge` already carries a `logo` URL (`model/TmdbModels.kt:132`). | Show the logo top-leading; fall back to the name when there is no logo. | M | TODO |
+| HOME-14 | The "Network icons on posters" switch is written by Settings (`settings/SettingsScreen.kt:155-157`), but `PosterCard.kt` never reads `UI_NETWORK_BADGES`. iOS reads it (`HomeView.swift:952`). The switch does nothing. | Read the preference in `PosterCard` and skip the badge when it is off. | S | TODO |
+| HOME-15 | Watched check: Android is one tint, accent, 18 dp (`PosterCard.kt:111`). iOS is two-tone (check in theme `onAccent`, circle in accent), 14 or 17 pt, with 4 or 6 pt padding (`HomeView.swift:977-982`). | Match the two-tone look, then check on a device. | S | NEEDS-DEVICE |
+| HOME-16 | Poster titles (grids and search): Android shows one line (`PosterCard.kt:130`). iOS reserves two lines (`HomeView.swift:1007`). The year and type caption is the same on both. | Reserve two lines. | S | TODO |
+| HOME-17 | "See all" tile: Android is 80 dp wide with 40 dp vertical padding and 12 sp text (`CatalogRowView.kt:75-80`). iOS is 78 pt wide, the same height as the poster, with footnote text (`HomeView.swift:895-899`). | Match iOS. | S | TODO |
+| HOME-18 | No pull-to-refresh on Android Home. iOS phone feed has `.refreshable` (`HomeView.swift:347`). | Add pull-to-refresh that calls `model.refresh(force = true)`. First check whether the Material library in the build already provides it: plan rule 4 forbids adding libraries. | M | TODO |
+| HOME-19 | iOS phone feed ignores the top safe area, so the hero runs under the status bar (`HomeView.swift:341`). Android pads the whole app. `decisions.md` section 5 records this as the v1 form. | Leave for v1. Revisit with the safe-area work. | L | DECIDE |
+| HOME-20 | When content rules hide everything, iOS shows "Nothing to show" with the eye-slash icon (`HomeView.swift:416`). Android shows a blank Home. | Add the same empty state. | M | TODO |
+| HOME-21 | Continue header icon: Android is a hard-coded purple circle, `0xFF9D63E8`, with an 11 dp play icon (`ContinueRow.kt:112`). iOS is `play.circle.fill` at 15 pt in the theme's `accent2` (`HomeView.swift:744`). | Use the theme colour and the iOS symbol. | S | TODO |
+| HOME-22 | UP NEXT badge: Android is 8 sp with white text (`ContinueRow.kt:280`), on a hard-coded purple `0xFF8B6EF5` (`ContinueRow.kt:277`). iOS is 10 pt heavy, tracking 0.8, `onAccent` text on the theme accent capsule (`HomeView.swift:843-845`). | Match iOS, and take the colour from the theme. | S | TODO |
+| HOME-23 | UP NEXT card has no bottom shade on Android. iOS adds a gradient from clear to black 50% (`HomeView.swift:841`). The T8 note asked for this to be listed. | Add the shade. | S | TODO |
+| HOME-24 | Desktop Continue cards are 270 × 1.33 = 359 dp (`ContinueRow.kt:75` and `CARD_WIDTH_DP`; `shell/LayoutMode.kt:57`). iOS wide cards are 270 pt, unscaled (`HomeView.swift:771,832`). T8 kept the scale on purpose. Phone matches at 270. | Keep the larger desktop cards, or set 270 on wide too. | S | DECIDE |
+| HOME-25 | Tapping a Continue card on desktop opens the source chooser. iOS opens the title's detail page. | None. Desktop keeps the chooser by design (plan D2). | — | NO CHANGE |
+| HOME-26 | Five temporary log lines carry `// TEMP-CW`: `home/HomeScreen.kt:154`, `shell/PlayerScreen.kt:136`, `player/PlaybackProgress.kt:185`, `history/WatchHistory.kt:222` and `:262`. They are for the T8-a diagnosis. They also print on desktop. | Run the T8-a scenarios on a device, record the result in PROGRESS, then remove the five lines. | S | NEEDS-DEVICE |
+| HOME-27 | Background save: Android banks progress with `isFinal = true` when the app goes to the background. iOS saves quietly with `isFinal: false` (`Features/PlayerView.swift:646`). | None. This is the deliberate difference in T8-b.3. | — | NO CHANGE |
+| HOME-28 | Feed order, the themes-hidden switch, and MDBList rows now follow iOS (`HomeScreen.kt:160-198`, `home/HomeFeedOrder.kt`). | None. Covered by T9-a and T9-b. | — | WRITTEN (T9) |
+
+### 3.2 Theme rows and catalogue (`home/ThemeCarousel.kt`, `meta/ThemeCatalog.kt`, iOS `Features/Themerows.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| THEME-01 | Card width is fixed at 240 dp, times 1.33 on desktop (`ThemeCarousel.kt:88`). iOS is `min(width − 56, 440)` on phone and 270 pt on wide (`Themerows.swift:295`). | Phone: `min(container − 56, 440)`, read with `BoxWithConstraints`. Wide: 270, unscaled. | M | TODO |
+| THEME-02 | Card corner radius is 22 dp (`ThemeCarousel.kt:98`, `PearRadii.card`). iOS is 28 (`Themerows.swift:302`). | 28 dp for theme cards only. | S | TODO |
+| THEME-03 | iOS draws a 1 pt white 15% border on theme cards (`Themerows.swift:303`). Android draws none. | Add the border. | S | TODO |
+| THEME-04 | Tag: iOS shows "year · ★ rating" in a glass capsule (`Themerows.swift:311-316`). Android shows only the year, as plain text above the title (`ThemeCarousel.kt:127-129`). | Match iOS. Check that the item carries a rating. | S | TODO |
+| THEME-05 | Title art: iOS is 260 × 72 pt, 30 pt heavy rounded (`Themerows.swift:317`). Android is 200 × 56 dp, title3 bold (`ThemeCarousel.kt:133-134`). | Match iOS. | S | TODO |
+| THEME-06 | Caption row: iOS puts the icon in a 26 pt circle over black 35% and uses subheadline medium (`Themerows.swift:318-322`). Android uses a 12 dp icon and 12 sp caption (`ThemeCarousel.kt:137-141`). | Match iOS. | S | TODO |
+| THEME-07 | Row header: Android 20 dp inset and 10 dp gap (`ThemeCarousel.kt:67,71`). iOS 16 dp and 12 dp (`Themerows.swift:260-261`). | Follows the HOME-09 decision. | S | DECIDE |
+| THEME-08 | Snapping: iOS uses `.scrollTargetBehavior(.viewAligned)` (`Themerows.swift:269`), so a swipe stops on a card. Android's `DragLazyRow` has no snap (`shell/DragScroll.kt:28`). This applies to every catalogue row, not only themes. | Add snap-to-item to `DragLazyRow`. Test the drag feel on a device. | M | TODO |
+| THEME-09 | Catalogue data: 66 themes on both sides, with the same titles and the same keyword lists. Constants match: 5 home rows, 6 and 4 candidates, 3 explore rows, limit 8 (`meta/ThemeCatalog.kt:36-40`; `Themerows.swift:27-31`). The six language themes have empty keyword lists on both sides. | None. | — | NO CHANGE |
+
+### 3.3 Detail (`detail/*`, iOS `Features/DetailView.swift`, `EpisodeCard.swift`, `TrailerCard.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| DETAIL-01 | Hero is 360 dp (`detail/DetailScreen.kt:279`). iOS hero is 500 pt (`DetailView.swift:63`). | 500 dp. Check that the title and logo still fit. | S | TODO |
+| DETAIL-02 | No parallax on Android. iOS uses `ParallaxHero` (`DetailView.swift:160`, `Features/ParallaxHero.swift`). | Port the parallax (offset from scroll). | M | TODO |
+| DETAIL-03 | Column rhythm: Android uses a 20 dp gap and 32 dp bottom inset (`DetailScreen.kt:277,276`). iOS uses 16 and 40 (`DetailView.swift:159,174`). | Match iOS. | S | TODO |
+| DETAIL-04 | Play button: iOS opens a download menu on long press (`DetailView.swift:285`, `:582-600`). The menu depends on the download state: Delete, Pause, Cancel, Resume or Retry. With no download yet it offers Download, which opens the source list. Android's `PlayButton` only has `clickable` (`DetailScreen.kt:445`). `detail/SourceMenus.kt:104` (`downloadActions`) already builds the state actions. The T7 acceptance list does not name Play, so this is a new item. | Use `clickOrMenu` on Play. Reuse `downloadActions` for the state actions, and the episode menu's Download entry for the rest (`SourceMenus.kt:121`). | M | TODO |
+| DETAIL-05 | Play button height is 44 dp (`DetailScreen.kt:454`). iOS uses `.buttonStyle(.glassProminent).controlSize(.large)` (`DetailView.swift:284`). The iOS height was not measured. | Use the iOS large control height. VERIFY the value on a device. | S | TODO |
+| DETAIL-06 | Episode row gap is 8 dp (`DetailScreen.kt:508`). iOS uses 12 (`DetailView.swift:510`). | 12 dp. | S | TODO |
+| DETAIL-07 | Trailer row gap is 14 dp (`DetailScreen.kt:610`). iOS uses 12 (`DetailView.swift:677`). | 12 dp. | S | TODO |
+| DETAIL-08 | Episode card: 250 × 292, radius 22, badges, rating chip and ellipsis menu match (`detail/EpisodeCard.kt:137-140,226-290,397-408`; `Features/EpisodeCard.swift:18-20,46-73`). | None. | — | NO CHANGE |
+| DETAIL-09 | Trailer card: 250 × 214, radius 22, 16 and 14 text padding match (`detail/TrailerCard.kt:61-64,166`; `Features/TrailerCard.swift:11-13,40`). | None. | — | NO CHANGE |
+| DETAIL-10 | Source rows: iOS has swipe actions to pin and unpin (`DetailView.swift:849-855`). Android pins only through the row menu (`detail/SourceMenus.kt:95-98`). With T7 in place, touch users reach Pin by long press. | Optional: add the swipe. | S | DECIDE |
+| DETAIL-11 | Watchlist and watched buttons: both present (`DetailScreen.kt:431`; `DetailView.swift:291-292`). | None. | — | NO CHANGE |
+| DETAIL-12 | Torrent rows: iOS shows a "P2P off" label, and a lock or antenna icon on torrent rows (`DetailView.swift:830-834`). Android source rows show neither. P2P is not built on Android yet (plan P9, PROGRESS). | Add with P9. | M | TODO |
+
+### 3.4 Player (`player/ui/*`, `shell/PlayerScreen.kt`, iOS `Features/PlayerView.swift`, `PlayerPiP.swift`, `PlayerInfoCard.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| PLAYER-01 | Control look while playing and paused: Frosted, Liquid Glass, and the Blur/Tint rules. | Covered by T1 (rules and Frosted look), T2 (setting) and T3 (TextureView). | — | WRITTEN (T1, T2, T3) |
+| PLAYER-02 | Control margins and the system areas in full screen. | Covered by T5. | — | WRITTEN (T5) |
+| PLAYER-03 | Controls auto-hide after 3.5 s while playing: iOS `PlayerView.swift:1608`, Android `player/ui/PlayerLogic.kt:56` (`AUTO_HIDE_MILLIS`). | None. | — | NO CHANGE |
+| PLAYER-04 | Manual skip button lives 12 s: iOS `fallbackLife` (`PlayerView.swift:1773`), Android `player/ui/SkipRules.kt:23` (`MANUAL_LIFE_MILLIS`). | None. | — | NO CHANGE |
+| PLAYER-05 | Episodes button: iOS shows it when the show has a provider (`PlayerView.swift:802`, `:866`). Android: `player/ui/OptionPill.kt:352` falls through to `else -> Unit`, and `PillItems.kt:66` leaves Episodes out of the set. The Kotlin comment says "not built yet". | Build the episode list in the player. This needs the same provider as the detail page. | L | TODO |
+| PLAYER-06 | Display button: `desktopPillItems` includes Display (`player/ui/PillItems.kt:66`), and the Android actual adds Picture in Picture on top (`androidMain/.../player/ui/PillItems.android.kt`). So Android shows Display. The enum comment says "desktop only" (`PillItems.kt:21`). iOS has no aspect or 4K control: `PlayerView.swift` has no match for either. | Decide: hide Display on touch, or keep it. Correct the comment either way. | S | DECIDE |
+| PLAYER-07 | Picture in Picture: Android's pill calls `PipState.request()`. `MainActivity.kt` (lines 55 to 136) enters PiP, sets the aspect ratio, and on Android 12 and later enters PiP automatically when the app is left. iOS uses `Features/PlayerPiP.swift` and the `player.pip` setting. PROGRESS.md still lists P6 as not done. | Record the state in PROGRESS. Test on a device. No code change is planned. | S | NEEDS-DEVICE |
+| PLAYER-08 | Tap on the picture: iOS closes any open panel first, then toggles the controls (`PlayerView.swift:1592-1602`). Android's comment says a click closes a panel first, and that on touch a tap "shows or hides the controls" (`PlayerOverlay.kt:249-250`). It is not clear whether touch closes an open panel first. | Test on a phone. If touch does not close the panel, match iOS. | S | NEEDS-DEVICE |
+| PLAYER-09 | Double tap on the picture toggles full screen (`PlayerOverlay.kt:259,334`; `androidMain/.../player/VideoSurface.android.kt:50`). iOS has no double-tap gesture. | None. Android and desktop extra. | — | NO CHANGE |
+| PLAYER-10 | Seek bar scrubbing: iOS uses a drag from zero distance, scrubs while the finger is down and commits on release (`PlayerView.swift:1729-1742`). The Android seek bar (`PlayerSeekBar.kt`) was not compared. | Test scrubbing on a device. | — | NEEDS-DEVICE |
+| PLAYER-11 | Sleep timer: neither platform has one. The word "sleep" in `PlayerView.swift` is only `Task.sleep` calls. | None. | — | NO CHANGE |
+| PLAYER-12 | Preference defaults match on the keys both sides read: autoplay next on, glass on, skip on, online subtitles on, subtitle language off, P2P off, Wi-Fi only on, network icons on, title logos on, manual skip 0 s. iOS: `SettingsView.swift:22-30`, `Core/IntroClient.swift:27`, `Core/OpenSubtitlesClient.swift:22`, `P2P/P2PSettings.swift:10-12`. Android: `data/PrefKeys.kt` call sites. | None. | — | NO CHANGE |
+| PLAYER-13 | Info card: the iOS close control has the accessibility label "Close" (`PlayerInfoCard.swift:138`), and Android has an `onClose` action. Thumbnail radius is 16 on both (`PlayerInfoCard.swift:103`; `player/ui/InfoCard.kt:81`). The no-synopsis text is the same. | None. | — | NO CHANGE |
+
+### 3.5 Search and Explore (`search/*`, `explore/*`, iOS `Features/SearchView.swift`, `ExploreView.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| SEARCH-01 | Results layout: iOS shows one adaptive poster grid (`SearchView.swift:70`, `:125`). Android shows stacked sections, "Movies (n)" and "Shows (n)", each a horizontal row of posters with titles (`search/SearchScreen.kt:152-175`). | Decide: keep the sectioned rows (they suit touch), or match the grid. | M | DECIDE |
+| SEARCH-02 | Search placeholder: iOS "Movies and shows" (`SearchView.swift:105`). Android "Search movies and shows…" (`SearchScreen.kt:127`). | Use the iOS wording. | S | TODO |
+| SEARCH-03 | Empty states: iOS shows a "Search" prompt (`SearchView.swift:93`), then `ContentUnavailableView.search(text:)` after a search (`:96`), and a spinner while searching. Android shows "Searching…" (`SearchScreen.kt:145`) and "No titles found for …" (`:149`). | Match the iOS structure and wording. | S | TODO |
+| SEARCH-04 | Horizontal inset: Android 20 dp (`SearchScreen.kt:121`). iOS 16 (`SearchView.swift:124,128`). | Follows the HOME-09 decision. | S | DECIDE |
+| EXPLORE-01 | No "Explore needs TMDB" state. iOS shows it when there is no TMDB key (`ExploreView.swift:131-132`). Android has no such text anywhere in `commonMain`. | Add the state, with the iOS wording. | S | TODO |
+| EXPLORE-02 | No "Nothing found" state. iOS shows "Nothing found" with "Try a different genre or year." (`ExploreView.swift:184-185`). | Add. | S | TODO |
+| EXPLORE-03 | Grid: Android uses an adaptive minimum of 110 dp, or 165 on wide, with a 14 dp gap (`explore/ExploreScreen.kt:161,164`). iOS uses 104 to 160 pt with a 12 pt gap (`ExploreView.swift:121`). | 104 dp minimum with a 12 dp gap. The wide minimum follows the HOME-11 decision. | S | TODO |
+| EXPLORE-04 | Sort and filter controls: iOS sorts through `setSort` (`ExploreView.swift:35-36`). Android uses chips for kind, genre, sort and reset (`ExploreScreen.kt:181-215`). The visual layout was not compared. | Compare on a device. | — | NEEDS-DEVICE |
+| EXPLORE-05 | Android's user-facing chips use `DevChip`, which is imported from the `preview` package (`ExploreScreen.kt:48`). | Move the chip to a shared component. This is code hygiene, not a visible gap. | S | TODO |
+
+### 3.6 Library (`library/*`, iOS `Features/LibraryView.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| LIB-01 | Empty states. iOS, Simkl on: a spinner while syncing (`LibraryView.swift:117`), otherwise "Nothing here yet" with "Titles you add on Simkl show up here." (`:118-119`). iOS, Simkl off: "Your library is empty" with an explanation (`:121-122`). Android: "Your Simkl library is empty." or "Your library is empty.", with no description and no spinner (`library/LibraryScreen.kt:73`). | Match the iOS states and wording. | S | TODO |
+| LIB-02 | Grid: Android uses 110 dp minimum (165 wide) with a 14 dp gap (`LibraryScreen.kt:85,87`). iOS uses 104 to 160 pt with a 12 pt gap (`LibraryView.swift:20`). | Follows the EXPLORE-03 decision. | S | TODO |
+
+### 3.7 Settings and onboarding (`settings/*`, `onboarding/*`, iOS `Features/SettingsView.swift`, `OnboardingView.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| SET-01 | Backup as a file: iOS exports and imports through a file exporter and importer (`SettingsView.swift:200,207`). Android has only the clipboard (`settings/SettingsScreen.kt:312,321`). The Android code has no document picker. | Add Storage Access Framework create and open launchers on Android, behind an `expect` in `commonMain`. The plan's T9 user note depends on this. | M | TODO |
+| SET-02 | Backup labels: iOS says "Export settings", "Import settings", "Copy settings to clipboard", "Paste settings from clipboard" (`SettingsView.swift:200,207-209`). Android says "Copy to clipboard" and "Paste from clipboard" (`SettingsScreen.kt:312,321`). | Use the iOS labels when SET-01 lands. | S | TODO |
+| SET-03 | "Network icons on posters" switch: see HOME-14. | See HOME-14. | — | TODO |
+| SET-04 | "Landscape layout" phone switch: iOS only (`SettingsView.swift:140`, `Features/WideLayout.swift:45`). Android phones never use the wide layout. | None. Plan D3 and T6. | — | NO CHANGE |
+| SET-05 | Integrations summary: iOS shows "N of 4 set up" under Integrations (`SettingsView.swift:59`). Android has no matching summary anywhere in `commonMain`. | Add the count. | S | TODO |
+| SET-06 | Settings groups and row names match on the main groups (Integrations, Add-ons, Content & catalogues, Appearance, Subtitles, Player controls, Playback, Peer-to-peer, Backup, About). Android also has Developer tools, Replay onboarding, Glass gallery and Theme preview. Developer groups depend on `devTools`, which `MainActivity` sets from `isDebuggable()`. | Check on a release build that the developer groups are hidden. | S | NEEDS-DEVICE |
+| SET-07 | The glass row names: Android "Glass controls" and "Liquid Glass" (plan T2). | Covered by T2. | — | WRITTEN (T2) |
+| ONB-01 | Onboarding steps: iOS has seven (`OnboardingView.swift:18`). Android has seven on desktop and eight on Android, with the Player glass step added by T4. Layouts of the steps were not compared. | None for the step list. | — | NO CHANGE |
+
+### 3.8 Downloads (`Downloads/*`, iOS `Features/DownloadsView.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| DL-01 | Bulk actions: iOS has Pause All, Resume All and Delete All Downloads (`DownloadsView.swift:131,134,136`). Android has per-row buttons only (`Downloads/DownloadsScreen.kt:124-131`). | Add a header menu with the three actions. | M | TODO |
+| DL-02 | Free-space line: iOS shows "<size> free on this device" (`DownloadsView.swift:126`). Android has none. | Add. Needs a free-space call on each platform (StatFs on Android, in `androidMain`). | M | TODO |
+| DL-03 | Row long-press menu: Android uses `clickOrMenu` (`DownloadsScreen.kt:96`). | Covered by T7. | — | WRITTEN (T7) |
+
+### 3.9 Profiles (`profile/*`, iOS `Features/ProfileViews.swift`, `ProfileDetailView.swift`)
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| PROF-01 | Wording: iOS "Add Profile" (`ProfileViews.swift:320`), "Delete Profile" (`:425,440`). Android "Add" (`ProfileViews.kt:365`) and "Delete" (`:450`). | Use the iOS wording. | S | TODO |
+| PROF-02 | Simkl identity: iOS has a "Use my Simkl name and picture" toggle in the profile editor (`ProfileViews.swift:385`). Android's editor has the state (`ProfileViews.kt:398`), but nothing in the editor changes it. The flag is only set during onboarding (`onboarding/OnboardingHost.kt:78`, `OnboardingRules.kt:107`). A profile created later cannot use Simkl identity. | Add the toggle to the Android profile editor, with the iOS label. | S | TODO |
+| PROF-03 | Simkl link: iOS has a "View <name>'s profile" button (`ProfileViews.swift:223`). Android has a Simkl card with "Connected" or "Log in to sync your library" (`ProfileViews.kt:288-304`). | Decide the wording and placement. | S | DECIDE |
+| PROF-04 | Profile detail sections match: Integrations, Total watch time, Favourite genres, Older or newer?, When you watch (`ProfileDetailView.swift:131,208,299,313,354`). | None. | — | NO CHANGE |
+| PROF-05 | Median caption: iOS "median year" (`ProfileDetailView.swift:327`). Android "Median release year: <year>" (`profile/ProfileDetailScreen.kt:268`). | Use the iOS caption. | S | TODO |
+| PROF-06 | Missing tip: iOS says "Add a TMDB key under Integrations to unlock genre insights and exact episode counts and runtimes." (`ProfileDetailView.swift:246`). Android has no such text. | Add. | S | TODO |
+| PROF-07 | Simkl connected colour: Android hard-codes green `0xFF34C759` (`ProfileViews.kt:304`). | Use a theme colour if the theme has one. VERIFY. | S | TODO |
+
+### 3.10 Shell and app-wide
+
+| ID | What differs | Proposed fix | Size | Status |
+|---|---|---|---|---|
+| SHELL-01 | Tabs: Search, Home, Explore, Settings, Library, in the same order on both (`shell/AppTab.kt:4-9`; `Features/WideLayout.swift`, `enum AppTab`). | None. | — | NO CHANGE |
+| SHELL-02 | Context menu placement: iOS anchors to the press. Android opens beside the anchor. The plan's T7 optional polish (below the anchor on touch) is not done. | Do the T7 optional polish after the device check. | S | TODO |
+| SHELL-03 | Phone and tablet layout: phones never use the wide layout on Android, while iOS phones can (opt-in, landscape). Plan D3 and T6. | None. | — | NO CHANGE |
+| SHELL-05 | Colours outside the theme: 51 `Color(0xFF…)` literals in the code. 12 are token definitions in `theme/PearColors.kt`. The other 39 are in 14 files, the most in `detail/RatingBadges.kt` (6), `shell/Sidebar.kt` (5) and `brand/PearBrand.kt` (5), and including `home/ContinueRow.kt` (two purples). They do not follow the accent colour the user picks. iOS uses `theme` and system colours. | Replace each literal with a token, or record why it is fixed (brand marks). Do it file by file, one patch per file group. | M | TODO |
+| SHELL-04 | Type scale: Android's `PearType` uses the same sizes as iOS's default Dynamic Type (`theme/PearType.kt:13-23`). Android uses fixed sp values, which follow the system font scale but not iOS's Dynamic Type setting. | Decide whether the system font scale is enough. | S | DECIDE |
+
+## 4. Known deviations from the plan, and where they are covered
+
+| Plan item | Row here | Status |
+|---|---|---|
+| Home feed order and MDBList rows (T9) | HOME-28 | WRITTEN |
+| Themes-hidden switch (T9-a) | HOME-28 (`HomeScreen.kt:163`) | WRITTEN |
+| Background save (T8-b.3) | HOME-27 | NO CHANGE (intended) |
+| Continue card look and tap target (T8) | HOME-21 to HOME-25 | look WRITTEN; HOME-24 DECIDE |
+| Long press (T7) | DETAIL-04 (Play, not in T7's list); DL-03 | WRITTEN, with one gap |
+| Margins (T5) | PLAYER-02 | WRITTEN |
+| Wide layout rules (T6) | SET-04, SHELL-03 | WRITTEN, intended |
+| Home horizontal padding, 20 dp against 16 | HOME-09, THEME-07, SEARCH-04 | DECIDE |
+| Continue card sizes (T8) | HOME-24 | DECIDE |
+| Context menu placement (T7 polish) | SHELL-02 | TODO |
+| Player glass naming (T2) | SET-07 | WRITTEN |
+| T8 note: UP NEXT shade "to be listed" | HOME-23 | TODO |
+| T8-b.4: font-size and locale changes without a restart | Owed on device; no row here | NEEDS-DEVICE |
+| T9-b: typing an MDBList key refreshes Home on each key press | Section 5, item 9 | DECIDE |
+| T9-c: MDBList picker also appears on desktop | Section 5, item 9 | DECIDE |
+
+## 5. Decisions for the owner
+
+1. **Home horizontal inset** (HOME-09, THEME-07, SEARCH-04): 16 dp as on iOS, or keep 20 dp on Android.
+2. **Desktop Continue card size** (HOME-24): keep the 1.33 scale, or match iOS's 270.
+3. **Display button on Android** (PLAYER-06): hide on touch, or keep.
+4. **Hero text and button** (HOME-04, HOME-05): keep the Android design or match iOS.
+5. **Search results** (SEARCH-01): sectioned rows, or the iOS poster grid.
+6. **Swipe to pin** (DETAIL-10): add the iOS swipe, or leave Pin in the menu.
+7. **Safe area on phone** (HOME-19): leave the v1 form, or let the hero run under the status bar as iOS does.
+8. **Simkl link wording** (PROF-03).
+9. **MDBList** (T9-b and T9-c): key typing refreshes Home on every key press (plan T9-b). The picker also appears on desktop (T9-c). Keep both, or change them.
+10. **Dynamic Type** (SHELL-04): is the system font scale enough?
+11. **Backup as a file** (SET-01): add the Storage Access Framework launchers. This is a platform API, so it needs no new library. Until it lands, the plan's T9 user note cannot be followed as written.
+
+## 6. Not compared
+
+- Visual detail beyond what is listed: colours, shadows, glass material, animation timing.
+- Player: the subtitle styling, the track, speed and source panels, the seek bar gestures (PLAYER-10), and the source sheet beyond Pin and the P2P label.
+- Explore and Library: the sort and filter layout (EXPLORE-04), section collapsing, and the catalogue grid details.
+- Onboarding visuals (ONB-01 covers the step list only).
+- Downloads: the per-show "Delete N Episodes" action (`DownloadsView.swift:179-188`).
+- The ambient colour wash behind Home and Detail.
+- Desktop-only layout (sidebar, wide hero panel, collapsing split) beyond the items named above.
+- Anything measured on a screen. Every number here is from code.
+
+## 7. Notes on the repo record
+
+- **P6 in PROGRESS.md is behind the code.** Picture in Picture is wired in `MainActivity.kt` (lines 55 to 136), but P6 is still unchecked and says "Batch 3". Reconcile when P6 is picked up (PLAYER-07).
+- **Five temporary log lines are still in.** See HOME-26. They print on desktop as well as Android.
+- **The T9 user note does not match the code.** `FIX_PLAN.md`, T9, says that importing a desktop backup on Android works from Settings. Android has only the clipboard (SET-01). The owner should decide whether to add the file route, or to change the note.
+- **Two plan copies.** The uploaded `ANDROID_FIX_PLAN_1_.md` is an older copy. This audit used `docs/android/FIX_PLAN.md` from the T3 tree, which has Revisions 2 and 3.
+- **BLOCKERS.md.** B1 is marked RESOLVED. B2 (the Android SDK for `:shared`) is still open.
+
+## Reproduce
+
+Line numbers are from the T3 tree (`media-beta-main`) and from `Pear.-main`, as supplied. Each row names the string or
+constant it refers to. Find it with `grep -n` in the file named, on the same tree.

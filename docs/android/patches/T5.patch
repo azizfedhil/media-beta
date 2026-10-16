@@ -1,0 +1,288 @@
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerLogic.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerLogic.kt
+@@ -4,6 +4,7 @@
+ import com.mediahub.pear.history.Fmt
+ import com.mediahub.pear.player.PlaybackState
+ import kotlin.math.abs
++import kotlin.math.max
+ import kotlin.math.roundToLong
+ 
+ // Pure rules behind the player overlay (Batch 4.3a). No Compose in here, so they are unit tested.
+@@ -159,6 +160,46 @@
+     val availableWidthDp: Float = Float.MAX_VALUE,
+ )
+ 
++/** System areas the player's controls must stay clear of, in dp of the window. Zero on desktop. */
++data class PlayerInsets(val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f)
++
++/** Where the controls sit: the distance from each edge of the window, in the player's scaled dp. */
++data class PlayerMargins(val start: Float, val end: Float, val top: Float, val bottom: Float)
++
++// Touch margins: a finger needs room, and the system areas must stay clear. Tune on a device.
++private const val TOUCH_MIN_SIDE_DP = 48f
++private const val TOUCH_MIN_TOP_DP = 24f
++private const val TOUCH_MIN_BOTTOM_DP = 28f
++private const val TOUCH_INSET_SIDE_DP = 24f
++private const val TOUCH_INSET_TOP_DP = 12f
++private const val TOUCH_INSET_BOTTOM_DP = 16f
++
++/** The desktop top margin: the controls have always sat 16 dp from the top. */
++private const val TOP_MARGIN_DP = 16f
++
++/**
++ * The controls' margins. Without touch they are the desktop values. With touch they are never less than the minimums and
++ * always clear of [insets]. The insets are in window dp, so they are divided by the player's scale first, because the
++ * overlay draws in a scaled density.
++ */
++fun playerMargins(metrics: PlayerMetrics, insets: PlayerInsets, touch: Boolean): PlayerMargins {
++    if (!touch) {
++        return PlayerMargins(
++            start = metrics.sideMarginDp,
++            end = metrics.sideMarginDp,
++            top = TOP_MARGIN_DP,
++            bottom = metrics.bottomMarginDp,
++        )
++    }
++    val s = metrics.scale
++    return PlayerMargins(
++        start = max(TOUCH_MIN_SIDE_DP, insets.left / s + TOUCH_INSET_SIDE_DP),
++        end = max(TOUCH_MIN_SIDE_DP, insets.right / s + TOUCH_INSET_SIDE_DP),
++        top = max(TOUCH_MIN_TOP_DP, insets.top / s + TOUCH_INSET_TOP_DP),
++        bottom = max(TOUCH_MIN_BOTTOM_DP, insets.bottom / s + TOUCH_INSET_BOTTOM_DP),
++    )
++}
++
+ /**
+  * At and above this shorter side (dp) the controls are the desktop look. A 1080p fullscreen window is 1080, 864, 720 or 540 dp
+  * tall at 100%, 125%, 150% or 200% scaling: all of those are desktop.
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerOverlay.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerOverlay.kt
+@@ -14,6 +14,7 @@
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxScope
+ import androidx.compose.foundation.layout.BoxWithConstraints
++import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+@@ -125,6 +126,33 @@
+  */
+ internal val PlayerMetrics.panelClearance: Dp get() = bottomMargin + 104.dp
+ 
++/**
++ * The system areas (notch, rounded corners, gesture bar) the controls keep clear of, in dp. The host provides them: the
++ * Android activity does so in full screen. Zero everywhere else, which keeps desktop unchanged.
++ */
++val LocalPlayerInsets = compositionLocalOf { PlayerInsets() }
++
++/** The controls' margins for this window: set by [PlayerOverlay] from the metrics, the insets and the input. */
++internal val LocalPlayerMargins = compositionLocalOf { playerMargins(playerMetrics(PLAYER_DESKTOP_SHORT_SIDE), PlayerInsets(), touch = false) }
++
++/** How far the controls rise above the bottom edge: the margin, plus the controls' height (the pill and the seek bar). */
++internal val PlayerMargins.panelClearance: Dp get() = bottom.dp + 104.dp
++
++/**
++ * Padding for the full-height side panels (the source and track panels): their usual 10 dp inset, plus the system areas at
++ * those edges. On desktop there are none, so it is the usual 10 dp.
++ */
++@Composable
++internal fun sidePanelPadding(): PaddingValues {
++    val insets = LocalPlayerInsets.current
++    val scale = LocalPlayerMetrics.current.scale
++    return PaddingValues(
++        top = (10f + insets.top / scale).dp,
++        bottom = (10f + insets.bottom / scale).dp,
++        end = (10f + insets.right / scale).dp,
++    )
++}
++
+ @Composable
+ fun PlayerOverlay(
+     engine: PlayerEngine,
+@@ -295,10 +323,11 @@
+         // desktop look, which is the reference for this player. The video behind the controls is never scaled.
+         BoxWithConstraints(Modifier.fillMaxSize()) {
+             val fitted = playerMetrics(minOf(maxWidth, maxHeight).value)
+-            val metrics = fitted.copy(availableWidthDp = maxWidth.value / fitted.scale - 2f * fitted.sideMarginDp)
++            val margins = playerMargins(fitted, LocalPlayerInsets.current, PlatformCaps.isTouchFirst)
++            val metrics = fitted.copy(availableWidthDp = maxWidth.value / fitted.scale - (margins.start + margins.end))
+             val base = LocalDensity.current
+             val scaled = Density(base.density * metrics.scale, base.fontScale * metrics.scale)
+-            CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled, LocalPlayerMetrics provides metrics) {
++            CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled, LocalPlayerMetrics provides metrics, LocalPlayerMargins provides margins) {
+                 // Click and double-click on the picture. The controls and panels sit above and take their own clicks.
+                 Box(
+                     Modifier.fillMaxSize().pointerInput(Unit) {
+@@ -398,7 +427,7 @@
+     }
+     PlayerCircleButton(
+         "xmark", size = 42.dp, icon = 16.dp, onClick = onClose,
+-        modifier = Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMetrics.current.sideMargin, top = 16.dp),
++        modifier = Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMargins.current.start.dp, top = LocalPlayerMargins.current.top.dp),
+         contentDescription = "Close",
+     )
+ }
+@@ -429,7 +458,7 @@
+             Box(Modifier.fillMaxWidth().height(260.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
+         }
+ 
+-        Box(Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMetrics.current.sideMargin, top = 16.dp).hoverFlag(overTop)) {
++        Box(Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMargins.current.start.dp, top = LocalPlayerMargins.current.top.dp).hoverFlag(overTop)) {
+             PlayerCircleButton("xmark", size = 42.dp, icon = 16.dp, onClick = onClose, contentDescription = "Close")
+         }
+ 
+@@ -446,7 +475,7 @@
+                 trailing = trailing,
+                 onScrubbing = onScrubbing,
+                 openedAt = openedAt,
+-                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = LocalPlayerMetrics.current.sideMargin).padding(bottom = LocalPlayerMetrics.current.bottomMargin).hoverFlag(overBottom),
++                modifier = Modifier.align(Alignment.BottomCenter).padding(start = LocalPlayerMargins.current.start.dp, end = LocalPlayerMargins.current.end.dp).padding(bottom = LocalPlayerMargins.current.bottom.dp).hoverFlag(overBottom),
+             )
+         }
+     }
+@@ -585,7 +614,7 @@
+     LaunchedEffect(message) { if (message != null) shown = message }
+     AnimatedVisibility(
+         visible = message != null,
+-        modifier = Modifier.align(Alignment.TopCenter).padding(top = 18.dp),
++        modifier = Modifier.align(Alignment.TopCenter).padding(top = LocalPlayerMargins.current.top.dp + 2.dp),
+         enter = fadeIn(tween(PearMotion.BASE)),
+         exit = fadeOut(tween(PearMotion.BASE)),
+     ) {
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerPanels.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerPanels.kt
+@@ -52,7 +52,7 @@
+ @Composable
+ internal fun SpeedPanel(engine: PlayerEngine, onClose: () -> Unit, modifier: Modifier = Modifier) {
+     val rate by engine.playbackRate.collectAsState()
+-    Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
++    Box(modifier.fillMaxSize().padding(end = LocalPlayerMargins.current.end.dp, bottom = LocalPlayerMargins.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
+         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp), SurfaceKind.Card) {
+             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+@@ -115,7 +115,7 @@
+     val shown = sourceGroupsShown(groups, selectedAddonID)
+     var menuOpen by remember { mutableStateOf(false) }
+ 
+-    BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
++    BoxWithConstraints(modifier.fillMaxSize().padding(sidePanelPadding()), contentAlignment = Alignment.CenterEnd) {
+         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp).heightIn(max = maxHeight), SurfaceKind.Card) {
+             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+@@ -306,7 +306,7 @@
+     onClose: () -> Unit,
+     modifier: Modifier = Modifier,
+ ) {
+-    Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
++    Box(modifier.fillMaxSize().padding(end = LocalPlayerMargins.current.end.dp, bottom = LocalPlayerMargins.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
+         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(300f).dp), SurfaceKind.Card) {
+             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/TrackPanels.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/TrackPanels.kt
+@@ -78,7 +78,7 @@
+     onStyle: (SubtitleStyle) -> Unit = {},
+ ) {
+     var section by remember { mutableStateOf(SubtitleSection.Tracks) }
+-    BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
++    BoxWithConstraints(modifier.fillMaxSize().padding(sidePanelPadding()), contentAlignment = Alignment.CenterEnd) {
+         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(340f).dp).heightIn(max = maxHeight), SurfaceKind.Card) {
+             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                 PanelHeader("Subtitles", onClose)
+@@ -163,7 +163,7 @@
+     onClose: () -> Unit,
+     modifier: Modifier = Modifier,
+ ) {
+-    Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
++    Box(modifier.fillMaxSize().padding(end = LocalPlayerMargins.current.end.dp, bottom = LocalPlayerMargins.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
+         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp), SurfaceKind.Card) {
+             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                 PanelHeader("Audio", onClose)
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/SkipOverlay.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/SkipOverlay.kt
+@@ -101,7 +101,12 @@
+         animationSpec = PearMotion.snappy<Dp>(PearMotion.BASE),
+     )
+ 
+-    Box(Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = bottom)) {
++    val margins = LocalPlayerMargins.current
++    val metrics = LocalPlayerMetrics.current
++    // The controls rise and move in by their extra margin on touch; the button moves by the same amount, so it keeps its place.
++    val lift = (margins.bottom - metrics.bottomMarginDp).dp
++    val inward = (margins.end - metrics.sideMarginDp).dp
++    Box(Modifier.align(Alignment.BottomEnd).padding(end = 28.dp + inward, bottom = bottom + lift)) {
+         AnimatedVisibility(
+             visible = choice != null,
+             enter = slideInHorizontally(initialOffsetX = { it / 2 }) + fadeIn(),
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/SubtitleLine.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/SubtitleLine.kt
+@@ -102,7 +102,7 @@
+ internal fun SubtitleLayer(text: String?, style: SubtitleStyle, controlsShown: Boolean) {
+     if (text.isNullOrBlank()) return
+     // Controls lift the line above them (iOS: `lift: showControls ? 112 : 0`); here the lift is the controls' real height.
+-    val lift = if (controlsShown) LocalPlayerMetrics.current.panelClearance else 0.dp
++    val lift = if (controlsShown) LocalPlayerMargins.current.panelClearance else 0.dp
+     BoxWithConstraints(
+         Modifier.fillMaxSize().padding(bottom = style.bottom.toFloat().dp + lift),
+         contentAlignment = Alignment.BottomCenter,
+--- a/androidApp/src/main/kotlin/com/mediahub/pear/android/MainActivity.kt
++++ b/androidApp/src/main/kotlin/com/mediahub/pear/android/MainActivity.kt
+@@ -16,11 +16,18 @@
+ import androidx.activity.enableEdgeToEdge
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.WindowInsets
++import androidx.compose.foundation.layout.displayCutout
++import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
++import androidx.compose.foundation.layout.systemGestures
++import androidx.compose.foundation.layout.union
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.safeDrawing
+ import androidx.compose.foundation.layout.windowInsetsPadding
+ import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.unit.LayoutDirection
+ import androidx.core.content.ContextCompat
+ import com.mediahub.pear.App
+ import com.mediahub.pear.AndroidHost
+@@ -28,6 +35,8 @@
+ import com.mediahub.pear.glass.PowerStatus
+ import com.mediahub.pear.net.androidNetwork
+ import com.mediahub.pear.player.PipState
++import com.mediahub.pear.player.ui.LocalPlayerInsets
++import com.mediahub.pear.player.ui.PlayerInsets
+ import com.mediahub.pear.shell.AppExit
+ import com.mediahub.pear.shell.AppLifecycle
+ import com.mediahub.pear.shell.WindowMode
+@@ -53,8 +62,28 @@
+             // The status and navigation bars stay clear of the app, except while the player is full screen.
+             val fullscreen = control.mode == WindowMode.Fullscreen
+             val safe = if (fullscreen) Modifier else Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+-            Box(Modifier.fillMaxSize().then(safe)) {
+-                App(windowControl = control, devTools = isDebuggable(), storage = storage, network = network)
++            // Full screen the video is edge to edge, but the player's controls must clear the notch, the rounded corners and
++            // the gesture bar. Outside full screen the app is already padded by safeDrawing, so none are passed on.
++            val density = LocalDensity.current
++            // VERIFY: these WindowInsets members and union need the imports above; confirm on the first build.
++            // The bars are hidden in full screen, so the plain sets would read zero: the ...IgnoringVisibility set is needed.
++            val systemAreas = WindowInsets.displayCutout
++                .union(WindowInsets.systemBarsIgnoringVisibility)
++                .union(WindowInsets.systemGestures)
++            val playerInsets = if (fullscreen) {
++                PlayerInsets(
++                    left = systemAreas.getLeft(density, LayoutDirection.Ltr) / density.density,
++                    top = systemAreas.getTop(density) / density.density,
++                    right = systemAreas.getRight(density, LayoutDirection.Ltr) / density.density,
++                    bottom = systemAreas.getBottom(density) / density.density,
++                )
++            } else {
++                PlayerInsets()
++            }
++            CompositionLocalProvider(LocalPlayerInsets provides playerInsets) {
++                Box(Modifier.fillMaxSize().then(safe)) {
++                    App(windowControl = control, devTools = isDebuggable(), storage = storage, network = network)
++                }
+             }
+         }
+     }
