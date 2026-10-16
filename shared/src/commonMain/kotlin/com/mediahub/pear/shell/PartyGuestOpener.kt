@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.party.PartyPick
 import com.mediahub.pear.party.PartyRole
 import com.mediahub.pear.party.PartySourcePicker
@@ -38,11 +39,13 @@ fun PartyGuestOpener(shell: ShellState) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            PearLog.w("Party", "looking for the room's source failed: ${e::class.simpleName}")
             PartyPick.Missing("Something went wrong looking for it.")
         }
         when (pick) {
             is PartyPick.Found -> shell.currentNav().push(Route.Player(pick.request))
             is PartyPick.Missing -> {
+                PearLog.i("Party", "the room's source is not on this device: ${pick.reason}")
                 party.client.ready(false)
                 shell.currentNav().push(Route.Detail(source.toMetaPreview(), source.season, source.episode))
             }

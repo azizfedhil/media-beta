@@ -1,5 +1,6 @@
 package com.mediahub.pear.cloud
 
+import com.mediahub.pear.log.PearLog
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.jvm.Volatile
 import kotlinx.coroutines.CompletableDeferred
@@ -53,9 +54,12 @@ class OkHttpPartySocket(private val client: OkHttpClient) : PartySocket {
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     val message = t.message ?: "The connection failed."
                     if (!opened.isCompleted) {
-                        // Never opened: the caller of connect() gets the error.
+                        // Never opened: the caller of connect() gets the error. The HTTP status, when the server answered, says
+                        // why: 404 is a room that does not exist, 403 a locked or full room, 503 a quota or an outage.
+                        PearLog.w("Party", "could not open the party connection (HTTP ${response?.code ?: "none"}): ${t::class.simpleName}: $message")
                         opened.completeExceptionally(CloudError.Network(message, t))
                     } else {
+                        PearLog.w("Party", "party connection failed after it opened: ${t::class.simpleName}: $message")
                         events.trySend(SocketEvent.Failed(message))
                     }
                     events.close()

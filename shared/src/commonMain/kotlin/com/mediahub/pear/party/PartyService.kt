@@ -5,6 +5,7 @@ import com.mediahub.pear.cloud.CloudConfig
 import com.mediahub.pear.cloud.CloudError
 import com.mediahub.pear.cloud.PartySocket
 import com.mediahub.pear.cloud.newPartySocket
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.net.Http
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +50,7 @@ class PartyService(
 
     /** Makes a room with this device as its host, and joins it. Returns the code to share. Throws [CloudError]. */
     suspend fun startParty(hostName: String): String {
+        PearLog.i("Party", "starting a party as host")
         val created = client.createRoom(hostName)
         watchLink()
         client.connect(created.code, PartyIdentity.Host(created.memberId, created.hostToken))
@@ -63,11 +65,12 @@ class PartyService(
      */
     suspend fun joinParty(code: String, name: String) {
         val clean = code.uppercase().filter { it in 'A'..'Z' || it in '0'..'9' }
-        if (clean.length != PARTY_CODE_LENGTH) throw CloudError.Rejected(400, "bad_code", "Enter the 6-character code.")
+        if (clean.length != PARTY_CODE_LENGTH) refuse(400, "bad_code", "Enter the 6-character code.")
         val info = client.roomInfo(clean)
-        if (!info.exists) throw CloudError.Rejected(404, "not_found", "No party has that code.")
-        if (info.locked) throw CloudError.Rejected(403, "locked", "That party is locked.")
-        if (info.full) throw CloudError.Rejected(403, "full", "That party is full.")
+        if (!info.exists) refuse(404, "not_found", "No party has that code.")
+        if (info.locked) refuse(403, "locked", "That party is locked.")
+        if (info.full) refuse(403, "full", "That party is full.")
+        PearLog.i("Party", "joining as a guest")
         watchLink()
         client.connect(clean, PartyIdentity.NewGuest(name))
         mutableCode.value = clean
@@ -89,8 +92,18 @@ class PartyService(
 
     /** A guest suggests [item] to the room. False when the title has no IMDb id the room can name, or the socket is closed. */
     fun suggest(item: MetaPreview): Boolean {
-        val source = item.toPartySource() ?: return false
+        val source = item.toPartySource()
+        if (source == null) {
+            PearLog.w("Party", "suggestion skipped: '${item.id}' has no IMDb id, so the room cannot name it")
+            return false
+        }
         return client.suggest(source)
+    }
+
+    /** Logs why a join was refused before it reached the room, then throws the refusal. */
+    private fun refuse(status: Int, code: String, message: String): Nothing {
+        PearLog.w("Party", "join refused before connecting: $code")
+        throw CloudError.Rejected(status, code, message)
     }
 
     /** Once a room has started, a link that closes for good (ended, kicked, locked, quota...) means this device is out of it. */

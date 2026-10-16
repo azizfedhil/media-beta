@@ -5,9 +5,11 @@ import com.mediahub.pear.cloud.CloudError
 import com.mediahub.pear.cloud.PartySocket
 import com.mediahub.pear.cloud.SocketEvent
 import com.mediahub.pear.epochMillis
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.jBool
 import com.mediahub.pear.model.jInt
 import com.mediahub.pear.model.jStr
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -128,8 +130,18 @@ class PartyClient(
         connectFailures = 0
         session.clear()
         // Shown at once, so an observer never reads the previous room's closed state as this one's (see PartyService).
-        mutableLink.value = PartyLink(PartyPhase.Connecting)
-        loop = scope.launch { runLoop(room) }
+        setLink(PartyLink(PartyPhase.Connecting))
+        PearLog.i("Party", "connecting as ${who::class.simpleName}")
+        loop = scope.launch {
+            try {
+                runLoop(room)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PearLog.e("Party", "the connection loop stopped on an unexpected error: ${e::class.simpleName}", e)
+                throw e
+            }
+        }
     }
 
     /**
@@ -148,24 +160,42 @@ class PartyClient(
         socket = null
         identity = null
         session.clear()
-        mutableLink.value = PartyLink(PartyPhase.Idle)
+        setLink(PartyLink(PartyPhase.Idle))
+    }
+
+    /**
+     * Sets the link and logs every change of phase or detail, so the connection's history is in the log. A closed link is
+     * logged as a warning.
+     */
+    private fun setLink(link: PartyLink) {
+        val before = mutableLink.value
+        mutableLink.value = link
+        if (before == link) return
+        val detail = link.detail?.let { ": $it" } ?: ""
+        val line = "link ${before.phase} -> ${link.phase}$detail"
+        if (link.phase == PartyPhase.Closed) PearLog.w("Party", line) else PearLog.i("Party", line)
     }
 
     private suspend fun runLoop(room: String) {
         var retries = 0
         while (!stopping) {
-            mutableLink.value = PartyLink(if (retries == 0) PartyPhase.Connecting else PartyPhase.Reconnecting)
+            setLink(PartyLink(if (retries == 0) PartyPhase.Connecting else PartyPhase.Reconnecting))
             when (val outcome = runOnce(room)) {
                 is Outcome.Terminal -> {
-                    if (!stopping) mutableLink.value = PartyLink(PartyPhase.Closed, outcome.reason)
+                    if (!stopping) {
+                        PearLog.w("Party", "the party is over for this device: ${outcome.reason}")
+                        setLink(PartyLink(PartyPhase.Closed, outcome.reason))
+                    }
                     return
                 }
                 is Outcome.Retry -> {
                     // A session that had joined starts the schedule again from the first step.
                     retries = if (outcome.joined) 1 else retries + 1
                     if (stopping) return
-                    mutableLink.value = PartyLink(PartyPhase.Reconnecting, outcome.detail)
-                    delay(backoffMillis(retries))
+                    val wait = backoffMillis(retries)
+                    PearLog.w("Party", "retry $retries in ${wait / 1000}s: ${outcome.detail ?: "no reason given"}")
+                    setLink(PartyLink(PartyPhase.Reconnecting, outcome.detail))
+                    delay(wait)
                 }
             }
         }
@@ -191,7 +221,7 @@ class PartyClient(
                 if (connectFailures >= 2 && roomGone(room)) return Outcome.Terminal("not_found")
                 return Outcome.Retry(joined = false, detail = e.message)
             }
-            s.send(encodeOutbound(helloMessage()))
+            if (!s.send(encodeOutbound(helloMessage()))) PearLog.w("Party", "hello was not sent: the socket was not open")
             s.incoming
                 .transformWhile { ev ->
                     emit(ev)
@@ -211,17 +241,21 @@ class PartyClient(
                             is PongMsg -> clockSync.addPong(msg.c, msg.s, clock())
                             is ClosedMsg -> {
                                 closedBy = msg.reason
+                                PearLog.i("Party", "the room closed the party: ${msg.reason.ifBlank { "no reason" }}")
                                 session.receive(msg)
                             }
                             is ErrorMsg -> {
                                 if (msg.code == "replaced") replaced = true
+                                PearLog.w("Party", "the room refused: ${msg.code.ifBlank { "no code" }}")
                                 session.receive(msg)
                             }
+                            is UnknownMsg -> PearLog.i("Party", "ignored a '${msg.type.take(32)}' message this version does not use")
                             else -> session.receive(msg)
                         }
                         is SocketEvent.Closed -> {
                             closeCode = ev.code
                             closeReason = ev.reason
+                            PearLog.i("Party", "socket closed with code ${ev.code}${if (ev.reason.isBlank()) "" else " (${ev.reason})"}")
                         }
                         is SocketEvent.Failed -> {
                             failed = ev.message
@@ -248,8 +282,11 @@ class PartyClient(
         if (token != null && msg.memberId.isNotEmpty()) {
             identity = PartyIdentity.Returning(msg.memberId, token)
             onGuestToken(msg.memberId, token)
+            PearLog.i("Party", "the room gave this guest a token to keep") // the value is never logged
         }
-        mutableLink.value = PartyLink(PartyPhase.Joined)
+        val members = msg.snapshot?.members?.size ?: 0
+        PearLog.i("Party", "joined as ${msg.role.ifBlank { "unknown role" }}, $members member(s) in the room")
+        setLink(PartyLink(PartyPhase.Joined))
     }
 
     private fun helloMessage(): Hello = when (val who = identity) {
@@ -276,8 +313,10 @@ class PartyClient(
         roomInfo(room)
         false
     } catch (e: CloudError.Rejected) {
+        if (e.code == "not_found") PearLog.w("Party", "the room answered not_found: it is gone")
         e.code == "not_found"
     } catch (e: CloudError) {
+        PearLog.w("Party", "could not ask whether the room still exists: ${e::class.simpleName}")
         false
     }
 
@@ -290,7 +329,11 @@ class PartyClient(
 
     // MARK: Commands. Each returns whether the socket took the frame (false when it is not open).
 
-    private inline fun <reified T> sendMessage(message: T): Boolean = socket?.send(encodeOutbound(message)) ?: false
+    private inline fun <reified T : Any> sendMessage(message: T): Boolean {
+        val sent = socket?.send(encodeOutbound(message)) ?: false
+        if (!sent) PearLog.w("Party", "${T::class.simpleName} was not sent: the party connection is not open")
+        return sent
+    }
 
     // Host
     fun load(source: PartySource, pos: Double? = null): Boolean =

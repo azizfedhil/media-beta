@@ -1,6 +1,7 @@
 package com.mediahub.pear.cloud
 
 import com.mediahub.pear.data.PearJson
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.jStr
 import com.mediahub.pear.net.BadUrlException
 import com.mediahub.pear.net.Http
@@ -49,25 +50,38 @@ class CloudApi(
                 ),
             )
         } catch (e: NetworkException) {
+            // Its message can hold the request's URL, and the URL of a room call has the room code in it: log the kind only.
+            PearLog.w("Cloud", "$method ${logPath(path)} got no answer: ${e.cause?.let { it::class.simpleName } ?: "unknown cause"}")
             throw CloudError.Network(e.message ?: "No answer from the server.", e)
         } catch (e: BadUrlException) {
+            PearLog.w("Cloud", "$method ${logPath(path)} not sent: the cloud address is not valid")
             throw CloudError.Network("The cloud address is not valid.", e)
         }
-        if (reply.status !in 200..299) throw failure(reply)
-        return success(reply)
+        if (reply.status !in 200..299) throw failure(reply, method, path)
+        return success(reply, method, path)
     }
 
-    private fun success(reply: HttpReply): JsonObject {
+    private fun success(reply: HttpReply, method: String, path: String): JsonObject {
         val parsed = try {
             PearJson.parseToJsonElement(reply.text)
         } catch (e: Exception) {
+            PearLog.w("Cloud", "$method ${logPath(path)} answered HTTP ${reply.status}, but the answer is not JSON")
             throw CloudError.BadResponse("The server's answer is not JSON.")
         }
-        return parsed as? JsonObject ?: throw CloudError.BadResponse("The server's answer is not a JSON object.")
+        val obj = parsed as? JsonObject
+        if (obj == null) {
+            PearLog.w("Cloud", "$method ${logPath(path)} answered HTTP ${reply.status}, but the answer is not a JSON object")
+            throw CloudError.BadResponse("The server's answer is not a JSON object.")
+        }
+        return obj
     }
 
-    private fun failure(reply: HttpReply): CloudError {
+    /** The route for a log line. Room codes are cut out: a code is what lets someone join a party. */
+    private fun logPath(path: String): String = path.replace(Regex("(/rooms/)[^/?]+"), "\$1{code}")
+
+    private fun failure(reply: HttpReply, method: String, path: String): CloudError {
         val error = errorFields(reply)
+        PearLog.w("Cloud", "$method ${logPath(path)} -> HTTP ${reply.status} ${error.code.ifBlank { "no error code" }}")
         return when {
             reply.status == 503 && error.code == "quota" -> CloudError.Quota(error.message)
             reply.status >= 500 -> CloudError.Server(reply.status, error.code, error.message)

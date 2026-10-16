@@ -1,6 +1,7 @@
 package com.mediahub.pear.party
 
 import com.mediahub.pear.data.PearJson
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.jStr
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -115,11 +116,27 @@ data class PongMsg(val c: Long = 0, val s: Long = 0) : PartyIncoming
 /** A message type this app does not know. It is dropped, not an error. */
 class UnknownMsg(val type: String) : PartyIncoming
 
-/** Reads one text frame from the room. Null when it is not a JSON object with a `t`, or when it cannot be read. */
+/**
+ * Reads one text frame from the room. Null when it is not a JSON object with a `t`, or when its fields do not decode. Each
+ * drop is logged with its reason, never with the frame: a `welcome` carries a guest's token.
+ */
 fun parsePartyMessage(text: String): PartyIncoming? {
-    val obj = runCatching { PearJson.parseToJsonElement(text) as? JsonObject }.getOrNull() ?: return null
-    val type = obj["t"].jStr() ?: return null
-    return runCatching { decodeInbound(type, obj) }.getOrNull()
+    val obj = runCatching { PearJson.parseToJsonElement(text) as? JsonObject }.getOrNull()
+    if (obj == null) {
+        PearLog.w("Party", "dropped a frame that is not a JSON object (${text.length} characters)")
+        return null
+    }
+    val type = obj["t"].jStr()
+    if (type == null) {
+        PearLog.w("Party", "dropped a JSON frame with no message type")
+        return null
+    }
+    return try {
+        decodeInbound(type, obj)
+    } catch (e: Exception) {
+        PearLog.w("Party", "dropped a '${type.take(32)}' message that did not decode: ${e::class.simpleName}")
+        null
+    }
 }
 
 private fun decodeInbound(type: String, obj: JsonObject): PartyIncoming = when (type) {

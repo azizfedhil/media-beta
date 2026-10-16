@@ -522,6 +522,7 @@ fun PlayerScreen(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            PearLog.w("Party", "looking for the room's source failed: ${e::class.simpleName}")
             PartyPick.Missing("Something went wrong looking for it.")
         }
         when (pick) {
@@ -537,6 +538,7 @@ fun PlayerScreen(
                 }
             }
             is PartyPick.Missing -> {
+                PearLog.i("Party", "the room's source is not on this device: ${pick.reason}")
                 // Nothing to play here: the player stops, the room sees this guest as not ready, and the line says what to do.
                 roomNote = "No source on your device. ${pick.reason} Use Sources to pick one."
                 engine.pause()

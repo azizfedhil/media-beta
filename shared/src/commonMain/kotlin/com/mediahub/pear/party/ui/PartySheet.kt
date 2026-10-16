@@ -33,6 +33,7 @@ import com.mediahub.pear.cloud.CloudError
 import com.mediahub.pear.data.DesktopClipboard
 import com.mediahub.pear.glass.ContentCard
 import com.mediahub.pear.glass.GlassButton
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.party.PARTY_CODE_LENGTH
 import com.mediahub.pear.party.PartyLink
 import com.mediahub.pear.party.PartyMember
@@ -51,6 +52,7 @@ import com.mediahub.pear.shell.TextInput
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private const val MAX_NAME = 24
@@ -113,16 +115,23 @@ private fun StartOrJoin() {
     var busy by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
 
-    // One attempt at a time. A failure is shown in words, never as a stack or a token.
-    fun attempt(action: suspend () -> Unit) {
+    // One attempt at a time. A failure is shown in words, never as a stack or a token, and is logged with what it was.
+    fun attempt(label: String, action: suspend () -> Unit) {
         if (busy) return
         scope.launch {
             busy = true
             note = null
             try {
                 action()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: CloudError) {
-                note = partyFailureText(e)
+                val text = partyFailureText(e)
+                PearLog.w("Party", "$label failed: ${e::class.simpleName}: $text")
+                note = text
+            } catch (e: Exception) {
+                PearLog.e("Party", "$label failed unexpectedly: ${e::class.simpleName}", e)
+                note = "Something went wrong. Check pear.log for details."
             } finally {
                 busy = false
             }
@@ -143,7 +152,7 @@ private fun StartOrJoin() {
         )
         PearCapsuleButton(
             label = if (busy) "Starting…" else "Start a party",
-            onClick = { attempt { party.startParty(displayName) } },
+            onClick = { attempt("Start a party") { party.startParty(displayName) } },
             style = PearButtonStyle.Accent,
         )
     }
@@ -155,7 +164,7 @@ private fun StartOrJoin() {
             label = "Join",
             onClick = {
                 if (codeText.length == PARTY_CODE_LENGTH) {
-                    attempt { party.joinParty(codeText, displayName) }
+                    attempt("Join a party") { party.joinParty(codeText, displayName) }
                 } else {
                     note = "Enter the 6-character code."
                 }

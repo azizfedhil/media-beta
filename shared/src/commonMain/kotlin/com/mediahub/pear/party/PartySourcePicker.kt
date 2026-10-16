@@ -2,6 +2,7 @@ package com.mediahub.pear.party
 
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.addons.Pin
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.model.StreamItem
@@ -89,7 +90,10 @@ object PartySourcePicker {
         pin: Pin?,
         p2pOff: String?,
     ): PartyPick {
-        if (addons.isEmpty()) return PartyPick.Missing("No add-ons are turned on.")
+        if (addons.isEmpty()) {
+            PearLog.i("Party", "no add-ons are on here, so the room's source cannot be looked up")
+            return PartyPick.Missing("No add-ons are turned on.")
+        }
         val series = source.season != null && source.episode != null
         val lookup = if (series) "${source.imdb}:${source.season}:${source.episode}" else source.imdb
         val groups = try {
@@ -97,18 +101,25 @@ object PartySourcePicker {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            PearLog.w("Party", "the add-ons did not answer the lookup for ${source.imdb}: ${e::class.simpleName}")
             return PartyPick.Missing("Your add-ons didn't answer.")
         }
 
         val picked = choose(source, groups, pin, p2pOff)
-            ?: return PartyPick.Missing(
+        if (picked == null) {
+            PearLog.i("Party", "no stream on this device matches the room's source ${source.imdb}")
+            return PartyPick.Missing(
                 if (source.p2pHash != null && p2pOff != null) p2pOff + " None of your add-ons has a link for this."
                 else "None of your add-ons has a stream for this.",
             )
+        }
         val (chosen, match) = picked
         val (addon, stream) = chosen
         val url = stream.url ?: stream.p2pSource()?.let { "p2p://${it.infoHash}" }
-            ?: return PartyPick.Missing("That stream can't be played here.")
+        if (url == null) {
+            PearLog.w("Party", "the matching stream for ${source.imdb} has no link or torrent to play")
+            return PartyPick.Missing("That stream can't be played here.")
+        }
 
         val request = PlayRequest(
             url = url,
