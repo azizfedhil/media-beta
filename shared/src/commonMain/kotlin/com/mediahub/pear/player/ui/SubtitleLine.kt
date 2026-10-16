@@ -102,7 +102,7 @@ internal fun SubtitleLine(text: String, style: SubtitleStyle, modifier: Modifier
 internal fun SubtitleLayer(text: String?, style: SubtitleStyle, controlsShown: Boolean) {
     if (text.isNullOrBlank()) return
     // Controls lift the line above them (iOS: `lift: showControls ? 112 : 0`); here the lift is the controls' real height.
-    val lift = if (controlsShown) LocalPlayerMetrics.current.panelClearance else 0.dp
+    val lift = if (controlsShown) LocalPlayerMargins.current.panelClearance else 0.dp
     BoxWithConstraints(
         Modifier.fillMaxSize().padding(bottom = style.bottom.toFloat().dp + lift),
         contentAlignment = Alignment.BottomCenter,

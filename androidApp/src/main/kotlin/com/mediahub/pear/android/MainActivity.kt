@@ -16,18 +16,26 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.systemGestures
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.ContextCompat
 import com.mediahub.pear.App
 import com.mediahub.pear.AndroidHost
-import com.mediahub.pear.data.androidStorage
 import com.mediahub.pear.glass.PowerStatus
 import com.mediahub.pear.net.androidNetwork
 import com.mediahub.pear.player.PipState
+import com.mediahub.pear.player.ui.LocalPlayerInsets
+import com.mediahub.pear.player.ui.PlayerInsets
 import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.AppLifecycle
 import com.mediahub.pear.shell.WindowMode
@@ -35,7 +43,8 @@ import java.lang.ref.WeakReference
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
-    private val storage by lazy { androidStorage(this) }
+    // Held by the application, so a recreated activity uses the same store (see PearApplication.storage).
+    private val storage get() = (application as PearApplication).storage
     private val network by lazy { androidNetwork() }
     private val control by lazy { AndroidWindowControl(this) }
     private var powerReceiver: BroadcastReceiver? = null
@@ -53,8 +62,28 @@ class MainActivity : ComponentActivity() {
             // The status and navigation bars stay clear of the app, except while the player is full screen.
             val fullscreen = control.mode == WindowMode.Fullscreen
             val safe = if (fullscreen) Modifier else Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
-            Box(Modifier.fillMaxSize().then(safe)) {
-                App(windowControl = control, devTools = isDebuggable(), storage = storage, network = network)
+            // Full screen the video is edge to edge, but the player's controls must clear the notch, the rounded corners and
+            // the gesture bar. Outside full screen the app is already padded by safeDrawing, so none are passed on.
+            val density = LocalDensity.current
+            // VERIFY: these WindowInsets members and union need the imports above; confirm on the first build.
+            // The bars are hidden in full screen, so the plain sets would read zero: the ...IgnoringVisibility set is needed.
+            val systemAreas = WindowInsets.displayCutout
+                .union(WindowInsets.systemBarsIgnoringVisibility)
+                .union(WindowInsets.systemGestures)
+            val playerInsets = if (fullscreen) {
+                PlayerInsets(
+                    left = systemAreas.getLeft(density, LayoutDirection.Ltr) / density.density,
+                    top = systemAreas.getTop(density) / density.density,
+                    right = systemAreas.getRight(density, LayoutDirection.Ltr) / density.density,
+                    bottom = systemAreas.getBottom(density) / density.density,
+                )
+            } else {
+                PlayerInsets()
+            }
+            CompositionLocalProvider(LocalPlayerInsets provides playerInsets) {
+                Box(Modifier.fillMaxSize().then(safe)) {
+                    App(windowControl = control, devTools = isDebuggable(), storage = storage, network = network)
+                }
             }
         }
     }

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.addons.OpenSubtitlesClient
 import com.mediahub.pear.data.PrefKeys
+import com.mediahub.pear.glass.PowerStatus
 import com.mediahub.pear.history.EpisodeItem
 import com.mediahub.pear.meta.SkipSegment
 import com.mediahub.pear.model.OnlineSubtitle
@@ -130,7 +131,13 @@ fun PlayerScreen(
     }
     // Save and scrobble `stop` once. Safe to call from every way out: the close button, back, a window close, dispose.
     // Leaving the stream ends it, and the engine with it: the engine runs only for a stream the user is watching.
-    val leave = remember(progress, snapshot) { { progress.finish(nowPlaying.value, snapshot()); data.p2p.engine.requestStop() } }
+    val leave = remember(progress, snapshot) {
+        {
+            println("PEAR-CW leave snapshot=${snapshot()}") // TEMP-CW
+            progress.finish(nowPlaying.value, snapshot())
+            data.p2p.engine.requestStop()
+        }
+    }
 
     DisposableEffect(engine, leave) {
         val unregister = AppExit.register(leave) // the window's close button exits the process without disposing
@@ -152,8 +159,13 @@ fun PlayerScreen(
     }
     // Leaving the app pauses the film (Android has no background playback, decisions D6). AppLifecycle fires only when
     // no Picture in Picture window is open, so this is "pause unless PiP".
-    LaunchedEffect(engine) {
+    LaunchedEffect(engine, progress) {
         AppLifecycle.backgrounded.collect {
+            // Bank the position before the pause, with a full save, so the Continue Watching row is current (T8-b.3).
+            progress.bank(nowPlaying.value, snapshot())
+            // The activity flushes its settings when it stops, which can run before this collector. Flush again here so the
+            // banked position is on disk, not only in memory.
+            data.storage.flush()
             engine.pause()
             // iOS ends a stream that is not playing when the app goes to the background. The film is paused just above.
             data.p2p.engine.requestStop()
@@ -239,8 +251,21 @@ fun PlayerScreen(
     val glassOn = rememberPref(prefs, PrefKeys.PLAYER_GLASS) { it.bool(PrefKeys.PLAYER_GLASS, true) }
     // Glass while the video plays is on by default (the Settings switch turns it off if the machine can't keep up).
     val blurPlaying = rememberPref(prefs, PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING) { it.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true) }
-    // The video blur is off where the picture is a separate surface (PlatformCaps); the controls keep their glass look.
-    val look = playerLook(glassOn, env.glass.mode, isVideoMoving(state), blurPlaying && PlatformCaps.videoBlurSupported)
+    // Android only: the Liquid Glass switch in Settings, Playback. Off means Frosted.
+    val liquid = rememberPref(prefs, PrefKeys.ANDROID_PLAYER_LIQUID_GLASS) { it.bool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false) }
+    // Decided once when the player opens: swapping the surface type during a film would flash. Battery saver means Frosted.
+    val sampleable = remember {
+        if (PlatformCaps.hasPlayerGlassChoice) liquid && PlatformCaps.videoBlurSupported && !PowerStatus.lowBattery
+        else PlatformCaps.videoBlurSupported
+    }
+    // Where the picture cannot be sampled, glass cannot blur it: the controls get the Frosted look.
+    val look = playerLook(
+        glassOn,
+        env.glass.mode,
+        isVideoMoving(state),
+        blurWhilePlaying = if (PlatformCaps.hasPlayerGlassChoice) true else blurPlaying && PlatformCaps.videoBlurSupported,
+        videoSampleable = sampleable,
+    )
     // Picture in Picture follows the Settings switch. The platform opens the window; the player says when it may.
     val pipAllowed = rememberPref(prefs, PrefKeys.PLAYER_PIP) { it.bool(PrefKeys.PLAYER_PIP, true) }
     LaunchedEffect(state, pipAllowed) { PipState.wanted = pipAllowed && state == PlaybackState.Playing }
@@ -658,6 +683,7 @@ fun PlayerScreen(
                     engine = engine,
                     modifier = Modifier.fillMaxSize(),
                     performanceMode = performance,
+                    sampleable = sampleable,
                 )
             },
         )

@@ -52,7 +52,7 @@ import com.mediahub.pear.theme.PearMotion
 @Composable
 internal fun SpeedPanel(engine: PlayerEngine, onClose: () -> Unit, modifier: Modifier = Modifier) {
     val rate by engine.playbackRate.collectAsState()
-    Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
+    Box(modifier.fillMaxSize().padding(end = LocalPlayerMargins.current.end.dp, bottom = LocalPlayerMargins.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -115,7 +115,7 @@ internal fun SourcesPanel(
     val shown = sourceGroupsShown(groups, selectedAddonID)
     var menuOpen by remember { mutableStateOf(false) }
 
-    BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
+    BoxWithConstraints(modifier.fillMaxSize().padding(sidePanelPadding()), contentAlignment = Alignment.CenterEnd) {
         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp).heightIn(max = maxHeight), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -306,7 +306,7 @@ internal fun DisplayPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
+    Box(modifier.fillMaxSize().padding(end = LocalPlayerMargins.current.end.dp, bottom = LocalPlayerMargins.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(300f).dp), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

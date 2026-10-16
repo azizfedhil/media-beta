@@ -8,6 +8,7 @@ import com.mediahub.pear.shell.MenuAnchor
 import com.mediahub.pear.shell.clickOrMenu
 import com.mediahub.pear.shell.menuAnchor
 import com.mediahub.pear.shell.titleMenuItems
+import com.mediahub.pear.shell.PlatformCaps
 import com.mediahub.pear.shell.WideScale
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.LocalAppEnv
@@ -43,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -68,6 +70,13 @@ private sealed class ContinueCardItem(val updated: Long) {
     class InProgress(val entry: HistoryEntry) : ContinueCardItem(entry.updated)
     class Next(val item: UpNextItem) : ContinueCardItem(item.updated)
 }
+
+/** Card width in the phone layout (iOS `ContinueCard.width`). The wide layout scales it. */
+private const val CARD_WIDTH_DP = 270f
+
+/** Space between cards, and the row's margin from the screen edge (iOS `LazyHStack(spacing: 14)`, `contentMargins(16)`). */
+private val CARD_SPACING = 14.dp
+private val ROW_MARGIN = 16.dp
 
 @Composable
 fun ContinueRow(
@@ -95,7 +104,7 @@ fun ContinueRow(
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
-            Modifier.padding(horizontal = 20.dp),
+            Modifier.padding(horizontal = ROW_MARGIN),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -107,8 +116,8 @@ fun ContinueRow(
         }
 
         DragLazyRow(
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = ROW_MARGIN),
+            horizontalArrangement = Arrangement.spacedBy(CARD_SPACING),
         ) {
             items(items) { card ->
                 when (card) {
@@ -130,7 +139,11 @@ fun ContinueRow(
                                     ),
                                 )
                             },
-                            onClick = { choose(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode, e.episodeTitle, e.thumb) },
+                            onClick = {
+                                // Touch opens the title's page on this episode, as iOS does. Desktop keeps the source chooser.
+                                if (PlatformCaps.isTouchFirst) onSelectTitle(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode)
+                                else choose(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode, e.episodeTitle, e.thumb)
+                            },
                         )
                     }
                     is ContinueCardItem.Next -> {
@@ -151,7 +164,10 @@ fun ContinueRow(
                                     ),
                                 )
                             },
-                            onClick = { choose(n.item, n.season, n.episode, n.title, n.thumb) },
+                            onClick = {
+                                if (PlatformCaps.isTouchFirst) onSelectTitle(n.item, n.season, n.episode)
+                                else choose(n.item, n.season, n.episode, n.title, n.thumb)
+                            },
                         )
                     }
                 }
@@ -160,15 +176,21 @@ fun ContinueRow(
     }
 }
 
+/**
+ * A title in progress (iOS `ContinueCard`): the still with a bottom shade, the time reached as a pill, a progress bar, and
+ * the time left. It has no "Up next" badge: that is for the next episode only.
+ */
 @Composable
 private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f) {
-    val width = (260f * scale).dp
+    val width = (CARD_WIDTH_DP * scale).dp
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
     val lift by animateFloatAsState(if (hovered) 1.02f else 1f, PearMotion.press<Float>())
     // The text follows the layout, not the hover lift: 20% larger in the wide layout.
     val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
+    val left = Fmt.remaining(entry.duration - entry.position)
+    val sub = entry.seasonEpisode?.let { "S${it.season} · E${it.episode} · $left" } ?: left
 
     Column(
         Modifier.width(width)
@@ -186,30 +208,39 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
         ) {
             RemoteImage(upgradeTmdbStill(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
 
-            // UP NEXT badge on top-left (from mockup)
+            // Clear from the middle of the still to black at half strength at the bottom, so the bar and the pill read.
             Box(
-                Modifier.align(Alignment.TopStart).padding(8.dp)
+                Modifier.matchParentSize().background(
+                    Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.5f)),
+                ),
+            )
+
+            // Where playback stopped, top right (iOS: Fmt.clock of the position).
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(8.dp)
                     .clip(RoundedCornerShape(PearRadii.pill))
-                    .background(Color(0xFF8B6EF5).copy(alpha = 0.85f))
+                    .background(Color.Black.copy(alpha = 0.62f))
                     .padding(horizontal = 7.dp, vertical = 3.dp),
             ) {
-                PearText("UP NEXT", style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 8.sp), color = Color.White)
+                PearText(
+                    Fmt.clock(entry.position),
+                    style = PearTheme.type.caption.copy(fontSize = 11.sp, fontFeatureSettings = "tnum").weight(FontWeight.Bold),
+                    color = Color.White,
+                    maxLines = 1,
+                )
             }
 
-
-            // Bottom progress bar
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.25f))) {
+            // Progress along the bottom edge: 4 dp, the track white at 30%, the fill the accent gradient.
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.3f))) {
                 Box(
-                    Modifier.fillMaxHeight().fillMaxWidth(entry.progress.toFloat().coerceAtLeast(0.05f))
-                        .background(Color(0xFF8B6EF5)),
+                    Modifier.fillMaxHeight().fillMaxWidth(entry.progress.toFloat().coerceIn(0f, 1f))
+                        .background(PearTheme.colors.gradient),
                 )
             }
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
             PearText(entry.item.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold).scaledBy(text), maxLines = 1)
-            val sub = entry.seasonEpisode?.let { "S${it.season} · E${it.episode}" + (entry.episodeTitle?.let { t -> " · $t" } ?: "") }
-                ?: Fmt.remaining(entry.duration - entry.position)
             PearText(sub, style = PearTheme.type.caption.scaledBy(text), color = Color.White.copy(alpha = 0.55f), maxLines = 1)
         }
     }
@@ -217,7 +248,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
 
 @Composable
 private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f) {
-    val width = (260f * scale).dp
+    val width = (CARD_WIDTH_DP * scale).dp
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()

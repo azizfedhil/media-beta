@@ -27,12 +27,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 private const val NORMAL_MAX_PIXELS = 3840L * 2160L
 private const val PERFORMANCE_MAX_PIXELS = 1920L * 1080L
 
+/** [sampleable] is ignored: desktop frames are drawn into a Compose canvas, so glass can always sample them. */
 @Composable
 actual fun VideoSurface(
     engine: PlayerEngine,
     modifier: Modifier,
     performanceMode: Boolean,
     onDoubleClick: () -> Unit,
+    sampleable: Boolean,
 ) {
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
     val renderer = remember(engine) { (engine as? MpvPlayerEngine)?.createRenderer() }

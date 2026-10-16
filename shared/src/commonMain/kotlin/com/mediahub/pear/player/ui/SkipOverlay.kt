@@ -101,7 +101,12 @@ internal fun BoxScope.SkipButtons(
         animationSpec = PearMotion.snappy<Dp>(PearMotion.BASE),
     )
 
-    Box(Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = bottom)) {
+    val margins = LocalPlayerMargins.current
+    val metrics = LocalPlayerMetrics.current
+    // The controls rise and move in by their extra margin on touch; the button moves by the same amount, so it keeps its place.
+    val lift = (margins.bottom - metrics.bottomMarginDp).dp
+    val inward = (margins.end - metrics.sideMarginDp).dp
+    Box(Modifier.align(Alignment.BottomEnd).padding(end = 28.dp + inward, bottom = bottom + lift)) {
         AnimatedVisibility(
             visible = choice != null,
             enter = slideInHorizontally(initialOffsetX = { it / 2 }) + fadeIn(),

@@ -71,6 +71,7 @@ internal fun stepTitle(step: OnboardingStep): String = when (step) {
     OnboardingStep.Welcome -> "Welcome"
     OnboardingStep.Profile -> "Who's watching?"
     OnboardingStep.Look -> "Pick your colour"
+    OnboardingStep.Player -> "Player glass"
     OnboardingStep.Content -> "What do you want to see?"
     OnboardingStep.Home -> "Build your Home"
     OnboardingStep.Keys -> "Connect your services"
@@ -82,6 +83,7 @@ internal fun stepSubtitle(step: OnboardingStep, hasProxy: Boolean): String = whe
     OnboardingStep.Welcome -> "Everything you watch, in one place. A minute of setup makes it yours."
     OnboardingStep.Profile -> "Sign in with Simkl to bring your name, picture and library, or just pick a name."
     OnboardingStep.Look -> "It tints buttons, progress bars and highlights across the app. Change it any time in Settings."
+    OnboardingStep.Player -> "Pick how the player's buttons look. You can change it any time in Settings, Playback."
     OnboardingStep.Content -> "Switch off anything you don't want suggested. It is hidden from Home, Explore and recommendations."
     OnboardingStep.Home -> "Choose the rows you want, and add Stremio add-ons for more catalogues."
     OnboardingStep.Keys -> if (hasProxy) {
@@ -98,6 +100,7 @@ internal fun railLabel(step: OnboardingStep): String = when (step) {
     OnboardingStep.Welcome -> "Welcome"
     OnboardingStep.Profile -> "Profile"
     OnboardingStep.Look -> "Colour"
+    OnboardingStep.Player -> "Player"
     OnboardingStep.Content -> "Content"
     OnboardingStep.Home -> "Home"
     OnboardingStep.Keys -> "Keys"
@@ -262,7 +265,7 @@ internal fun AccentBadge(text: String) {
 @Composable
 internal fun ProgressDots(current: OnboardingStep) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        OnboardingStep.entries.forEach { step ->
+        OnboardingRules.steps.forEach { step ->
             val active = step == current
             Box(
                 Modifier.width(if (active) 22.dp else 7.dp)

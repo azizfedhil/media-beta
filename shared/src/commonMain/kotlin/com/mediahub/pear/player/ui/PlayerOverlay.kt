@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -124,6 +125,33 @@ internal val PlayerMetrics.bottomMargin: Dp get() = bottomMarginDp.dp
  * (the pill and the seek bar).
  */
 internal val PlayerMetrics.panelClearance: Dp get() = bottomMargin + 104.dp
+
+/**
+ * The system areas (notch, rounded corners, gesture bar) the controls keep clear of, in dp. The host provides them: the
+ * Android activity does so in full screen. Zero everywhere else, which keeps desktop unchanged.
+ */
+val LocalPlayerInsets = compositionLocalOf { PlayerInsets() }
+
+/** The controls' margins for this window: set by [PlayerOverlay] from the metrics, the insets and the input. */
+internal val LocalPlayerMargins = compositionLocalOf { playerMargins(playerMetrics(PLAYER_DESKTOP_SHORT_SIDE), PlayerInsets(), touch = false) }
+
+/** How far the controls rise above the bottom edge: the margin, plus the controls' height (the pill and the seek bar). */
+internal val PlayerMargins.panelClearance: Dp get() = bottom.dp + 104.dp
+
+/**
+ * Padding for the full-height side panels (the source and track panels): their usual 10 dp inset, plus the system areas at
+ * those edges. On desktop there are none, so it is the usual 10 dp.
+ */
+@Composable
+internal fun sidePanelPadding(): PaddingValues {
+    val insets = LocalPlayerInsets.current
+    val scale = LocalPlayerMetrics.current.scale
+    return PaddingValues(
+        top = (10f + insets.top / scale).dp,
+        bottom = (10f + insets.bottom / scale).dp,
+        end = (10f + insets.right / scale).dp,
+    )
+}
 
 @Composable
 fun PlayerOverlay(
@@ -295,10 +323,11 @@ fun PlayerOverlay(
         // desktop look, which is the reference for this player. The video behind the controls is never scaled.
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val fitted = playerMetrics(minOf(maxWidth, maxHeight).value)
-            val metrics = fitted.copy(availableWidthDp = maxWidth.value / fitted.scale - 2f * fitted.sideMarginDp)
+            val margins = playerMargins(fitted, LocalPlayerInsets.current, PlatformCaps.isTouchFirst)
+            val metrics = fitted.copy(availableWidthDp = maxWidth.value / fitted.scale - (margins.start + margins.end))
             val base = LocalDensity.current
             val scaled = Density(base.density * metrics.scale, base.fontScale * metrics.scale)
-            CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled, LocalPlayerMetrics provides metrics) {
+            CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled, LocalPlayerMetrics provides metrics, LocalPlayerMargins provides margins) {
                 // Click and double-click on the picture. The controls and panels sit above and take their own clicks.
                 Box(
                     Modifier.fillMaxSize().pointerInput(Unit) {
@@ -398,7 +427,7 @@ private fun BoxScope.LoadingScreen(onClose: () -> Unit, status: String? = null) 
     }
     PlayerCircleButton(
         "xmark", size = 42.dp, icon = 16.dp, onClick = onClose,
-        modifier = Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMetrics.current.sideMargin, top = 16.dp),
+        modifier = Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMargins.current.start.dp, top = LocalPlayerMargins.current.top.dp),
         contentDescription = "Close",
     )
 }
@@ -429,7 +458,7 @@ private fun Controls(
             Box(Modifier.fillMaxWidth().height(260.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
         }
 
-        Box(Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMetrics.current.sideMargin, top = 16.dp).hoverFlag(overTop)) {
+        Box(Modifier.align(Alignment.TopStart).padding(start = LocalPlayerMargins.current.start.dp, top = LocalPlayerMargins.current.top.dp).hoverFlag(overTop)) {
             PlayerCircleButton("xmark", size = 42.dp, icon = 16.dp, onClick = onClose, contentDescription = "Close")
         }
 
@@ -446,7 +475,7 @@ private fun Controls(
                 trailing = trailing,
                 onScrubbing = onScrubbing,
                 openedAt = openedAt,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = LocalPlayerMetrics.current.sideMargin).padding(bottom = LocalPlayerMetrics.current.bottomMargin).hoverFlag(overBottom),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(start = LocalPlayerMargins.current.start.dp, end = LocalPlayerMargins.current.end.dp).padding(bottom = LocalPlayerMargins.current.bottom.dp).hoverFlag(overBottom),
             )
         }
     }
@@ -585,7 +614,7 @@ private fun BoxScope.PlayerNotice(message: String?) {
     LaunchedEffect(message) { if (message != null) shown = message }
     AnimatedVisibility(
         visible = message != null,
-        modifier = Modifier.align(Alignment.TopCenter).padding(top = 18.dp),
+        modifier = Modifier.align(Alignment.TopCenter).padding(top = LocalPlayerMargins.current.top.dp + 2.dp),
         enter = fadeIn(tween(PearMotion.BASE)),
         exit = fadeOut(tween(PearMotion.BASE)),
     ) {

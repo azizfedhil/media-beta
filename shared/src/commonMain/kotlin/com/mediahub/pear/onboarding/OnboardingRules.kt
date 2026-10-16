@@ -6,15 +6,24 @@ import com.mediahub.pear.data.ContentCategory
 import com.mediahub.pear.data.Profile
 import com.mediahub.pear.shell.LayoutMode
 import com.mediahub.pear.shell.LayoutOverride
+import com.mediahub.pear.shell.PlatformCaps
 import com.mediahub.pear.shell.layoutModeFor
 
-/** The steps of the setup, in order (iOS `OnboardingView`'s `Step`). */
+/** The steps of the setup, in order (iOS `OnboardingView`'s `Step`). Player is Android only; see [OnboardingRules.steps]. */
 enum class OnboardingStep {
-    Welcome, Profile, Look, Content, Home, Keys, Done;
+    Welcome, Profile, Look, Player, Content, Home, Keys, Done;
 
-    fun next(): OnboardingStep? = entries.getOrNull(ordinal + 1)
+    /** The next step this platform shows, or null after the last. */
+    fun next(): OnboardingStep? {
+        val i = OnboardingRules.steps.indexOf(this)
+        return if (i < 0) null else OnboardingRules.steps.getOrNull(i + 1)
+    }
 
-    fun previous(): OnboardingStep? = entries.getOrNull(ordinal - 1)
+    /** The step before this one that this platform shows, or null before the first. */
+    fun previous(): OnboardingStep? {
+        val i = OnboardingRules.steps.indexOf(this)
+        return if (i < 0) null else OnboardingRules.steps.getOrNull(i - 1)
+    }
 }
 
 /** The two frames: one column for a phone, or the wide two-pane frame for a window. */
@@ -26,6 +35,10 @@ enum class OnboardingLayout { Phone, Wide }
 object OnboardingRules {
     /** The longest name a profile can take, as on iOS. */
     const val MAX_NAME = 20
+
+    /** The steps this platform shows. The player-glass step is Android only, so desktop never sees it. */
+    val steps: List<OnboardingStep>
+        get() = OnboardingStep.entries.filter { it != OnboardingStep.Player || PlatformCaps.hasPlayerGlassChoice }
 
     /** From this window width the wide frame shows its step rail beside the form. */
     val railMinWidth: Dp = 900.dp
@@ -52,9 +65,12 @@ object OnboardingRules {
 
     fun showSkip(step: OnboardingStep): Boolean = step != OnboardingStep.Done
 
-    /** The frame for a window: wide from the shell's breakpoint, phone below it. The shell's layout override wins. */
-    fun layoutFor(width: Dp, override: LayoutOverride = LayoutOverride.Auto): OnboardingLayout =
-        if (layoutModeFor(width, override) == LayoutMode.Expanded) OnboardingLayout.Wide else OnboardingLayout.Phone
+    /**
+     * The frame for a window: wide from the shell's breakpoint, phone below it. The shell's layout override wins.
+     * With [allowWide] false (a phone) it is always the phone frame.
+     */
+    fun layoutFor(width: Dp, override: LayoutOverride = LayoutOverride.Auto, allowWide: Boolean = true): OnboardingLayout =
+        if (layoutModeFor(width, override, allowWide) == LayoutMode.Expanded) OnboardingLayout.Wide else OnboardingLayout.Phone
 
     /** The step rail shows beside the form only when the window is wide enough for both panes. */
     fun showsRail(width: Dp): Boolean = width >= railMinWidth

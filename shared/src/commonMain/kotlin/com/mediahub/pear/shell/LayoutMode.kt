@@ -28,10 +28,17 @@ object Breakpoints {
     val sidebarIconsOnly: Dp = 76.dp
 }
 
-fun layoutModeFor(windowWidth: Dp, override: LayoutOverride = LayoutOverride.Auto): LayoutMode = when (override) {
-    LayoutOverride.Compact -> LayoutMode.Compact
-    LayoutOverride.Expanded -> LayoutMode.Expanded
-    LayoutOverride.Auto -> if (windowWidth >= Breakpoints.expandedMinWidth) LayoutMode.Expanded else LayoutMode.Compact
+/**
+ * The layout for a window [windowWidth] wide. When [allowWide] is false (a phone, see `PlatformCaps.supportsWideLayout`)
+ * it is always the phone layout, whatever the width or the override.
+ */
+fun layoutModeFor(windowWidth: Dp, override: LayoutOverride = LayoutOverride.Auto, allowWide: Boolean = true): LayoutMode {
+    if (!allowWide) return LayoutMode.Compact
+    return when (override) {
+        LayoutOverride.Compact -> LayoutMode.Compact
+        LayoutOverride.Expanded -> LayoutMode.Expanded
+        LayoutOverride.Auto -> if (windowWidth >= Breakpoints.expandedMinWidth) LayoutMode.Expanded else LayoutMode.Compact
+    }
 }
 
 /** Full sidebar from 1000 dp, narrower from 780 dp, icons only below that. */

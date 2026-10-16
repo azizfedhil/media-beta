@@ -84,7 +84,7 @@ private fun RailPane(draft: OnboardingDraft, actions: OnboardingActions, modifie
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            OnboardingStep.entries.forEach { step ->
+            OnboardingRules.steps.forEach { step ->
                 RailItem(step, current = draft.step, onJump = actions.onJump)
             }
         }

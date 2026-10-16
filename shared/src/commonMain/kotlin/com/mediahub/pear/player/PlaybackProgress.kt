@@ -147,6 +147,19 @@ class PlaybackProgress(
         save(request, snapshot, isFinal = false)
     }
 
+    /**
+     * The app is going to the background. Banks the position and the watch time with a full save, so the Continue Watching
+     * row (which reads the in-memory list, not only the stored JSON) is current even if Android ends the process while it
+     * is in the background. Unlike [finish] it does not close the session: the film can still be resumed. This is a
+     * deliberate difference from iOS, which saves quietly on background (see IOS_PARITY.md, T10).
+     */
+    fun bank(request: PlayRequest, snapshot: PlaybackSnapshot) {
+        if (finished) return
+        logPlayTime(snapshot.playing)
+        watchLog.flush()
+        save(request, snapshot, isFinal = true)
+    }
+
     /** Leaving this episode: last watch-time tick, full save (updates the lists on screen), Simkl `stop`. */
     fun finish(request: PlayRequest, snapshot: PlaybackSnapshot) {
         if (finished) return
@@ -169,6 +182,7 @@ class PlaybackProgress(
     private fun save(request: PlayRequest, snapshot: PlaybackSnapshot, isFinal: Boolean) {
         val p = snapshot.position
         val d = snapshot.duration
+        println("PEAR-CW save position=$p duration=$d canSave=${ProgressRules.canSave(p, d)} reachedStart=$reachedStart isFinal=$isFinal") // TEMP-CW
         if (!ProgressRules.canSave(p, d)) return
         if (!reachedStart) {
             if (!ProgressRules.hasReachedStart(p, openedAt)) return

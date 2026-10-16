@@ -108,6 +108,8 @@ fun SettingsScreen(
     var titleLogos by remember { mutableStateOf(prefs.bool(PrefKeys.UI_TITLE_LOGOS, true)) }
     var playerGlass by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_GLASS, true)) }
     var playerBlurPlaying by remember { mutableStateOf(prefs.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true)) }
+    var androidLiquid by remember { mutableStateOf(prefs.bool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false)) }
+    var showLiquidDialog by remember { mutableStateOf(false) }
     var autoplayNext by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_AUTOPLAY_NEXT, true)) }
     var pipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_PIP, true)) }
     var skipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.SKIP_ENABLED, true)) }
@@ -166,15 +168,17 @@ fun SettingsScreen(
                         })
                     },
                 )
-                SettingsDivider()
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PearText("Layout override", style = PearTheme.type.subheadline)
-                    val options = LayoutOverride.entries
-                    SegmentedControl(
-                        labels = options.map { it.label },
-                        selectedIndex = options.indexOf(env.shell.layoutOverride),
-                        onSelect = { env.shell.layoutOverride = options[it] },
-                    )
+                if (PlatformCaps.supportsWideLayout) {
+                    SettingsDivider()
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PearText("Layout override", style = PearTheme.type.subheadline)
+                        val options = LayoutOverride.entries
+                        SegmentedControl(
+                            labels = options.map { it.label },
+                            selectedIndex = options.indexOf(env.shell.layoutOverride),
+                            onSelect = { env.shell.layoutOverride = options[it] },
+                        )
+                    }
                 }
             }
 
@@ -184,7 +188,7 @@ fun SettingsScreen(
                 SettingsRow(title = "Player controls", onClick = onNavigatePlayerControls, trailing = { SettingsChevron() })
                 SettingsDivider()
                 SettingsRow(
-                    title = "Liquid Glass controls",
+                    title = if (PlatformCaps.hasPlayerGlassChoice) "Glass controls" else "Liquid Glass controls",
                     trailing = {
                         PearSwitch(checked = playerGlass, onCheckedChange = {
                             playerGlass = it
@@ -192,7 +196,25 @@ fun SettingsScreen(
                         })
                     },
                 )
-                if (playerGlass && PlatformCaps.videoBlurSupported) {
+                if (playerGlass && PlatformCaps.hasPlayerGlassChoice) {
+                    SettingsDivider()
+                    SettingsRow(
+                        title = "Liquid Glass",
+                        subtitle = "Live blur and refraction behind the controls. Can use more battery.",
+                        trailing = {
+                            PearSwitch(checked = androidLiquid, onCheckedChange = {
+                                if (it) {
+                                    // Turning it on asks first. Turning it off needs no dialog.
+                                    showLiquidDialog = true
+                                } else {
+                                    androidLiquid = false
+                                    prefs.setBool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false)
+                                }
+                            })
+                        },
+                    )
+                }
+                if (playerGlass && PlatformCaps.videoBlurSupported && !PlatformCaps.hasPlayerGlassChoice) {
                     SettingsDivider()
                     SettingsRow(
                         title = "Blur controls while playing",
@@ -424,6 +446,45 @@ fun SettingsScreen(
                             onClick = {
                                 p2p.setEnabled(true)
                                 showP2PDialog = false
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+
+        // Liquid Glass confirmation (Android): a flat card over a scrim, as the P2P one. "Keep Frosted" leaves the switch off.
+        if (showLiquidDialog) {
+            val swallow = remember { MutableInteractionSource() }
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showLiquidDialog = false },
+                contentAlignment = Alignment.Center,
+            ) {
+                FlatSheet(
+                    Modifier.width(360.dp).clickable(interactionSource = swallow, indication = null) {},
+                    floating = true,
+                ) {
+                    PearText("Use Liquid Glass in the player?", style = PearTheme.type.title3.weight(FontWeight.Bold))
+                    PearText(
+                        "Liquid Glass blurs the video live behind the controls. It looks best, but it can drain the battery faster and " +
+                            "make older phones warm or drop frames. You can switch it off any time in Settings.",
+                        style = PearTheme.type.footnote,
+                        color = PearTheme.colors.textSecondary,
+                    )
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PearCapsuleButton(
+                            label = "Keep Frosted",
+                            onClick = { showLiquidDialog = false },
+                            modifier = Modifier.weight(1f),
+                        )
+                        PearCapsuleButton(
+                            label = "Use Liquid Glass",
+                            style = PearButtonStyle.Accent,
+                            onClick = {
+                                androidLiquid = true
+                                prefs.setBool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, true)
+                                showLiquidDialog = false
                             },
                             modifier = Modifier.weight(1f),
                         )

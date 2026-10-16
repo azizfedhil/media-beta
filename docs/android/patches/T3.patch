@@ -1,0 +1,238 @@
+--- a/docs/android/decisions.md
++++ b/docs/android/decisions.md
+@@ -60,6 +60,10 @@
+ - **D5 Video surface.** SurfaceView (kept). libmpv draws into a Surface, and mpv-android uses a SurfaceView. The
+   consequence stands: glass blur cannot sample video, so glass over video is flat on Android. A TextureView is possible
+   but would cost performance, and the change would need a device test.
++- **Dated note, 2026-10-16 (T3, FIX_PLAN.md):** D5 is reversed for the Liquid Glass path only. With the Liquid Glass choice on
++  and battery saver off, the picture is a TextureView, so glass can blur it. Frosted, the default, keeps the SurfaceView, and
++  so does battery saver. The TextureView costs more battery. The device checks that decide T3 are in FIX_PLAN.md (T3, step 5).
++  Until they pass, the decision stays open.
+ - **D6 No foreground service, no Now-Playing in v1.** Kept.
+ - **D7 P2P last and optional.** Kept. The app must run with P2P reporting Unavailable.
+ - **D8 Cleartext HTTP allowed.** Kept (manifest in batch 2). Add-on and P2P links are plain HTTP.
+--- a/shared/src/androidMain/kotlin/com/mediahub/pear/player/VideoSurface.android.kt
++++ b/shared/src/androidMain/kotlin/com/mediahub/pear/player/VideoSurface.android.kt
+@@ -1,14 +1,18 @@
+ package com.mediahub.pear.player
+ 
+-import androidx.compose.runtime.getValue
++import android.graphics.SurfaceTexture
++import android.view.Surface
+ import android.view.SurfaceHolder
+ import android.view.SurfaceView
++import android.view.TextureView
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.gestures.detectTapGestures
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.key
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.ui.Modifier
+@@ -18,8 +22,14 @@
+ import com.mediahub.pear.player.mpv.AndroidMpvEngine
+ 
+ /**
+- * libmpv draws into a SurfaceView, the same kind of surface mpv-android uses. Blur (glass) cannot sample a SurfaceView, so
+- * glass over video is flat on Android (decisions.md, D5).
++ * libmpv draws the picture into a Surface, and one of two views can hold it:
++ *
++ * - a SurfaceView ([sampleable] false, the default): the cheapest path, the same as mpv-android. Glass cannot sample it, so
++ *   the controls use the Frosted look over it.
++ * - a TextureView ([sampleable] true, the Liquid Glass choice): the picture is a texture, so the glass blur can sample it.
++ *   It costs more battery, so it is used only when the player is set to Liquid Glass (decisions.md, D5).
++ *
++ * The black background and the double-tap are the same on both paths.
+  */
+ @Composable
+ actual fun VideoSurface(
+@@ -27,26 +37,10 @@
+     modifier: Modifier,
+     performanceMode: Boolean,
+     onDoubleClick: () -> Unit,
++    sampleable: Boolean,
+ ) {
+     val mpv = engine as? AndroidMpvEngine
+     val onDouble by rememberUpdatedState(onDoubleClick)
+-
+-    // One callback per engine: the surface's lifetime drives attach and detach.
+-    val callback = remember(mpv) {
+-        object : SurfaceHolder.Callback {
+-            override fun surfaceCreated(holder: SurfaceHolder) {
+-                mpv?.attachSurface(holder.surface)
+-            }
+-
+-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+-                mpv?.surfaceSizeChanged(width, height)
+-            }
+-
+-            override fun surfaceDestroyed(holder: SurfaceHolder) {
+-                mpv?.detachSurface()
+-            }
+-        }
+-    }
+ 
+     LaunchedEffect(mpv, performanceMode) { mpv?.setPerformanceMode(performanceMode) }
+ 
+@@ -56,13 +50,79 @@
+             .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onDouble() }) },
+     ) {
+         if (mpv != null) {
+-            AndroidView(
+-                modifier = Modifier.fillMaxSize(),
+-                factory = { context ->
+-                    SurfaceView(context).also { it.holder.addCallback(callback) }
+-                },
+-                onRelease = { view -> view.holder.removeCallback(callback) },
+-            )
++            // Keyed on the choice: a different view is built when it changes, and the old one is released first.
++            key(sampleable) {
++                if (sampleable) TextureVideo(mpv) else SurfaceVideo(mpv)
++            }
+         }
+     }
+ }
++
++/** The SurfaceView path, as it was before the Liquid Glass choice: mpv-android's lifecycle, unchanged. */
++@Composable
++private fun SurfaceVideo(mpv: AndroidMpvEngine) {
++    // One callback per engine: the surface's lifetime drives attach and detach.
++    val callback = remember(mpv) {
++        object : SurfaceHolder.Callback {
++            override fun surfaceCreated(holder: SurfaceHolder) {
++                mpv.attachSurface(holder.surface)
++            }
++
++            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
++                mpv.surfaceSizeChanged(width, height)
++            }
++
++            override fun surfaceDestroyed(holder: SurfaceHolder) {
++                mpv.detachSurface()
++            }
++        }
++    }
++
++    AndroidView(
++        modifier = Modifier.fillMaxSize(),
++        factory = { context ->
++            SurfaceView(context).also { it.holder.addCallback(callback) }
++        },
++        onRelease = { view -> view.holder.removeCallback(callback) },
++    )
++}
++
++/** The TextureView path, for the Liquid Glass choice (T3): the same engine calls as the SurfaceView path. */
++@Composable
++private fun TextureVideo(mpv: AndroidMpvEngine) {
++    // One listener per engine: the texture's lifetime drives attach and detach.
++    val listener = remember(mpv) {
++        object : TextureView.SurfaceTextureListener {
++            private var surface: Surface? = null
++
++            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
++                val s = Surface(st)
++                surface = s
++                mpv.attachSurface(s)
++                mpv.surfaceSizeChanged(w, h)
++            }
++
++            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {
++                mpv.surfaceSizeChanged(w, h)
++            }
++
++            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
++                // Detach before the Surface is released: mpv must stop drawing into it first.
++                mpv.detachSurface()
++                surface?.release()
++                surface = null
++                return true
++            }
++
++            override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
++        }
++    }
++
++    AndroidView(
++        modifier = Modifier.fillMaxSize(),
++        factory = { context ->
++            TextureView(context).also { it.surfaceTextureListener = listener }
++        },
++        onRelease = { view -> view.surfaceTextureListener = null },
++    )
++}
+--- a/shared/src/androidMain/kotlin/com/mediahub/pear/shell/PlatformCaps.android.kt
++++ b/shared/src/androidMain/kotlin/com/mediahub/pear/shell/PlatformCaps.android.kt
+@@ -6,8 +6,11 @@
+ private const val TABLET_MIN_SMALLEST_WIDTH_DP = 600
+ 
+ actual object PlatformCaps {
+-    /** The picture is a SurfaceView; glass can't blur it. The controls keep their glass look over the black frame. */
+-    actual val videoBlurSupported: Boolean = false
++    /**
++     * Glass can blur the picture on the Liquid Glass path: there the picture is a TextureView, which glass can sample
++     * (VideoSurface.android.kt). Frosted keeps the SurfaceView, and its controls use the Frosted look.
++     */
++    actual val videoBlurSupported: Boolean = true
+     actual val hasPlayerGlassChoice: Boolean = true
+     actual val isTouchFirst: Boolean = true
+     actual val playerStartsFullscreen: Boolean = true
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/VideoSurface.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/VideoSurface.kt
+@@ -6,6 +6,8 @@
+ /**
+  * Where the engine's video is drawn, inside the Compose scene so glass can sit on top of it.
+  * [performanceMode] caps the render size at 1080p and scales the picture up (for 4K).
++ * [sampleable] asks for a picture that glass can blur (Android's Liquid Glass path, a TextureView). False keeps the
++ * cheapest surface. Platforms whose picture is always sampleable ignore it.
+  */
+ @Composable
+ expect fun VideoSurface(
+@@ -13,4 +15,5 @@
+     modifier: Modifier = Modifier,
+     performanceMode: Boolean = false,
+     onDoubleClick: () -> Unit = {},
++    sampleable: Boolean = false,
+ )
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerLogic.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/player/ui/PlayerLogic.kt
+@@ -33,7 +33,7 @@
+  * @param baseMode the app-wide glass style; [GlassMode.Flat] there means no blur anywhere
+  * @param videoMoving true while frames are changing (playing)
+  * @param blurWhilePlaying desktop-only switch `desktop.playerBlurWhilePlaying`
+- * @param videoSampleable false where the picture is a separate surface that glass cannot sample (Android's SurfaceView)
++ * @param videoSampleable false where the picture is a separate surface that glass cannot sample (Android's Frosted path, the SurfaceView)
+  */
+ fun playerLook(
+     glassOn: Boolean,
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/shell/PlayerScreen.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/shell/PlayerScreen.kt
+@@ -683,6 +683,7 @@
+                     engine = engine,
+                     modifier = Modifier.fillMaxSize(),
+                     performanceMode = performance,
++                    sampleable = sampleable,
+                 )
+             },
+         )
+--- a/shared/src/desktopMain/kotlin/com/mediahub/pear/player/mpv/VideoSurface.desktop.kt
++++ b/shared/src/desktopMain/kotlin/com/mediahub/pear/player/mpv/VideoSurface.desktop.kt
+@@ -27,12 +27,14 @@
+ private const val NORMAL_MAX_PIXELS = 3840L * 2160L
+ private const val PERFORMANCE_MAX_PIXELS = 1920L * 1080L
+ 
++/** [sampleable] is ignored: desktop frames are drawn into a Compose canvas, so glass can always sample them. */
+ @Composable
+ actual fun VideoSurface(
+     engine: PlayerEngine,
+     modifier: Modifier,
+     performanceMode: Boolean,
+     onDoubleClick: () -> Unit,
++    sampleable: Boolean,
+ ) {
+     var boxSize by remember { mutableStateOf(IntSize.Zero) }
+     val renderer = remember(engine) { (engine as? MpvPlayerEngine)?.createRenderer() }

@@ -1,5 +1,6 @@
 package com.mediahub.pear.onboarding
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -11,10 +12,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -25,14 +32,17 @@ import com.mediahub.pear.data.BuiltinRows
 import com.mediahub.pear.data.ContentCategory
 import com.mediahub.pear.data.ContentPrefs
 import com.mediahub.pear.data.isRowAdded
+import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.isRowHidden
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.profile.ProfileAvatar
 import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.simkl.SimklConnectControls
 import com.mediahub.pear.theme.Accents
 import com.mediahub.pear.theme.PearIcon
+import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
@@ -55,6 +65,7 @@ internal fun ColumnScope.OnboardingStepBody(
         OnboardingStep.Welcome -> WelcomeBody(headerInForm)
         OnboardingStep.Profile -> ProfileBody(draft)
         OnboardingStep.Look -> LookBody(wide, draft)
+        OnboardingStep.Player -> PlayerGlassBody()
         OnboardingStep.Content -> ContentBody(wide)
         OnboardingStep.Home -> HomeBody(wide, draft, actions)
         OnboardingStep.Keys -> KeysBody(wide, draft)
@@ -170,6 +181,79 @@ private fun ColumnScope.LookBody(wide: Boolean, draft: OnboardingDraft) {
         },
         right = { PreviewCard() },
     )
+}
+
+/**
+ * The player step (Android only): how the player's controls look. Frosted is the default. The choice is written at once
+ * and read back from the setting, so it survives Back and Next. The warning for Liquid Glass always shows.
+ *
+ * It is one column on both frames: the preview card beside the other steps shows the accent, not the glass, so it is not
+ * used here.
+ */
+@Composable
+private fun ColumnScope.PlayerGlassBody() {
+    val prefs = LocalAppEnv.current.data.prefs
+    val liquid = rememberPref(prefs, PrefKeys.ANDROID_PLAYER_LIQUID_GLASS) { it.bool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false) }
+    OnboardingCard {
+        GlassChoice(
+            title = "Frosted glass",
+            line = "Soft, light and easy on the battery.",
+            tag = "Recommended",
+            selected = !liquid,
+            onSelect = { prefs.setBool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false) },
+        )
+        GlassChoice(
+            title = "Liquid Glass",
+            line = "Live blur and refraction, like the rest of the app.",
+            selected = liquid,
+            onSelect = { prefs.setBool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, true) },
+            warning = "Can use more battery, especially on long films and older phones.",
+        )
+    }
+}
+
+/**
+ * One of the two player looks: a title, a short line, a selected state, and an optional tag or warning. The whole card is
+ * the touch target (48 dp or more).
+ */
+@Composable
+private fun GlassChoice(
+    title: String,
+    line: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    tag: String? = null,
+    warning: String? = null,
+) {
+    val c = PearTheme.colors
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(PearRadii.md))
+            .background(if (selected) c.accent.copy(alpha = 0.14f) else Color.Transparent)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PearIcon(
+                if (selected) "checkmark.circle.fill" else "circle",
+                size = 20.dp,
+                tint = if (selected) c.accent else c.textTertiary,
+            )
+            PearText(title, Modifier.weight(1f), style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+            if (tag != null) {
+                PearText(tag, style = PearTheme.type.caption.weight(FontWeight.Bold), color = c.accent)
+            }
+        }
+        PearText(line, Modifier.padding(start = 30.dp), style = PearTheme.type.footnote, color = c.textSecondary)
+        if (warning != null) {
+            Row(Modifier.padding(start = 30.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PearIcon("exclamationmark.triangle.fill", size = 14.dp, tint = c.orange)
+                PearText(warning, Modifier.weight(1f), style = PearTheme.type.footnote, color = c.orange)
+            }
+        }
+    }
 }
 
 @Composable

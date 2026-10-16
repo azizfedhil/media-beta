@@ -4,6 +4,8 @@ Each item says what is blocked, why, and what would unblock it. Nothing here is 
 
 ## B1. commonMain uses java.awt (blocks the Android compile of :shared)
 
+**Status: RESOLVED in code (checked in the Android fix plan, revision 2).** No file in `commonMain` imports `java.awt`. `DesktopClipboard` is an `expect` in `commonMain`, with `desktopMain/.../DesktopClipboard.desktop.kt` and `androidMain/.../DesktopClipboard.android.kt`. The text below is kept as the record of the decision.
+
 `shared/src/commonMain/.../data/DesktopClipboard.kt` imports `java.awt.Toolkit`, `java.awt.datatransfer.DataFlavor` and
 `java.awt.datatransfer.StringSelection`. Android has no `java.awt`, so the Android target cannot compile commonMain. It is
 used by two commonMain files: `settings/SettingsScreen.kt` (lines 293 and 301) and `simkl/SimklConnect.kt` (lines 21 and 111).

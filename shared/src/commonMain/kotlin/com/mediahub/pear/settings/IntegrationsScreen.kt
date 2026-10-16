@@ -1,5 +1,6 @@
 package com.mediahub.pear.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,18 +22,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.PrefKeys
+import com.mediahub.pear.meta.MdbUserList
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.player.ui.PlayerSpinner
 import com.mediahub.pear.shell.TextInput
+import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.simkl.SimklConnectControls
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import kotlinx.coroutines.delay
 
 @Composable
 fun IntegrationsScreen(
@@ -90,6 +96,7 @@ fun IntegrationsScreen(
                 }
                 PearText("Aggregates ratings from IMDb, Rotten Tomatoes, Metacritic, and Letterboxd.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
                 TextInput(mdbKey, { mdbKey = it; prefs.setString(PrefKeys.MDBLIST_KEY, it.trim()) }, "MDBList API key")
+                if (mdbKey.isNotBlank()) MdbListPicker(mdbKey)
             }
 
             // Simkl Section
@@ -139,6 +146,63 @@ fun IntegrationsScreen(
         }
 
         GlassTopBar(title = "Integrations", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp), onBack = onBack)
+    }
+}
+
+/** How long the key must stay unchanged before the lists are asked for, so typing a key sends one request, not one per letter. */
+private const val MDBLIST_PICKER_DEBOUNCE_MILLIS = 700L
+
+/**
+ * "Show on Home" (iOS `MDBListPicker`): the user's MDBList lists, with a check mark on each one Home shows. The choice is
+ * stored as comma-separated list ids in `PrefKeys.MDBLIST_LISTS`, sorted, the same format iOS reads.
+ */
+@Composable
+private fun MdbListPicker(key: String) {
+    val env = LocalAppEnv.current
+    val prefs = env.data.prefs
+    val mdblist = env.data.meta.mdblist
+    val chosenText = rememberPref(prefs, PrefKeys.MDBLIST_LISTS) { it.string(PrefKeys.MDBLIST_LISTS, "") }
+    val chosen = chosenText.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+    var lists by remember { mutableStateOf<List<MdbUserList>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(key) {
+        loading = true
+        delay(MDBLIST_PICKER_DEBOUNCE_MILLIS)
+        lists = mdblist.userLists()
+        loading = false
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        PearText("Show on Home", style = PearTheme.type.subheadline)
+        when {
+            loading -> PlayerSpinner(diameter = 16.dp)
+            lists.isEmpty() -> PearText(
+                "No lists found. Check your MDBList API key, or create a list on mdblist.com.",
+                style = PearTheme.type.footnote,
+                color = PearTheme.colors.textSecondary,
+            )
+            else -> lists.forEach { list ->
+                val on = list.id in chosen
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clickable {
+                            val next = if (on) chosen - list.id else chosen + list.id
+                            prefs.setString(PrefKeys.MDBLIST_LISTS, next.sorted().joinToString(","))
+                        }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        PearText(list.name, style = PearTheme.type.body)
+                        list.items?.let {
+                            PearText("$it titles", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
+                        }
+                    }
+                    if (on) PearIcon("checkmark", size = 16.dp, tint = PearTheme.colors.accent)
+                }
+            }
+        }
     }
 }
 

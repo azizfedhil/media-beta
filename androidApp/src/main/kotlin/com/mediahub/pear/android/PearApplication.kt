@@ -2,13 +2,23 @@ package com.mediahub.pear.android
 
 import android.app.Application
 import com.mediahub.pear.AndroidHost
+import com.mediahub.pear.data.Storage
+import com.mediahub.pear.data.androidStorage
 import java.io.File
 
 class PearApplication : Application() {
+    /**
+     * The one settings and secrets store for the whole app. It used to be made by each activity, so a configuration change
+     * that recreated the activity built a second store. The activity reads this one (MainActivity.storage).
+     */
+    lateinit var storage: Storage
+        private set
+
     override fun onCreate() {
         super.onCreate()
         AndroidHost.attach(this)
         installCaBundle()
+        storage = androidStorage(this)
     }
 
     /**

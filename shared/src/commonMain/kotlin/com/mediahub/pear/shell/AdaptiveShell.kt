@@ -87,7 +87,7 @@ fun AdaptiveShell(
             .mouseBack(shell),
     ) {
         val windowWidth = maxWidth
-        val mode = layoutModeFor(windowWidth, shell.layoutOverride)
+        val mode = layoutModeFor(windowWidth, shell.layoutOverride, allowWide = PlatformCaps.supportsWideLayout)
         val playerOnTop = shell.currentNav().top is Route.Player
 
         val topRoute = shell.currentNav().top

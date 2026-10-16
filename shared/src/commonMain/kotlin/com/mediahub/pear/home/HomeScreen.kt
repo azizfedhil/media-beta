@@ -36,6 +36,7 @@ import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.data.BuiltinRows
+import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.isRowHidden
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
@@ -43,6 +44,7 @@ import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
 import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.rememberPref
 import kotlinx.coroutines.launch
 
 @Composable
@@ -55,6 +57,9 @@ fun HomeScreen(
     val isWide = LocalWideLayout.current
     val model = remember(env.data) { HomeModel(env.data) }
     val bottomInset = LocalBottomInset.current
+    // The MDBList key and the lists chosen in Settings decide the MDBList rows (iOS `listsTaskID`).
+    val mdbKey = rememberPref(env.data.prefs, PrefKeys.MDBLIST_KEY) { it.string(PrefKeys.MDBLIST_KEY, "") }
+    val mdbLists = rememberPref(env.data.prefs, PrefKeys.MDBLIST_LISTS) { it.string(PrefKeys.MDBLIST_LISTS, "") }
 
     // Home is kept composed while Settings is open, so it never re-enters composition to reload on its own. Anything
     // that changes which rows Home should show therefore restarts the refresh here.
@@ -64,6 +69,8 @@ fun HomeScreen(
         env.data.content.rules.hiddenRows,
         env.data.addons.pickerIds,
         env.data.addons.enrichmentAddon?.id,
+        mdbKey,
+        mdbLists,
     ) {
         model.refresh(force = false)
     }
@@ -144,45 +151,49 @@ private fun FeedRows(
 ) {
     val env = LocalAppEnv.current
     val rules = env.data.content.rules
+    println("PEAR-CW feed continue=${env.data.history.continueEntries.size} upNext=${model.upNext.size}") // TEMP-CW
 
     // 0. Which add-ons are still loading, and which failed (with a button to try them again)
     AddonStatus(model)
 
-    // 1. Continue Watching
-    if (env.data.history.continueEntries.isNotEmpty() || model.upNext.isNotEmpty()) {
-        ContinueRow(
-            entries = env.data.history.continueEntries,
-            upNext = model.upNext,
-            onSelectTitle = onSelectTitle,
-        )
-    }
-
-    // 2. Theme Row 0
-    if (model.themes.isNotEmpty()) {
-        ThemeCarousel(model.themes[0], { onSelectTitle(it, null, null) })
-    }
-
-    // 3. Suggestions
+    // The rows the user has not hidden (iOS `visible`). The add-on count is taken after hiding, as iOS does.
     val visibleSuggested = model.suggested.filter { !rules.isRowHidden(it.prefKey) }
-    visibleSuggested.forEach { row ->
-        CatalogRowView(
-            row = row,
-            onSelectTitle = { onSelectTitle(it, null, null) },
-            onSeeAll = { onSeeAll(row) },
-        )
-    }
-
-    // 4. Remaining Theme rows & Addon catalogues
     val visibleAddonRows = model.rows.filter { !rules.isRowHidden(it.prefKey) }
-    visibleAddonRows.forEachIndexed { index, row ->
-        CatalogRowView(
-            row = row,
-            onSelectTitle = { onSelectTitle(it, null, null) },
-            onSeeAll = { onSeeAll(row) },
-        )
-        val themeIdx = 1 + index / 2
-        if (index % 2 == 1 && themeIdx < model.themes.size) {
-            ThemeCarousel(model.themes[themeIdx], { onSelectTitle(it, null, null) })
+    // iOS `themesHidden`: with the built-in themes row hidden, no theme appears anywhere in the feed.
+    val themeCount = if (rules.isRowHidden(BuiltinRows.THEMES)) 0 else model.themes.size
+    val showContinue = env.data.history.continueEntries.isNotEmpty() || model.upNext.isNotEmpty()
+
+    // The blocks of the feed, in iOS order (see feedOrder).
+    feedOrder(showContinue, themeCount, visibleAddonRows.size).forEach { slot ->
+        when (slot) {
+            FeedSlot.Continue -> ContinueRow(
+                entries = env.data.history.continueEntries,
+                upNext = model.upNext,
+                onSelectTitle = onSelectTitle,
+            )
+            is FeedSlot.Theme -> ThemeCarousel(model.themes[slot.index], { onSelectTitle(it, null, null) })
+            FeedSlot.Suggested -> visibleSuggested.forEach { row ->
+                CatalogRowView(
+                    row = row,
+                    onSelectTitle = { onSelectTitle(it, null, null) },
+                    onSeeAll = { onSeeAll(row) },
+                )
+            }
+            FeedSlot.Lists -> model.lists.forEach { row ->
+                CatalogRowView(
+                    row = row,
+                    onSelectTitle = { onSelectTitle(it, null, null) },
+                    onSeeAll = { onSeeAll(row) },
+                )
+            }
+            is FeedSlot.Addon -> {
+                val row = visibleAddonRows[slot.index]
+                CatalogRowView(
+                    row = row,
+                    onSelectTitle = { onSelectTitle(it, null, null) },
+                    onSeeAll = { onSeeAll(row) },
+                )
+            }
         }
     }
 }

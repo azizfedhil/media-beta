@@ -26,6 +26,7 @@ import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.Profile
 import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.PlatformCaps
 import com.mediahub.pear.theme.Accents
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -225,7 +226,7 @@ fun OnboardingHost(modifier: Modifier = Modifier) {
             .onPreviewKeyEvent { event -> handleKey(event, draft, onPrimary = { primary() }, onBack = { back() }) },
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val layout = OnboardingRules.layoutFor(maxWidth, env.shell.layoutOverride)
+            val layout = OnboardingRules.layoutFor(maxWidth, env.shell.layoutOverride, allowWide = PlatformCaps.supportsWideLayout)
             when (layout) {
                 OnboardingLayout.Phone -> OnboardingPhone(draft, actions)
                 OnboardingLayout.Wide -> OnboardingWide(draft, actions, showRail = OnboardingRules.showsRail(maxWidth))

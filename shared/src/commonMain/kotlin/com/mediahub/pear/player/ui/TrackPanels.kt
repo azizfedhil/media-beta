@@ -78,7 +78,7 @@ internal fun SubtitlesPanel(
     onStyle: (SubtitleStyle) -> Unit = {},
 ) {
     var section by remember { mutableStateOf(SubtitleSection.Tracks) }
-    BoxWithConstraints(modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp, end = 10.dp), contentAlignment = Alignment.CenterEnd) {
+    BoxWithConstraints(modifier.fillMaxSize().padding(sidePanelPadding()), contentAlignment = Alignment.CenterEnd) {
         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(340f).dp).heightIn(max = maxHeight), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 PanelHeader("Subtitles", onClose)
@@ -163,7 +163,7 @@ internal fun AudioPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier.fillMaxSize().padding(end = LocalPlayerMetrics.current.sideMargin, bottom = LocalPlayerMetrics.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
+    Box(modifier.fillMaxSize().padding(end = LocalPlayerMargins.current.end.dp, bottom = LocalPlayerMargins.current.panelClearance), contentAlignment = Alignment.BottomEnd) {
         PlayerSurface(Modifier.width(LocalPlayerMetrics.current.panelWidthDp(360f).dp), SurfaceKind.Card) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 PanelHeader("Audio", onClose)

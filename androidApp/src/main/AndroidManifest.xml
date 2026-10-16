@@ -16,7 +16,7 @@
 
         <activity
             android:name="com.mediahub.pear.android.MainActivity"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|navigation"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|navigation|density|uiMode|fontScale|locale|layoutDirection|colorMode"
             android:exported="true"
             android:launchMode="singleTask"
             android:supportsPictureInPicture="true"

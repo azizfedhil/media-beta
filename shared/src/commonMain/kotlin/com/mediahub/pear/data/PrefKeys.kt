@@ -58,6 +58,8 @@ object PrefKeys {
 
     /** Desktop only: keep the blur on the player controls while video plays (off = tint only, blur when paused). */
     const val DESKTOP_PLAYER_BLUR_PLAYING = "desktop.playerBlurWhilePlaying"
+    /** Android only: the player's Liquid Glass choice (false = Frosted). A device setting, so it is not in BackupRules. */
+    const val ANDROID_PLAYER_LIQUID_GLASS = "android.playerLiquidGlass"
     const val DESKTOP_APPEARANCE = "desktop.appearance"
 
     /** Desktop only: episode cards on two rows in the wide layout (the phone layout is always one row). */

@@ -1,0 +1,176 @@
+--- a/shared/src/androidMain/kotlin/com/mediahub/pear/shell/PlatformCaps.android.kt
++++ b/shared/src/androidMain/kotlin/com/mediahub/pear/shell/PlatformCaps.android.kt
+@@ -8,6 +8,7 @@
+ actual object PlatformCaps {
+     /** The picture is a SurfaceView; glass can't blur it. The controls keep their glass look over the black frame. */
+     actual val videoBlurSupported: Boolean = false
++    actual val hasPlayerGlassChoice: Boolean = true
+     actual val isTouchFirst: Boolean = true
+     actual val playerStartsFullscreen: Boolean = true
+     actual val canTellWifi: Boolean = true
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/data/PrefKeys.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/data/PrefKeys.kt
+@@ -58,6 +58,8 @@
+ 
+     /** Desktop only: keep the blur on the player controls while video plays (off = tint only, blur when paused). */
+     const val DESKTOP_PLAYER_BLUR_PLAYING = "desktop.playerBlurWhilePlaying"
++    /** Android only: the player's Liquid Glass choice (false = Frosted). A device setting, so it is not in BackupRules. */
++    const val ANDROID_PLAYER_LIQUID_GLASS = "android.playerLiquidGlass"
+     const val DESKTOP_APPEARANCE = "desktop.appearance"
+ 
+     /** Desktop only: episode cards on two rows in the wide layout (the phone layout is always one row). */
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/settings/SettingsScreen.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/settings/SettingsScreen.kt
+@@ -108,6 +108,8 @@
+     var titleLogos by remember { mutableStateOf(prefs.bool(PrefKeys.UI_TITLE_LOGOS, true)) }
+     var playerGlass by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_GLASS, true)) }
+     var playerBlurPlaying by remember { mutableStateOf(prefs.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true)) }
++    var androidLiquid by remember { mutableStateOf(prefs.bool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false)) }
++    var showLiquidDialog by remember { mutableStateOf(false) }
+     var autoplayNext by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_AUTOPLAY_NEXT, true)) }
+     var pipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.PLAYER_PIP, true)) }
+     var skipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.SKIP_ENABLED, true)) }
+@@ -186,7 +188,7 @@
+                 SettingsRow(title = "Player controls", onClick = onNavigatePlayerControls, trailing = { SettingsChevron() })
+                 SettingsDivider()
+                 SettingsRow(
+-                    title = "Liquid Glass controls",
++                    title = if (PlatformCaps.hasPlayerGlassChoice) "Glass controls" else "Liquid Glass controls",
+                     trailing = {
+                         PearSwitch(checked = playerGlass, onCheckedChange = {
+                             playerGlass = it
+@@ -194,7 +196,25 @@
+                         })
+                     },
+                 )
+-                if (playerGlass && PlatformCaps.videoBlurSupported) {
++                if (playerGlass && PlatformCaps.hasPlayerGlassChoice) {
++                    SettingsDivider()
++                    SettingsRow(
++                        title = "Liquid Glass",
++                        subtitle = "Live blur and refraction behind the controls. Can use more battery.",
++                        trailing = {
++                            PearSwitch(checked = androidLiquid, onCheckedChange = {
++                                if (it) {
++                                    // Turning it on asks first. Turning it off needs no dialog.
++                                    showLiquidDialog = true
++                                } else {
++                                    androidLiquid = false
++                                    prefs.setBool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false)
++                                }
++                            })
++                        },
++                    )
++                }
++                if (playerGlass && PlatformCaps.videoBlurSupported && !PlatformCaps.hasPlayerGlassChoice) {
+                     SettingsDivider()
+                     SettingsRow(
+                         title = "Blur controls while playing",
+@@ -433,6 +453,45 @@
+                 }
+             }
+         }
++
++        // Liquid Glass confirmation (Android): a flat card over a scrim, as the P2P one. "Keep Frosted" leaves the switch off.
++        if (showLiquidDialog) {
++            val swallow = remember { MutableInteractionSource() }
++            Box(
++                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showLiquidDialog = false },
++                contentAlignment = Alignment.Center,
++            ) {
++                FlatSheet(
++                    Modifier.width(360.dp).clickable(interactionSource = swallow, indication = null) {},
++                    floating = true,
++                ) {
++                    PearText("Use Liquid Glass in the player?", style = PearTheme.type.title3.weight(FontWeight.Bold))
++                    PearText(
++                        "Liquid Glass blurs the video live behind the controls. It looks best, but it can drain the battery faster and " +
++                            "make older phones warm or drop frames. You can switch it off any time in Settings.",
++                        style = PearTheme.type.footnote,
++                        color = PearTheme.colors.textSecondary,
++                    )
++                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                        PearCapsuleButton(
++                            label = "Keep Frosted",
++                            onClick = { showLiquidDialog = false },
++                            modifier = Modifier.weight(1f),
++                        )
++                        PearCapsuleButton(
++                            label = "Use Liquid Glass",
++                            style = PearButtonStyle.Accent,
++                            onClick = {
++                                androidLiquid = true
++                                prefs.setBool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, true)
++                                showLiquidDialog = false
++                            },
++                            modifier = Modifier.weight(1f),
++                        )
++                    }
++                }
++            }
++        }
+     }
+ }
+ 
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/shell/PlatformCaps.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/shell/PlatformCaps.kt
+@@ -6,8 +6,14 @@
+  * and a player that opens full screen.
+  */
+ expect object PlatformCaps {
+-    /** Glass can blur the picture behind the controls. False where the picture is a separate surface. */
++    /**
++     * This platform can blur the video behind the controls when asked. False where the picture is a separate surface glass
++     * cannot sample: those controls get the Frosted look.
++     */
+     val videoBlurSupported: Boolean
++
++    /** The player offers the glass choice (Frosted or Liquid Glass) in Settings and onboarding. Android only. */
++    val hasPlayerGlassChoice: Boolean
+ 
+     /** Input is touch: a tap shows or hides the controls, and there is no double-tap full screen. */
+     val isTouchFirst: Boolean
+--- a/shared/src/commonMain/kotlin/com/mediahub/pear/shell/PlayerScreen.kt
++++ b/shared/src/commonMain/kotlin/com/mediahub/pear/shell/PlayerScreen.kt
+@@ -21,6 +21,7 @@
+ import com.mediahub.pear.addons.AddonClient
+ import com.mediahub.pear.addons.OpenSubtitlesClient
+ import com.mediahub.pear.data.PrefKeys
++import com.mediahub.pear.glass.PowerStatus
+ import com.mediahub.pear.history.EpisodeItem
+ import com.mediahub.pear.meta.SkipSegment
+ import com.mediahub.pear.model.OnlineSubtitle
+@@ -250,13 +251,20 @@
+     val glassOn = rememberPref(prefs, PrefKeys.PLAYER_GLASS) { it.bool(PrefKeys.PLAYER_GLASS, true) }
+     // Glass while the video plays is on by default (the Settings switch turns it off if the machine can't keep up).
+     val blurPlaying = rememberPref(prefs, PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING) { it.bool(PrefKeys.DESKTOP_PLAYER_BLUR_PLAYING, true) }
+-    // Where the picture is a separate surface (PlatformCaps), glass cannot sample it: the controls get the Frosted look.
++    // Android only: the Liquid Glass switch in Settings, Playback. Off means Frosted.
++    val liquid = rememberPref(prefs, PrefKeys.ANDROID_PLAYER_LIQUID_GLASS) { it.bool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false) }
++    // Decided once when the player opens: swapping the surface type during a film would flash. Battery saver means Frosted.
++    val sampleable = remember {
++        if (PlatformCaps.hasPlayerGlassChoice) liquid && PlatformCaps.videoBlurSupported && !PowerStatus.lowBattery
++        else PlatformCaps.videoBlurSupported
++    }
++    // Where the picture cannot be sampled, glass cannot blur it: the controls get the Frosted look.
+     val look = playerLook(
+         glassOn,
+         env.glass.mode,
+         isVideoMoving(state),
+-        blurPlaying && PlatformCaps.videoBlurSupported,
+-        videoSampleable = PlatformCaps.videoBlurSupported,
++        blurWhilePlaying = if (PlatformCaps.hasPlayerGlassChoice) true else blurPlaying && PlatformCaps.videoBlurSupported,
++        videoSampleable = sampleable,
+     )
+     // Picture in Picture follows the Settings switch. The platform opens the window; the player says when it may.
+     val pipAllowed = rememberPref(prefs, PrefKeys.PLAYER_PIP) { it.bool(PrefKeys.PLAYER_PIP, true) }
+--- a/shared/src/desktopMain/kotlin/com/mediahub/pear/shell/PlatformCaps.desktop.kt
++++ b/shared/src/desktopMain/kotlin/com/mediahub/pear/shell/PlatformCaps.desktop.kt
+@@ -2,6 +2,7 @@
+ 
+ actual object PlatformCaps {
+     actual val videoBlurSupported: Boolean = true
++    actual val hasPlayerGlassChoice: Boolean = false
+     actual val isTouchFirst: Boolean = false
+     actual val playerStartsFullscreen: Boolean = false
+     actual val canTellWifi: Boolean = false

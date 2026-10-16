@@ -4,6 +4,7 @@ import com.mediahub.pear.glass.GlassMode
 import com.mediahub.pear.history.Fmt
 import com.mediahub.pear.player.PlaybackState
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToLong
 
 // Pure rules behind the player overlay (Batch 4.3a). No Compose in here, so they are unit tested.
@@ -18,19 +19,31 @@ enum class PlayerLook {
 
     /** The "Liquid Glass controls" switch is off: plain dark fills, the same as the iOS flat look. */
     Flat,
+
+    /** No sampling. A light glass-like fill for platforms whose video cannot be blurred. */
+    Frosted,
 }
 
 /**
  * Picks the look. Order of the fallbacks (from `phase0-decisions.md`): full blur, then tint-only while the
- * video moves, then flat. Blur over a *paused* frame costs nothing, so it is always allowed.
+ * video moves, then flat. Blur over a *paused* frame costs nothing, so it is always allowed, but only where the
+ * video can be sampled. Where it cannot, the controls are [PlayerLook.Frosted]: never blur, never tint.
  *
  * @param glassOn the iOS `player.glass` switch ("Liquid Glass controls")
  * @param baseMode the app-wide glass style; [GlassMode.Flat] there means no blur anywhere
  * @param videoMoving true while frames are changing (playing)
  * @param blurWhilePlaying desktop-only switch `desktop.playerBlurWhilePlaying`
+ * @param videoSampleable false where the picture is a separate surface that glass cannot sample (Android's Frosted path, the SurfaceView)
  */
-fun playerLook(glassOn: Boolean, baseMode: GlassMode, videoMoving: Boolean, blurWhilePlaying: Boolean): PlayerLook = when {
+fun playerLook(
+    glassOn: Boolean,
+    baseMode: GlassMode,
+    videoMoving: Boolean,
+    blurWhilePlaying: Boolean,
+    videoSampleable: Boolean = true,
+): PlayerLook = when {
     !glassOn -> PlayerLook.Flat
+    !videoSampleable -> PlayerLook.Frosted
     baseMode == GlassMode.Flat -> PlayerLook.Tint
     videoMoving && !blurWhilePlaying -> PlayerLook.Tint
     else -> PlayerLook.Blur
@@ -146,6 +159,46 @@ data class PlayerMetrics(
     /** The width a panel may use, in the player's scaled dp: the window less the side margins. */
     val availableWidthDp: Float = Float.MAX_VALUE,
 )
+
+/** System areas the player's controls must stay clear of, in dp of the window. Zero on desktop. */
+data class PlayerInsets(val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f)
+
+/** Where the controls sit: the distance from each edge of the window, in the player's scaled dp. */
+data class PlayerMargins(val start: Float, val end: Float, val top: Float, val bottom: Float)
+
+// Touch margins: a finger needs room, and the system areas must stay clear. Tune on a device.
+private const val TOUCH_MIN_SIDE_DP = 48f
+private const val TOUCH_MIN_TOP_DP = 24f
+private const val TOUCH_MIN_BOTTOM_DP = 28f
+private const val TOUCH_INSET_SIDE_DP = 24f
+private const val TOUCH_INSET_TOP_DP = 12f
+private const val TOUCH_INSET_BOTTOM_DP = 16f
+
+/** The desktop top margin: the controls have always sat 16 dp from the top. */
+private const val TOP_MARGIN_DP = 16f
+
+/**
+ * The controls' margins. Without touch they are the desktop values. With touch they are never less than the minimums and
+ * always clear of [insets]. The insets are in window dp, so they are divided by the player's scale first, because the
+ * overlay draws in a scaled density.
+ */
+fun playerMargins(metrics: PlayerMetrics, insets: PlayerInsets, touch: Boolean): PlayerMargins {
+    if (!touch) {
+        return PlayerMargins(
+            start = metrics.sideMarginDp,
+            end = metrics.sideMarginDp,
+            top = TOP_MARGIN_DP,
+            bottom = metrics.bottomMarginDp,
+        )
+    }
+    val s = metrics.scale
+    return PlayerMargins(
+        start = max(TOUCH_MIN_SIDE_DP, insets.left / s + TOUCH_INSET_SIDE_DP),
+        end = max(TOUCH_MIN_SIDE_DP, insets.right / s + TOUCH_INSET_SIDE_DP),
+        top = max(TOUCH_MIN_TOP_DP, insets.top / s + TOUCH_INSET_TOP_DP),
+        bottom = max(TOUCH_MIN_BOTTOM_DP, insets.bottom / s + TOUCH_INSET_BOTTOM_DP),
+    )
+}
 
 /**
  * At and above this shorter side (dp) the controls are the desktop look. A 1080p fullscreen window is 1080, 864, 720 or 540 dp

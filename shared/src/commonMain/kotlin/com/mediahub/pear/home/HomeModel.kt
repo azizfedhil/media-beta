@@ -8,6 +8,7 @@ import com.mediahub.pear.addons.AddonStore
 import com.mediahub.pear.addons.HomeCatalogs
 import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.BuiltinRows
+import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.ContentRules
 import com.mediahub.pear.epochMillis
 import com.mediahub.pear.history.HistoryEntry
@@ -25,11 +26,17 @@ import com.mediahub.pear.net.attempt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class HomeModel(private val data: AppData) {
     var rows: List<CatalogRow> by mutableStateOf(emptyList())
         private set
     var suggested: List<CatalogRow> by mutableStateOf(emptyList())
+        private set
+    /** The MDBList rows: one per list the user picked in Settings. See [loadLists]. */
+    var lists: List<CatalogRow> by mutableStateOf(emptyList())
         private set
     var upNext: List<UpNextItem> by mutableStateOf(emptyList())
         private set
@@ -81,6 +88,7 @@ class HomeModel(private val data: AppData) {
             val suggestionsJob = async { loadSuggestions(rules) }
             val rowsJob = async { loadAddonRows(rules) }
             val upNextJob = async { loadUpNext() }
+            val listsJob = async { loadLists(rules) }
             // Add-on enrichment of the theme rows is started in this scope and is not waited for below: it can finish
             // after Home has stopped loading, and is cancelled with the rest when the profile changes.
             val themesJob = async { loadThemes(rules, this@coroutineScope) }
@@ -88,6 +96,7 @@ class HomeModel(private val data: AppData) {
             suggestionsJob.await()
             rowsJob.await()
             upNextJob.await()
+            listsJob.await()
             themesJob.await()
             updateHero()
             isLoading = false
@@ -147,6 +156,69 @@ class HomeModel(private val data: AppData) {
         }
         suggested = out
     }
+
+    /**
+     * The MDBList rows (iOS `HomeView.loadLists`): one row per list the user picked in Settings, in list order. Needs an
+     * MDBList key. On a first load each row appears as its list arrives. On a refresh the rows on screen stay until the
+     * new ones are ready.
+     */
+    suspend fun loadLists(rules: ContentRules) {
+        val mdb = data.meta.mdblist
+        val selected = data.prefs.string(PrefKeys.MDBLIST_LISTS, "")
+            .split(",")
+            .mapNotNull { it.trim().toIntOrNull() }
+            .toSet()
+        if (!mdb.hasKey || selected.isEmpty()) {
+            lists = emptyList()
+            return
+        }
+
+        val chosen = mdb.userLists().filter { it.id in selected }
+        val progressive = lists.isEmpty()
+        val done = mutableMapOf<Int, CatalogRow>()
+        val lock = Mutex()
+        coroutineScope {
+            chosen.forEachIndexed { i, list ->
+                launch {
+                    val items = data.classifier.filter(mdb.items(list.id), rules)
+                    if (items.isEmpty()) return@launch
+                    lock.withLock {
+                        done[i] = CatalogRow(id = "mdb-${list.id}", title = list.name, items = items, symbol = "list.star")
+                        if (progressive) lists = inListOrder(done)
+                    }
+                }
+            }
+        }
+
+        // Nothing came back (MDBList unreachable): keep the rows on screen, minus any the user has just deselected.
+        if (done.isEmpty() && lists.isNotEmpty()) {
+            val wanted = selected.map { "mdb-$it" }.toSet()
+            lists = refiltered(lists.filter { it.id in wanted }, rules)
+            return
+        }
+        lists = inListOrder(done)
+    }
+
+    private fun inListOrder(done: Map<Int, CatalogRow>): List<CatalogRow> = done.keys.sorted().mapNotNull { done[it] }
+
+    /** The rows with their titles filtered again. A row left with no titles is dropped (iOS `refiltered`). */
+    private suspend fun refiltered(old: List<CatalogRow>, rules: ContentRules): List<CatalogRow> =
+        old.mapNotNull { row ->
+            val items = data.classifier.filter(row.items, rules)
+            if (items.isEmpty()) {
+                null
+            } else {
+                CatalogRow(
+                    id = row.id,
+                    title = row.title,
+                    items = items,
+                    source = row.source,
+                    symbol = row.symbol,
+                    prefKey = row.prefKey,
+                    rawCount = row.rawCount,
+                )
+            }
+        }
 
     private fun rowId(job: Pair<Addon, AddonManifest.CatalogDef>) = "${job.first.id}/${job.second.type}/${job.second.id}"
 

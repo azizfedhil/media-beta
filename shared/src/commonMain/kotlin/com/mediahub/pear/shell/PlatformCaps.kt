@@ -6,8 +6,14 @@ package com.mediahub.pear.shell
  * and a player that opens full screen.
  */
 expect object PlatformCaps {
-    /** Glass can blur the picture behind the controls. False where the picture is a separate surface. */
+    /**
+     * This platform can blur the video behind the controls when asked. False where the picture is a separate surface glass
+     * cannot sample: those controls get the Frosted look.
+     */
     val videoBlurSupported: Boolean
+
+    /** The player offers the glass choice (Frosted or Liquid Glass) in Settings and onboarding. Android only. */
+    val hasPlayerGlassChoice: Boolean
 
     /** Input is touch: a tap shows or hides the controls, and there is no double-tap full screen. */
     val isTouchFirst: Boolean
@@ -17,4 +23,7 @@ expect object PlatformCaps {
 
     /** The network can tell Wi-Fi and Ethernet from a hotspot or a metered link, so Wi-Fi only can be enforced. */
     val canTellWifi: Boolean
+
+    /** The device may use the sidebar layout: a desktop window, or a tablet. Phones never. */
+    val supportsWideLayout: Boolean
 }

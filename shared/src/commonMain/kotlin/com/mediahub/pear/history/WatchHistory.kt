@@ -219,6 +219,7 @@ class WatchHistory(
         item: MetaPreview, key: String, position: Double, duration: Double,
         season: Int? = null, episode: Int? = null, episodeTitle: String? = null, thumb: String? = null,
     ) {
+        println("PEAR-CW update id=${item.id} key=$key position=$position") // TEMP-CW
         val e = build(item, key, position, duration, season, episode, episodeTitle, thumb)
         val list = entries.filter { !it.matches(item.id) && !it.matches(e.alias ?: item.id) }.toMutableList()
         list.add(0, e)
@@ -258,6 +259,7 @@ class WatchHistory(
         item: MetaPreview, key: String, position: Double, duration: Double,
         season: Int? = null, episode: Int? = null, episodeTitle: String? = null, thumb: String? = null,
     ) {
+        println("PEAR-CW checkpoint id=${item.id} key=$key position=$position") // TEMP-CW
         if (entries.none { it.matches(item.id) }) {
             update(item, key, position, duration, season, episode, episodeTitle, thumb)
             return

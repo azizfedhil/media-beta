@@ -60,6 +60,10 @@ Living log. Every fact here was checked against a source listed next to it. Anyt
 - **D5 Video surface.** SurfaceView (kept). libmpv draws into a Surface, and mpv-android uses a SurfaceView. The
   consequence stands: glass blur cannot sample video, so glass over video is flat on Android. A TextureView is possible
   but would cost performance, and the change would need a device test.
+- **Dated note, 2026-10-16 (T3, FIX_PLAN.md):** D5 is reversed for the Liquid Glass path only. With the Liquid Glass choice on
+  and battery saver off, the picture is a TextureView, so glass can blur it. Frosted, the default, keeps the SurfaceView, and
+  so does battery saver. The TextureView costs more battery. The device checks that decide T3 are in FIX_PLAN.md (T3, step 5).
+  Until they pass, the decision stays open.
 - **D6 No foreground service, no Now-Playing in v1.** Kept.
 - **D7 P2P last and optional.** Kept. The app must run with P2P reporting Unavailable.
 - **D8 Cleartext HTTP allowed.** Kept (manifest in batch 2). Add-on and P2P links are plain HTTP.
