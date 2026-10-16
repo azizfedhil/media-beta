@@ -656,6 +656,33 @@ class SimklStore(
         return reply.status in 200..299
     }
 
+    /**
+     * Takes many titles off Simkl lists in one request. Returns whether Simkl accepted it.
+     *
+     * UNVERIFIED: `/sync/remove-from-list` and this body shape are not confirmed against Simkl's API reference, which could not
+     * be read. Simkl refusing the request leaves its lists and the local library unchanged, so a wrong guess fails safe; confirm
+     * the endpoint before relying on removal.
+     */
+    suspend fun removeFromList(items: List<SimklListAdd>): Boolean {
+        if (!isConnected) return false
+        if (items.isEmpty()) return true
+        fun entry(i: SimklListAdd): JsonObject = buildJsonObject {
+            putJsonObject("ids") {
+                i.imdb?.let { put("imdb", it) }
+                i.tmdb?.let { put("tmdb", it) }
+            }
+        }
+        val body = buildJsonObject {
+            val movies = items.filter { it.isMovie }.map { entry(it) }
+            val shows = items.filter { !it.isMovie }.map { entry(it) }
+            if (movies.isNotEmpty()) put("movies", JsonArray(movies))
+            if (shows.isNotEmpty()) put("shows", JsonArray(shows))
+        }
+        refreshIfNeeded()
+        val reply = attempt { http.execute(request("/sync/remove-from-list", method = "POST", body = body)) } ?: return false
+        return reply.status in 200..299
+    }
+
     // MARK: Scrobble (start on play, stop on close; Simkl marks watched at >= 80%)
 
     /** [action] is `start`, `pause` or `stop`; [progress] is 0 to 100. Does nothing when not connected. */

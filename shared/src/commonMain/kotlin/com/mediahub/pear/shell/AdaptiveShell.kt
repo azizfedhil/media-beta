@@ -263,6 +263,10 @@ private fun ShellOverlays(
                 onProfiles(false)
                 shell.currentNav().push(Route.SimklLogin)
             },
+            onOpenPearPair = {
+                onProfiles(false)
+                shell.currentNav().push(Route.PearPair)
+            },
             onOpenWatchParty = {
                 onProfiles(false)
                 shell.openParty()

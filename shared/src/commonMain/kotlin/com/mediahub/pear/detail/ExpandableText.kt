@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.theme.PearText
@@ -21,6 +22,8 @@ fun ExpandableText(
     text: String,
     modifier: Modifier = Modifier,
     collapsedLines: Int = 3,
+    /** The body colour. Null uses the secondary text colour of the theme. */
+    color: Color? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -28,7 +31,7 @@ fun ExpandableText(
         PearText(
             text = text,
             style = PearTheme.type.body,
-            color = PearTheme.colors.textSecondary,
+            color = color ?: PearTheme.colors.textSecondary,
             maxLines = if (expanded) Int.MAX_VALUE else collapsedLines,
         )
         if (text.length > 140) {

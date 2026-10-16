@@ -94,11 +94,12 @@ internal fun Sidebar(
             }
 
             if (!iconsOnly) {
-                // One scrolling column for the rest: catalogues at full height, then Continue Watching and Recently Watched.
+                // One scrolling column for the rest, top to bottom: Continue Watching and Recently Watched, then the pinned
+                // titles, then the catalogues.
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    HistoryRows(shell.catalogue?.id) { shell.selectCatalogue(it) }
                     PinnedList()
                     CatalogueList(catalogues, shell.catalogue?.id) { shell.selectCatalogue(it) }
-                    HistoryRows(shell.catalogue?.id) { shell.selectCatalogue(it) }
                     Spacer(Modifier.height(8.dp))
                 }
             } else {
@@ -257,7 +258,7 @@ private fun BrandBadge(title: String) {
 private const val SIDEBAR_CONTINUE_ROWS = 3
 
 /**
- * Continue Watching and Recently Watched, under the catalogues. Continue Watching lists the most recent titles in progress,
+ * Continue Watching and Recently Watched, under the tabs and above the pinned titles. Continue Watching lists the most recent titles in progress,
  * each with how far it has got; its header opens the whole page. Both open as a catalogue does, so selection, Back and tab
  * switching work the same way.
  */
@@ -342,6 +343,8 @@ private fun ContinueSidebarRow(entry: HistoryEntry) {
                 listOf(
                     ContextMenuItem("Remove from Continue Watching", "xmark.circle", destructive = true) {
                         env.data.history.remove(entry.id)
+                        // A show with a finished episode would otherwise come back as an Up Next card.
+                        env.data.history.dismissUpNext(entry.id)
                     },
                 ) + titleMenuItems(env, entry.item, onDetails = { openDetails() }),
             ),
@@ -402,7 +405,7 @@ private fun ContinueSidebarRow(entry: HistoryEntry) {
 }
 
 /**
- * The titles pinned to the sidebar, under the tabs and above the catalogues. Nothing is drawn when nothing is pinned, so the
+ * The titles pinned to the sidebar, under Continue Watching and above the catalogues. Nothing is drawn when nothing is pinned, so the
  * sidebar is unchanged for anyone who never pins. A click opens the title's page; the menu unpins it.
  */
 @Composable

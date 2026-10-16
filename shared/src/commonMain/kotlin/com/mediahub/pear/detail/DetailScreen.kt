@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -53,7 +54,9 @@ import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.history.EpisodeItem
 import com.mediahub.pear.history.UpNext
-import com.mediahub.pear.history.LibraryStatus
+import com.mediahub.pear.history.addToActiveLibrary
+import com.mediahub.pear.history.isInActiveLibrary
+import com.mediahub.pear.history.removeFromActiveLibrary
 import com.mediahub.pear.home.CatalogRowView
 import com.mediahub.pear.home.heroAmbientFor
 import com.mediahub.pear.meta.MdbRating
@@ -89,6 +92,7 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlin.math.max
+import kotlinx.coroutines.launch
 
 @Composable
 fun DetailScreen(
@@ -120,7 +124,19 @@ fun DetailScreen(
     val episodeListState = rememberLazyListState()
 
     val isWatched = env.data.history.entry(item.id)?.isTitleWatched == true
-    val isInLibrary = env.data.library.entry(item.id) != null
+    // Read from whichever library the profile uses: Simkl's lists, or this device's.
+    val isInLibrary = env.data.isInActiveLibrary(item.id, imdbId.ifEmpty { null })
+    // The synopsis is the same text on both layouts.
+    val synopsis = details?.overview ?: item.description
+    val scope = rememberCoroutineScope()
+
+    // Saves or drops the title in the active library, for both layouts.
+    fun toggleLibrary() {
+        scope.launch {
+            if (isInLibrary) env.data.removeFromActiveLibrary(item, imdbId.ifEmpty { null })
+            else env.data.addToActiveLibrary(item, imdbId.ifEmpty { null })
+        }
+    }
 
     // Ambient tone for both layouts
     val http = LocalHttp.current
@@ -235,6 +251,9 @@ fun DetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 DetailHeaderInfo(item, details, ratings, logoUrl)
+                                synopsis?.takeIf { it.isNotEmpty() }?.let { text ->
+                                    ExpandableText(text, color = Color.White.copy(alpha = 0.85f))
+                                }
                                 DetailActionBar(
                                     item = item,
                                     isSeries = isSeries,
@@ -243,10 +262,7 @@ fun DetailScreen(
                                     isWatched = isWatched,
                                     isInLibrary = isInLibrary,
                                     onPlay = { openSourcePicker() },
-                                    onToggleLibrary = {
-                                        if (isInLibrary) env.data.library.remove(item.id)
-                                        else env.data.library.set(item, LibraryStatus.PlanToWatch)
-                                    },
+                                    onToggleLibrary = { toggleLibrary() },
                                     onToggleWatched = {
                                         if (isWatched) env.data.history.unmarkWatched(item.id)
                                         else env.data.history.markWatched(item)
@@ -308,6 +324,18 @@ fun DetailScreen(
                     }
                 }
             }
+            // The chevron that opens a folded hero. It sits outside the hero box, which is clipped to 0dp when fully folded.
+            if (fold > 0.5f) {
+                GlassButton(
+                    onClick = {
+                        feed.expand()
+                        scope.launch { wideScroll.animateScrollTo(0) }
+                    },
+                    symbol = "chevron.right",
+                    size = 38.dp,
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+                )
+            }
         } else {
             val bottomInset = LocalBottomInset.current
             Column(
@@ -354,10 +382,7 @@ fun DetailScreen(
                         isWatched = isWatched,
                         isInLibrary = isInLibrary,
                         onPlay = { openSourcePicker() },
-                        onToggleLibrary = {
-                            if (isInLibrary) env.data.library.remove(item.id)
-                            else env.data.library.set(item, LibraryStatus.PlanToWatch)
-                        },
+                        onToggleLibrary = { toggleLibrary() },
                         onToggleWatched = {
                             if (isWatched) env.data.history.unmarkWatched(item.id)
                             else env.data.history.markWatched(item)
@@ -368,7 +393,6 @@ fun DetailScreen(
                         PearText(tagline, style = PearTheme.type.footnote, color = PearTheme.colors.textTertiary)
                     }
 
-                    val synopsis = details?.overview ?: item.description
                     synopsis?.takeIf { it.isNotEmpty() }?.let { text ->
                         ExpandableText(text)
                     }

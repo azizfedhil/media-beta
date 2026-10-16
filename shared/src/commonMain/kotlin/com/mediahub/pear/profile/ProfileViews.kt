@@ -145,6 +145,7 @@ fun ProfileSheetOverlay(
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenSimkl: () -> Unit = {},
+    onOpenPearPair: () -> Unit = {},
     onOpenWatchParty: () -> Unit = {},
     sidebarWidth: Dp? = null,
 ) {
@@ -159,6 +160,7 @@ fun ProfileSheetOverlay(
                 onOpenProfileDetail = onOpenProfileDetail,
                 onOpenDownloads = onOpenDownloads,
                 onOpenSimkl = onOpenSimkl,
+                onOpenPearPair = onOpenPearPair,
                 onOpenWatchParty = onOpenWatchParty,
                 modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
                     .clickable(interactionSource = swallow, indication = null) {},
@@ -174,6 +176,7 @@ fun ProfileSheetOverlay(
                     onOpenProfileDetail = onOpenProfileDetail,
                     onOpenDownloads = onOpenDownloads,
                     onOpenSimkl = onOpenSimkl,
+                    onOpenPearPair = onOpenPearPair,
                     onOpenWatchParty = onOpenWatchParty,
                     floating = true,
                     modifier = Modifier.width(WIDE_PANEL_WIDTH_DP.dp)
@@ -211,6 +214,7 @@ fun ProfileSheet(
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenSimkl: () -> Unit = {},
+    onOpenPearPair: () -> Unit = {},
     onOpenWatchParty: () -> Unit = {},
     modifier: Modifier = Modifier,
     floating: Boolean = false,
@@ -333,6 +337,25 @@ fun ProfileSheet(
                                     style = PearTheme.type.caption,
                                     color = if (env.data.simkl.isConnected) Color(0xFF34C759) else PearTheme.colors.textSecondary,
                                 )
+                            }
+                            PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
+                        }
+                    }
+
+                    // Pear.pair link card: sync across devices. The same screen is under Settings > Integrations.
+                    SheetCard(
+                        onClick = {
+                            onDismiss()
+                            onOpenPearPair()
+                        },
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.size(36.dp).clip(CircleShape).background(PearTheme.colors.fillSubtle), contentAlignment = Alignment.Center) {
+                                PearIcon("link", size = 20.dp, tint = PearTheme.colors.accent)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                PearText("Pear.pair", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+                                PearText("Sync across devices", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
                             }
                             PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
                         }

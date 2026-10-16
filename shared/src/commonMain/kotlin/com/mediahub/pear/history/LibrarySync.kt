@@ -205,7 +205,8 @@ object LibrarySync {
     private fun nameKey(m: MetaPreview, year: Boolean): String =
         "${m.type}|${m.name.lowercase()}" + if (year) "|${m.year ?: 0}" else ""
 
-    private fun add(m: MetaPreview, aliases: List<String>, list: String): SimklListAdd? {
+    /** The Simkl entry for [m] on [list], by its IMDb id when it has one, else its TMDB id. Null when neither. */
+    fun add(m: MetaPreview, aliases: List<String>, list: String): SimklListAdd? {
         val ids = listOf(m.id) + aliases
         val isMovie = m.type != "series"
         ids.firstOrNull { it.startsWith("tt") }?.let { return SimklListAdd(it, null, isMovie, list) }

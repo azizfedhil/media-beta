@@ -133,7 +133,11 @@ fun ContinueRow(
                                         continueMenuItems(
                                             env,
                                             e.item,
-                                            remove = { env.data.history.remove(e.item.id) },
+                                            remove = {
+                                                env.data.history.remove(e.item.id)
+                                                // A show with a finished episode would otherwise come back as an Up Next card.
+                                                env.data.history.dismissUpNext(e.item.id)
+                                            },
                                             onDetails = { onSelectTitle(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode) },
                                         ),
                                     ),

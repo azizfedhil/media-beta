@@ -28,7 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
 import com.mediahub.pear.glass.GlassMenu
 import com.mediahub.pear.glass.GlassMenuItem
-import com.mediahub.pear.history.LibraryStatus
+import com.mediahub.pear.history.addToActiveLibrary
+import com.mediahub.pear.history.isInActiveLibrary
+import com.mediahub.pear.history.removeFromActiveLibrary
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.party.PartyRole
 import kotlinx.coroutines.launch
@@ -126,9 +128,9 @@ fun ContextMenuOverlay(request: ContextMenuRequest, onClose: () -> Unit) {
  */
 fun titleMenuItems(env: AppEnv, item: MetaPreview, onDetails: (() -> Unit)?): List<ContextMenuItem> {
     val history = env.data.history
-    val library = env.data.library
     val watched = history.entry(item.id)?.isTitleWatched == true
-    val inList = library.entry(item.id) != null
+    // The active library: Simkl's lists when Simkl is the library, otherwise this device's.
+    val inList = env.data.isInActiveLibrary(item.id)
     return buildList {
         add(
             ContextMenuItem(
@@ -143,7 +145,7 @@ fun titleMenuItems(env: AppEnv, item: MetaPreview, onDetails: (() -> Unit)?): Li
                 label = if (inList) "Remove from Library" else "Add to Library",
                 symbol = if (inList) "bookmark.slash" else "bookmark",
             ) {
-                if (inList) library.remove(item.id) else library.set(item, LibraryStatus.PlanToWatch)
+                if (inList) env.data.removeFromActiveLibrary(item) else env.data.addToActiveLibrary(item)
             },
         )
         val pinned = env.data.sidebarPins.isPinned(item.id)
@@ -158,6 +160,10 @@ fun titleMenuItems(env: AppEnv, item: MetaPreview, onDetails: (() -> Unit)?): Li
         // A guest suggests the title to the room; the host picks it up from the party sheet.
         if (env.data.party.role.value == PartyRole.Guest && item.id.startsWith("tt")) {
             add(ContextMenuItem("Suggest to Watch Party", "person.fill") { env.data.party.suggest(item) })
+        }
+        // No room yet: start one. The party sheet has the start and join buttons.
+        if (env.data.party.role.value == PartyRole.None) {
+            add(ContextMenuItem("Start Watch Party", "person.fill") { env.shell.openParty() })
         }
         if (onDetails != null) add(ContextMenuItem("Details", "info.circle") { onDetails() })
     }

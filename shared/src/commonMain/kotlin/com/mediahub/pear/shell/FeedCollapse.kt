@@ -17,6 +17,12 @@ class FeedCollapse {
     fun report(id: Any, px: Float) { rows[id] = px }
     fun forget(id: Any) { rows.remove(id) }
 
+    /** Opens the hero again: forgets the row drags and the vertical position, so the progress goes back to 0. */
+    fun expand() {
+        rows.clear()
+        vertical = 0f
+    }
+
     val horizontal: Float get() = ((rows.values.maxOrNull() ?: 0f) / 360f).coerceIn(0f, 1f)
     val progress: Float get() = maxOf(vertical, horizontal)
 }
