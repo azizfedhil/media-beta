@@ -1,5 +1,7 @@
 package com.mediahub.pear.shell
 
+import com.mediahub.pear.party.ui.PartySheetOverlay
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
@@ -261,7 +263,16 @@ private fun ShellOverlays(
                 onProfiles(false)
                 shell.currentNav().push(Route.SimklLogin)
             },
+            onOpenWatchParty = {
+                onProfiles(false)
+                shell.openParty()
+            },
         )
+    }
+    // A guest's player opens by itself when the room has a source (batch K6).
+    PartyGuestOpener(shell)
+    AnimatedVisibility(visible = shell.partySheetOpen, enter = panelIn, exit = panelOut) {
+        PartySheetOverlay(onDismiss = { shell.closeParty() })
     }
     AnimatedVisibility(visible = shell.sourcePicker != null, enter = panelIn, exit = panelOut) {
         picker?.let { SourcePickerOverlay(it, onClose = { shell.closeSourcePicker() }) }

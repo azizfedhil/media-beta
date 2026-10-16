@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         watchPowerSave()
+        AppLifecycle.notifyForegrounded()
     }
 
     override fun onStop() {

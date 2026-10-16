@@ -181,6 +181,8 @@ fun PlayerOverlay(
     /** Subtitles the app draws (4.4c), above the picture and under the controls. Gets whether the controls show. */
     subtitles: @Composable BoxScope.(controlsShown: Boolean) -> Unit = {},
     notice: String? = null,
+    /** A watch party guest's player: the host controls it, so the seek bar and the 10 s skip buttons are not shown. */
+    remote: Boolean = false,
     video: @Composable BoxScope.() -> Unit,
 ) {
     val state by engine.state.collectAsState()
@@ -389,6 +391,7 @@ fun PlayerOverlay(
                         overBottom = overBottom,
                         onScrubbing = { scrubbing = it },
                         openedAt = openedAt,
+                        remote = remote,
                     )
                 }
 
@@ -449,6 +452,7 @@ private fun Controls(
     overBottom: MutableState<Boolean>,
     onScrubbing: (Boolean) -> Unit,
     openedAt: Double?,
+    remote: Boolean,
 ) {
     Box(Modifier.fillMaxSize()) {
         // Scrims behind the controls; they take no input.
@@ -465,7 +469,7 @@ private fun Controls(
         if (errorMessage != null) {
             ErrorCard(errorMessage, onClose, Modifier.align(Alignment.Center).padding(24.dp))
         } else {
-            Transport(engine, state, onPlayPause, Modifier.align(Alignment.Center).hoverFlag(overCenter))
+            Transport(engine, state, onPlayPause, remote, Modifier.align(Alignment.Center).hoverFlag(overCenter))
             BottomBar(
                 engine = engine,
                 title = title,
@@ -475,6 +479,7 @@ private fun Controls(
                 trailing = trailing,
                 onScrubbing = onScrubbing,
                 openedAt = openedAt,
+                remote = remote,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(start = LocalPlayerMargins.current.start.dp, end = LocalPlayerMargins.current.end.dp).padding(bottom = LocalPlayerMargins.current.bottom.dp).hoverFlag(overBottom),
             )
         }
@@ -483,10 +488,10 @@ private fun Controls(
 
 /** Skip back, play/pause, skip forward (`transport` in PlayerView.swift: 50 / 68 / 50 pt, 38 pt apart). */
 @Composable
-private fun Transport(engine: PlayerEngine, state: PlaybackState, onPlayPause: () -> Unit, modifier: Modifier = Modifier) {
+private fun Transport(engine: PlayerEngine, state: PlaybackState, onPlayPause: () -> Unit, remote: Boolean, modifier: Modifier = Modifier) {
     val waiting = isWaiting(state)
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(38.dp), verticalAlignment = Alignment.CenterVertically) {
-        PlayerCircleButton(
+        if (!remote) PlayerCircleButton(
             "gobackward", size = 50.dp, icon = 21.dp, numeral = "10", contentDescription = "Back 10 seconds",
             onClick = { engine.seek(SeekMath.skipped(engine.positionSeconds.value, -10.0, engine.durationSeconds.value)) },
         )
@@ -500,7 +505,7 @@ private fun Transport(engine: PlayerEngine, state: PlaybackState, onPlayPause: (
             )
             if (waiting) PlayerSpinner(diameter = 36.dp)
         }
-        PlayerCircleButton(
+        if (!remote) PlayerCircleButton(
             "goforward", size = 50.dp, icon = 21.dp, numeral = "10", contentDescription = "Forward 10 seconds",
             onClick = { engine.seek(SeekMath.skipped(engine.positionSeconds.value, 10.0, engine.durationSeconds.value)) },
         )
@@ -521,6 +526,7 @@ private fun BottomBar(
     trailing: @Composable () -> Unit,
     onScrubbing: (Boolean) -> Unit,
     openedAt: Double?,
+    remote: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -537,7 +543,7 @@ private fun BottomBar(
                 }
             }
         }
-        PlayerSeekBar(engine, onScrubbing, openedAt = openedAt)
+        if (!remote) PlayerSeekBar(engine, onScrubbing, openedAt = openedAt)
     }
 }
 

@@ -66,6 +66,7 @@ import com.mediahub.pear.p2p.p2pSource
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.ContextMenuRequest
+import com.mediahub.pear.party.forPartyRoom
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.MenuAnchor
@@ -153,7 +154,7 @@ suspend fun openSourceChooser(
             episodeInfo = episodeInfo,
             onSelect = { request ->
                 env.shell.closeSourcePicker()
-                env.shell.currentNav().push(Route.Player(request))
+                env.shell.currentNav().push(Route.Player(request.forPartyRoom(env.data.party)))
             },
         ),
     )

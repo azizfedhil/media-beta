@@ -26,6 +26,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import com.mediahub.pear.party.PartyRole
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -143,6 +145,7 @@ fun ProfileSheetOverlay(
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenSimkl: () -> Unit = {},
+    onOpenWatchParty: () -> Unit = {},
     sidebarWidth: Dp? = null,
 ) {
     val swallow = remember { MutableInteractionSource() }
@@ -156,6 +159,7 @@ fun ProfileSheetOverlay(
                 onOpenProfileDetail = onOpenProfileDetail,
                 onOpenDownloads = onOpenDownloads,
                 onOpenSimkl = onOpenSimkl,
+                onOpenWatchParty = onOpenWatchParty,
                 modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
                     .clickable(interactionSource = swallow, indication = null) {},
             )
@@ -170,6 +174,7 @@ fun ProfileSheetOverlay(
                     onOpenProfileDetail = onOpenProfileDetail,
                     onOpenDownloads = onOpenDownloads,
                     onOpenSimkl = onOpenSimkl,
+                    onOpenWatchParty = onOpenWatchParty,
                     floating = true,
                     modifier = Modifier.width(WIDE_PANEL_WIDTH_DP.dp)
                         .clickable(interactionSource = swallow, indication = null) {},
@@ -206,6 +211,7 @@ fun ProfileSheet(
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenSimkl: () -> Unit = {},
+    onOpenWatchParty: () -> Unit = {},
     modifier: Modifier = Modifier,
     floating: Boolean = false,
 ) {
@@ -214,6 +220,7 @@ fun ProfileSheet(
     var isManaging by remember { mutableStateOf(false) }
     var editingProfile by remember { mutableStateOf<Profile?>(null) }
     var isCreatingNew by remember { mutableStateOf(false) }
+    val partyRole by env.data.party.role.collectAsState()
     val avatarSize = if (floating) 56.dp else 72.dp
     val avatarGap = if (floating) 14.dp else 18.dp
 
@@ -261,6 +268,29 @@ fun ProfileSheet(
                             Column(Modifier.weight(1f)) {
                                 PearText("View ${profiles.active.name}'s profile", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
                                 PearText("Stats, integrations and taste", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
+                            }
+                            PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
+                        }
+                    }
+
+                    // Watch party: start a room, or join one with its code (batch K5).
+                    SheetCard(
+                        onClick = {
+                            onDismiss()
+                            onOpenWatchParty()
+                        },
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.size(36.dp).clip(CircleShape).background(PearTheme.colors.fillSubtle), contentAlignment = Alignment.Center) {
+                                PearIcon("person.fill", size = 20.dp, tint = PearTheme.colors.accent)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                PearText("Watch party", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+                                PearText(
+                                    if (partyRole == PartyRole.None) "Start a room or join one" else "You are in a party",
+                                    style = PearTheme.type.caption,
+                                    color = if (partyRole == PartyRole.None) PearTheme.colors.textSecondary else Color(0xFF34C759),
+                                )
                             }
                             PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
                         }

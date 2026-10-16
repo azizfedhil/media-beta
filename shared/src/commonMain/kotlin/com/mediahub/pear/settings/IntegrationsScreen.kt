@@ -43,6 +43,7 @@ import kotlinx.coroutines.delay
 fun IntegrationsScreen(
     onBack: () -> Unit,
     onNavigateMediaServers: () -> Unit,
+    onNavigatePearPair: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val env = LocalAppEnv.current
@@ -111,6 +112,24 @@ fun IntegrationsScreen(
                     color = PearTheme.colors.textSecondary,
                 )
                 SimklConnectControls()
+            }
+
+            // Pear.pair Card: sync across devices (PearPairScreen)
+            GlassCard(Modifier.fillMaxWidth(), onClick = onNavigatePearPair) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PearIcon("arrow.triangle.2.circlepath", size = 18.dp, tint = PearTheme.colors.accent)
+                        Column {
+                            PearText("Pear.pair", style = PearTheme.type.headline)
+                            PearText(
+                                if (env.data.pairStore.isSignedIn) "Signed in on this device" else "Sync profiles and history across devices",
+                                style = PearTheme.type.footnote,
+                                color = PearTheme.colors.textSecondary,
+                            )
+                        }
+                    }
+                    PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
+                }
             }
 
             // Media Servers Card (Jellyfin & Plex)

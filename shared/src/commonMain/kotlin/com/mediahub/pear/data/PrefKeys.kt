@@ -76,6 +76,12 @@ object PrefKeys {
     const val DESKTOP_WINDOW_Y = "desktop.window.y"
     const val DESKTOP_WINDOW_WIDTH = "desktop.window.width"
     const val DESKTOP_WINDOW_HEIGHT = "desktop.window.height"
+
+    /** Pear.pair (cloud/CLOUD_API.md): whether an account is signed in here, the sync cursor and the record snapshot. Not in backups. */
+    const val PAIR_SIGNED_IN = "pair.signedIn"
+    const val PAIR_LAST_SERVER_TS = "pair.lastServerTs"
+    const val PAIR_LAST_SYNC = "pair.lastSyncAt"
+    const val PAIR_SYNCED = "pair.synced"
 }
 
 /** Secret names, kept outside [PrefStore] (iOS keeps them in the keychain). */
@@ -90,6 +96,11 @@ object SecretKeys {
 
     /** When the TVDB token was issued (epoch milliseconds as text). Kept with the token, so no setting is written off the UI thread. */
     const val TVDB_TOKEN_DATE = "tvdb.tokenDate"
+
+    /** Pear.pair: the account id, this device's id and its token (`<deviceId>.<secret>`). Never in a backup or a log. */
+    const val PAIR_ACCOUNT_ID = "pair.accountId"
+    const val PAIR_DEVICE_ID = "pair.deviceId"
+    const val PAIR_DEVICE_TOKEN = "pair.deviceToken"
 
     fun mediaServerToken(id: String): String = "mediaserver.token.$id"
 }

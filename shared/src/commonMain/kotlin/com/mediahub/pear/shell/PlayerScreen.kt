@@ -71,6 +71,16 @@ import com.mediahub.pear.player.ui.playableSourceGroups
 import com.mediahub.pear.player.ui.playerLook
 import com.mediahub.pear.player.ui.playerSubtitleLine
 import com.mediahub.pear.theme.PearDark
+import com.mediahub.pear.glass.GlassButton
+import com.mediahub.pear.party.PARTY_GUEST_NOTICE
+import com.mediahub.pear.party.PartyPlayback
+import com.mediahub.pear.party.PartyPick
+import com.mediahub.pear.party.PartyRole
+import com.mediahub.pear.party.PartySource
+import com.mediahub.pear.party.PartySourcePicker
+import com.mediahub.pear.party.roomPositionNow
+import com.mediahub.pear.party.toPartySource
+import com.mediahub.pear.player.PlayerEngine
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -99,6 +109,31 @@ fun PlayerScreen(
     val prefs = data.prefs
     val engine = remember(request) { createDefaultPlayerEngine().also { PearLog.i("Player", "engine created") } }
     val scope = rememberCoroutineScope()
+    // The watch party (batch K5). While this device is in a room, the host's controls go to the room, and a guest's controls
+    // are requests to the host. The controls below drive `controls`; the engine stays raw for the room's adapters and for the
+    // lifecycle, which must not wait on a room.
+    val party = data.party
+    val partyRole by party.role.collectAsState()
+    var partyNote by remember(request) { mutableStateOf<String?>(null) }
+    // A guest's line about the room's source: the host is choosing, or no source is on this device (batch K6).
+    var roomNote by remember(request) { mutableStateOf<String?>(null) }
+    val playback = remember(engine) {
+        PartyPlayback(engine, party, drivenByRoom = request.partyRoom, scope = scope) { message ->
+            partyNote = message
+            scope.launch {
+                delay(2_600)
+                if (partyNote == message) partyNote = null
+            }
+        }
+        .also { it.openedFor = request.partyFor }
+    }
+    val controls: PlayerEngine = playback.controls
+    // A guest whose player the room drives: no seeking, speed, next episode or skipping. The host decides those.
+    val guestHere = partyRole == PartyRole.Guest && request.partyRoom
+    DisposableEffect(playback) {
+        playback.start()
+        onDispose { playback.stop() }
+    }
 
     // Resume, progress and history (4.3b). The resume point is read once, before the first save can replace it.
     val resumeAt = remember(request) {
@@ -108,7 +143,10 @@ fun PlayerScreen(
     var current by remember(request) { mutableStateOf(request) }
     val nowPlaying = rememberUpdatedState(current)
     // Where the next load opens: the resume point, or the playhead after a source switch, or the start of a new episode.
-    var loadAt by remember(request) { mutableStateOf(resumeAt) }
+    var loadAt by remember(request) { mutableStateOf(if (request.partyRoom) party.roomPositionNow() ?: resumeAt else resumeAt) }
+    // The room learns what this player plays: the title, the episode and the source it opened on (never a URL).
+    val partySource = remember(current) { current.toPartySource() }
+    LaunchedEffect(playback, partySource) { playback.setSource(partySource, loadAt) }
 
     val progress = remember(request, data) {
         PlaybackProgress(
@@ -119,6 +157,7 @@ fun PlayerScreen(
                 // Only when the profile's library is Simkl and it is connected (iOS: libraryPrefs.usesSimkl).
                 if (data.libraryPrefs.usesSimkl(data.simkl.isConnected)) data.simkl.scrobble(action, target, percent)
             },
+            saveSink = data.pairSync,
         ).also { it.begin(resumeAt) }
     }
     val snapshot = remember(engine) {
@@ -136,6 +175,7 @@ fun PlayerScreen(
         {
             println("PEAR-CW leave snapshot=${snapshot()}") // TEMP-CW
             progress.finish(nowPlaying.value, snapshot())
+            playback.stop()
             data.p2p.engine.requestStop()
         }
     }
@@ -215,6 +255,7 @@ fun PlayerScreen(
             // Leaving a torrent for a link: the user has left that stream, so the engine goes with it (4.5d).
             data.p2p.engine.requestStop()
             engine.load(current.url, current.headers, startPositionSeconds = loadAt)
+            playback.sourceLoaded()
             return@LaunchedEffect
         }
         p2pOpening = true
@@ -224,6 +265,7 @@ fun PlayerScreen(
             val stream = data.p2p.engine.open(torrent)
             p2pOpening = false
             engine.load(stream.url, emptyMap(), startPositionSeconds = loadAt)
+            playback.sourceLoaded()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -367,12 +409,13 @@ fun PlayerScreen(
 
     // The subtitle button shows whenever online lookup is on, as on iOS (`pillHas` for subtitles).
     val hasSubtitleChoice = subtitleTracks.isNotEmpty() || data.subtitles.isEnabled
-    val layout = remember(pinnedRaw, orderRaw, nextEp, hasSubtitleChoice, audioTracks.size, pipAllowed) {
+    val layout = remember(pinnedRaw, orderRaw, nextEp, hasSubtitleChoice, audioTracks.size, pipAllowed, guestHere) {
         pillLayout(
             PillItem.decodeOrder(orderRaw),
             PillItem.decodePinned(pinnedRaw),
-            pillItemsAvailable(nextEp != null, hasSubtitles = hasSubtitleChoice, hasAudio = audioTracks.size > 1)
-                .let { if (pipAllowed) it else it - PillItem.Pip },
+            pillItemsAvailable(nextEp != null && !guestHere, hasSubtitles = hasSubtitleChoice, hasAudio = audioTracks.size > 1)
+                .let { if (pipAllowed) it else it - PillItem.Pip }
+                .let { if (guestHere) it - PillItem.Speed else it },
         )
     }
 
@@ -442,6 +485,7 @@ fun PlayerScreen(
         progress.pausedOrBackgrounded(current, snapshot()) // bank the stream being left
         loadAt = engine.positionSeconds.value
         current = current.withSource(url, stream.requestHeaders, addon.id, stream.signature, stream.p2pSource())
+        if (request.partyRoom) roomNote = null
         panel = null
     }
 
@@ -450,6 +494,59 @@ fun PlayerScreen(
         scope.launch {
             delay(2_600)
             if (notice == message) notice = null
+        }
+    }
+
+    // Watch party, guest side (batch K6). The room's source is found on this device: the same stream the host used, else the
+    // same torrent, else the usual pick. The room sends the source only, never a URL.
+    suspend fun applyRoomSource(src: PartySource?) {
+        if (src == null) {
+            roomNote = "Host is choosing a title..."
+            return
+        }
+        if (src == playback.openedFor) {
+            // Opened for this source already, or resolved it: just follow the room again.
+            playback.sourceLoaded()
+            return
+        }
+        roomNote = "Finding the host's source on your device..."
+        val pick = try {
+            PartySourcePicker.pick(
+                source = src,
+                addonClient = data.addonClient,
+                addons = data.addons.enabledAddons,
+                pin = data.pinned.pin(src.imdb),
+                p2pOff = PartySourcePicker.p2pOffReason(data.p2p.enabled.value, data.p2p.canStreamNow()),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            PartyPick.Missing("Something went wrong looking for it.")
+        }
+        when (pick) {
+            is PartyPick.Found -> {
+                playback.openedFor = src
+                roomNote = null
+                flash(pick.note)
+                loadAt = party.roomPositionNow() ?: 0.0
+                if (pick.request.url == current.url) {
+                    playback.sourceLoaded()
+                } else {
+                    current = pick.request
+                }
+            }
+            is PartyPick.Missing -> {
+                // Nothing to play here: the player stops, the room sees this guest as not ready, and the line says what to do.
+                roomNote = "No source on your device. ${pick.reason} Use Sources to pick one."
+                engine.pause()
+                playback.sourceUnavailable()
+            }
+        }
+    }
+
+    LaunchedEffect(playback) {
+        playback.roomSourceChanges.collect { event ->
+            if (request.partyRoom && event.seq > 0L) applyRoomSource(event.source)
         }
     }
 
@@ -486,12 +583,12 @@ fun PlayerScreen(
     // System media controls (Batch 4.6b): the media keys, inside the player and as global keys where the platform has
     // them, and what the OS shows for this title. Every command runs here, so Next is the pill's Next, not a second path.
     fun runMedia(command: MediaCommand) {
-        when (MediaSessionRules.effect(command, nextAvailable = nextEp != null)) {
-            MediaEffect.TogglePlay -> engine.togglePlay()
-            MediaEffect.Play -> engine.play()
-            MediaEffect.Pause -> engine.pause()
+        when (MediaSessionRules.effect(command, nextAvailable = nextEp != null && !guestHere)) {
+            MediaEffect.TogglePlay -> controls.togglePlay()
+            MediaEffect.Play -> controls.play()
+            MediaEffect.Pause -> controls.pause()
             MediaEffect.PlayNext -> playNext()
-            MediaEffect.RestartTitle -> engine.seek(0.0)
+            MediaEffect.RestartTitle -> controls.seek(0.0)
             MediaEffect.None -> Unit
         }
     }
@@ -508,7 +605,7 @@ fun PlayerScreen(
                 artworkUrl = current.thumb ?: current.item.background ?: current.item.poster,
                 durationSeconds = engine.durationSeconds.value,
             ),
-            canGoNext = nextEp != null,
+            canGoNext = nextEp != null && !guestHere,
         )
     }
 
@@ -552,14 +649,15 @@ fun PlayerScreen(
         if (pick != null) addOnline(pick)
     }
 
-    LaunchedEffect(state) {
-        if (state == PlaybackState.Ended && autoplay) playNext()
+    LaunchedEffect(state, guestHere) {
+        // A guest's player does not start the next episode itself: the room's host decides what plays.
+        if (state == PlaybackState.Ended && autoplay && !guestHere) playNext()
     }
 
     // The player is always dark, whatever the app appearance is (preferredColorScheme(.dark) in Swift).
     PearDark(env.theme) {
         PlayerOverlay(
-            engine = engine,
+            engine = controls,
             title = request.item.name,
             subtitle = playerSubtitleLine(current.season, current.episode, current.episodeTitle, current.item.releaseInfo),
             look = look,
@@ -572,12 +670,18 @@ fun PlayerScreen(
             p2pStatus = p2pStatus,
             modifier = modifier,
             openedAt = loadAt.takeIf { it > 0.0 },
+            remote = guestHere,
+            trailing = {
+                if (partyRole != PartyRole.None) {
+                    GlassButton(onClick = { env.shell.openParty() }, symbol = "person.fill", size = 40.dp)
+                }
+            },
             panel = panel,
             onDismissPanel = { panel = null },
             onTitleClick = { panel = PlayerPanel.Info },
             pill = { onActive ->
                 OptionPill(
-                    engine = engine,
+                    engine = controls,
                     layout = layout,
                     panelOpen = panel != null,
                     speedOpen = panel == PlayerPanel.Speed,
@@ -607,7 +711,7 @@ fun PlayerScreen(
                     label = "player-panel",
                 ) { openPanel ->
                     when (openPanel) {
-                        PlayerPanel.Speed -> SpeedPanel(engine, onClose = { panel = null })
+                        PlayerPanel.Speed -> SpeedPanel(controls, onClose = { panel = null })
                         PlayerPanel.Sources -> SourcesPanel(
                             groups = sourceGroups,
                             loading = sourcesLoading,
@@ -662,16 +766,17 @@ fun PlayerScreen(
                 }
             },
             skip = { shown ->
-                key(episodeSerial) {
+                // A guest's skip would move the picture alone, so a guest is not offered it: the room's host decides.
+                if (!guestHere) key(episodeSerial) {
                     SkipButtons(
-                        engine = engine,
+                        engine = controls,
                         controlsShown = shown,
                         segments = segments,
                         loaded = segmentsLoaded,
                         hasNext = nextEp != null,
                         manualSeconds = if (shown && current.season != null && manualSkipSeconds > 0) manualSkipSeconds.toDouble() else null,
                         openedMidway = openedMidway,
-                        onSeek = { engine.seek(it) },
+                        onSeek = { controls.seek(it) },
                         onNext = { playNext() },
                     )
                 }
@@ -681,7 +786,7 @@ fun PlayerScreen(
                 val cue by engine.subtitleText.collectAsState()
                 SubtitleLayer(cue, subStyle, shown)
             },
-            notice = notice,
+            notice = notice ?: partyNote ?: roomNote ?: if (guestHere) PARTY_GUEST_NOTICE else null,
             video = {
                 VideoSurface(
                     engine = engine,

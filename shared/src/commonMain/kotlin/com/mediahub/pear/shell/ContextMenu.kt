@@ -30,6 +30,7 @@ import com.mediahub.pear.glass.GlassMenu
 import com.mediahub.pear.glass.GlassMenuItem
 import com.mediahub.pear.history.LibraryStatus
 import com.mediahub.pear.model.MetaPreview
+import com.mediahub.pear.party.PartyRole
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -154,6 +155,10 @@ fun titleMenuItems(env: AppEnv, item: MetaPreview, onDetails: (() -> Unit)?): Li
                 env.data.sidebarPins.toggle(item)
             },
         )
+        // A guest suggests the title to the room; the host picks it up from the party sheet.
+        if (env.data.party.role.value == PartyRole.Guest && item.id.startsWith("tt")) {
+            add(ContextMenuItem("Suggest to Watch Party", "person.fill") { env.data.party.suggest(item) })
+        }
         if (onDetails != null) add(ContextMenuItem("Details", "info.circle") { onDetails() })
     }
 }

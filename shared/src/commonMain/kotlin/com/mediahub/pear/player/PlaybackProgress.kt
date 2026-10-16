@@ -7,6 +7,7 @@ import com.mediahub.pear.history.LocalLibrary
 import com.mediahub.pear.history.WatchHistory
 import com.mediahub.pear.history.WatchLog
 import com.mediahub.pear.model.PlayRequest
+import com.mediahub.pear.pair.PlaybackSaveSink
 import com.mediahub.pear.simkl.ScrobbleTarget
 import kotlin.math.min
 
@@ -96,6 +97,8 @@ class PlaybackProgress(
     private val library: LocalLibrary,
     private val scrobbler: Scrobbler,
     private val now: () -> Long = ::epochMillis,
+    /** Told after each save, so Pear.pair can send the progress. Null when no account is signed in. */
+    private val saveSink: PlaybackSaveSink? = null,
 ) {
     /** Sends a scrobble. The screen's version checks that Simkl is connected and is the profile's library. */
     fun interface Scrobbler {
@@ -138,6 +141,7 @@ class PlaybackProgress(
         }
         logPlayTime(snapshot.playing)
         save(request, snapshot, isFinal = false)
+        saveSink?.progressSaved(request.item.id, immediate = false)
     }
 
     /** Pausing banks the resume point (a paused window can sit for hours, then be closed by the system). */
@@ -145,6 +149,7 @@ class PlaybackProgress(
         if (finished) return
         logPlayTime(snapshot.playing)
         save(request, snapshot, isFinal = false)
+        saveSink?.progressSaved(request.item.id, immediate = true)
         // Simkl's own progress follows the pause, so a title paused past 80% is marked from another app too.
         if (snapshot.duration > 0.0 && request.imdb.isNotBlank()) {
             scrobbler.scrobble("pause", request.scrobbleTarget, ProgressRules.scrobblePercent(snapshot.position, snapshot.duration))
@@ -162,6 +167,7 @@ class PlaybackProgress(
         logPlayTime(snapshot.playing)
         watchLog.flush()
         save(request, snapshot, isFinal = true)
+        saveSink?.progressSaved(request.item.id, immediate = true)
     }
 
     /** Leaving this episode: last watch-time tick, full save (updates the lists on screen), Simkl `stop`. */
@@ -171,6 +177,7 @@ class PlaybackProgress(
         logPlayTime(snapshot.playing)
         watchLog.flush()
         save(request, snapshot, isFinal = true)
+        saveSink?.progressSaved(request.item.id, immediate = true)
         if (snapshot.duration > 0.0 && request.imdb.isNotBlank()) {
             scrobbler.scrobble("stop", request.scrobbleTarget, ProgressRules.scrobblePercent(snapshot.position, snapshot.duration))
         }

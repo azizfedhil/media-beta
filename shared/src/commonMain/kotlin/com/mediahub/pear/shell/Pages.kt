@@ -1,6 +1,7 @@
 package com.mediahub.pear.shell
 
 import androidx.compose.foundation.background
+import com.mediahub.pear.party.forPartyRoom
 import com.mediahub.pear.log.PearLog
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,6 +47,7 @@ import com.mediahub.pear.settings.AddonsSettingsScreen
 import com.mediahub.pear.settings.ContentSettingsScreen
 import com.mediahub.pear.settings.IntegrationsScreen
 import com.mediahub.pear.settings.MediaServersScreen
+import com.mediahub.pear.settings.PearPairScreen
 import com.mediahub.pear.settings.PlayerControlsSettingsScreen
 import com.mediahub.pear.settings.SettingsScreen
 import com.mediahub.pear.settings.SubtitleSettingsScreen
@@ -122,7 +124,7 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
             startEpisode = route.startEpisode,
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
-            onPlay = { request -> nav.push(Route.Player(request)) },
+            onPlay = { request -> nav.push(Route.Player(request.forPartyRoom(env.data.party))) },
         )
         is Route.Player -> PlayerScreen(request = route.request, onBack = { nav.pop() })
         Route.ProfileDetail -> ProfileDetailScreen(
@@ -140,8 +142,12 @@ internal fun RouteContent(route: Route, nav: NavController<Route>) {
         Route.Integrations -> IntegrationsScreen(
             onBack = { nav.pop() },
             onNavigateMediaServers = { nav.push(Route.MediaServers) },
+            onNavigatePearPair = { nav.push(Route.PearPair) },
         )
         Route.MediaServers -> MediaServersScreen(
+            onBack = { nav.pop() },
+        )
+        Route.PearPair -> PearPairScreen(
             onBack = { nav.pop() },
         )
         Route.AddonsSettings -> AddonsSettingsScreen(

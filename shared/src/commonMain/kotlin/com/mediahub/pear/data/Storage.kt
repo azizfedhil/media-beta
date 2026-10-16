@@ -19,6 +19,13 @@ import com.mediahub.pear.servers.MediaServerStore
 import com.mediahub.pear.shell.SidebarPins
 import com.mediahub.pear.simkl.SimklHistorySync
 import com.mediahub.pear.simkl.SimklStore
+import com.mediahub.pear.cloud.CloudApi
+import com.mediahub.pear.cloud.CloudConfig
+import com.mediahub.pear.pair.PairClient
+import com.mediahub.pear.pair.PairStore
+import com.mediahub.pear.pair.SyncEngine
+import com.mediahub.pear.pair.usesSimklLibrary
+import com.mediahub.pear.party.PartyService
 import kotlinx.coroutines.CoroutineDispatcher
 import com.mediahub.pear.downloads.DownloadManager
 import com.mediahub.pear.downloads.platformDownloadFiles
@@ -97,6 +104,27 @@ class AppData(
         minutesOf = { item -> meta.tmdb.cachedDetails(item.id, item.type)?.minutes },
     )
 
+    /** Pear.pair: the account on this device and the engine that keeps it in step. Idle until an account is signed in here. */
+    val pairStore = PairStore(storage.prefs, storage.secrets)
+    val pairClient = PairClient(CloudApi(network.http, CloudConfig.pairBaseUrl))
+    val pairSync = SyncEngine(
+        store = pairStore,
+        client = pairClient,
+        prefs = storage.prefs,
+        activeProfile = { profiles.activeID },
+        usesSimkl = { profile -> usesSimklLibrary(storage.prefs, profile, simkl.isConnected) },
+        onRemoteApplied = { reloadAfterSync() },
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    )
+
+    init {
+        // Starts the sync timers when an account is signed in here. Otherwise it reads no secret and does nothing.
+        pairSync.startIfSignedIn()
+    }
+
+    /** Watch party: the room this device is in and its socket. Idle until a room is started or joined. */
+    val party = PartyService(network.http, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+
     val intro = IntroClient(
         network.http,
         enabled = { storage.prefs.bool(PrefKeys.SKIP_ENABLED, true) },
@@ -104,6 +132,15 @@ class AppData(
     )
 
     val episodes = EpisodeLoader(meta.tmdb, meta.tvdb)
+
+    /** After a pull changed local data: re-read the stores the screens show. Runs on the UI thread (the engine's scope). */
+    private fun reloadAfterSync() {
+        profiles.reload()
+        val profile = profiles.activeID
+        history.reload(profile)
+        library.reload(profile)
+        libraryPrefs.reload(profile)
+    }
 
     fun switchProfile(profile: String) {
         content.load(profile)

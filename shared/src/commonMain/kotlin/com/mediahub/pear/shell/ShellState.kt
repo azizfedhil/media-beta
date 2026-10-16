@@ -27,6 +27,7 @@ sealed interface Route {
     data object ContentSettings : Route
     data object Downloads : Route
     data object Integrations : Route
+    data object PearPair : Route
     data object MediaServers : Route
     data object AddonsSettings : Route
     data object AIOMetadataSettings : Route
@@ -103,6 +104,17 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
     var heroAmbientKnown: Boolean by mutableStateOf(false)
     /** Whether "Who's watching?" is open. The avatar, the sidebar and a profile page's Switch profile all set it. */
     var showProfiles: Boolean by mutableStateOf(false)
+
+    /** Whether the watch party sheet is open. The profile sheet and the player's party button open it. */
+    var partySheetOpen: Boolean by mutableStateOf(false)
+
+    fun openParty() {
+        partySheetOpen = true
+    }
+
+    fun closeParty() {
+        partySheetOpen = false
+    }
 
     /** Whether the first-launch setup covers the app (see `onboarding/OnboardingHost.kt`). */
     var onboardingVisible: Boolean by mutableStateOf(false)

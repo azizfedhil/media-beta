@@ -13,6 +13,15 @@ object AppLifecycle {
 
     val backgrounded: SharedFlow<Unit> = events.asSharedFlow()
 
+    private val resumes = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+
+    /** The app coming to the front (Android: the activity starts again). The Pear.pair engine syncs on it. */
+    val foregrounded: SharedFlow<Unit> = resumes.asSharedFlow()
+
+    fun notifyForegrounded() {
+        resumes.tryEmit(Unit)
+    }
+
     fun notifyBackgrounded() {
         events.tryEmit(Unit)
     }
