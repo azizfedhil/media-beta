@@ -7,7 +7,7 @@ package com.mediahub.pear.cloud
  */
 object CloudConfig {
     /** Pear.pair: accounts, devices, pair codes, sync and export. */
-    val pairBaseUrl: String = "https://pear-cloud.REPLACE-WITH-YOUR-SUBDOMAIN.workers.dev"
+    val pairBaseUrl: String = "https://pear-cloud.azizfedhil5.workers.dev"
 
     /** Watch party: rooms and the room WebSocket. */
     val partyBaseUrl: String = pairBaseUrl
