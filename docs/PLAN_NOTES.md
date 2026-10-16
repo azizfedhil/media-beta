@@ -2,6 +2,12 @@
 
 Written after applying the plan. Nothing has been compiled or run. Checks so far were by reading the code and a brace-balance pass over every touched file.
 
+## Build result (first CI run)
+
+- `:shared:compileAndroidMain` passed. That compile covers commonMain, jvmCommonMain and androidMain, so every shared change compiles for Android, and OkHttp's `okhttp3` types are visible from `AndroidNetwork.kt`.
+- `:shared:compileKotlinDesktop` failed on four redeclarations that were already in the uploaded repo: `FilePrefsPersistence`, `FileFactStore`, `FileResponseCache` and `PlistCodec`. Each had a copy in `desktopMain` and an identical copy in `jvmCommonMain`. The four `desktopMain` copies were removed. The `jvmCommonMain` copies are used by Android and by the desktop tests.
+- The desktop compile reported no other errors, so the desktop-only code has not been fully checked yet. The next CI run will show whether it passes. `desktopApp` has not been compiled.
+
 ## Task 1. Crash briefing and logging: done, with corrections
 
 - The logger is split in two. `log/PearLog.kt` is in commonMain (a facade that writes to a `LogSink`), because commonMain code calls it. `log/PearLogFile.kt` is in jvmCommonMain (file, rotation, session marker, crash handler). The plan had all of it in jvmCommonMain, which commonMain cannot call.
@@ -65,5 +71,5 @@ The `// TEMP-CW` debug prints. Storage formats. `AppExit`. The Simkl library syn
 
 1. Simkl pull (Task 5b): a real account, with progress made in another app. Look for `SimklSync` lines.
 2. Full-screen restart (Task 6) and restore (Task 7): reproduce, then read the `Window` and `Player` lines in `pear.log`.
-3. The okhttp3 compile visibility (Task 9).
+3. Desktop compile (see Build result above). The okhttp3 visibility question is answered by the Android compile.
 4. Existing tests were not run. Two were read to confirm they are unaffected: the scrobble-count assertions in `PlaybackProgressTest` (none call `pausedOrBackgrounded`), and the request-count assertions in `AddonClientTest` (the unknown routes return 404, which is not retried).
