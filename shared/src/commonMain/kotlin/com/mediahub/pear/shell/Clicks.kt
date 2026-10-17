@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerType
@@ -43,6 +44,9 @@ private sealed interface TouchOutcome {
  * A left click runs [onClick]; a right click runs [onMenu]. Both fire on release. A press that moves past the slop is a
  * drag and fires neither, so dragging a shelf still scrolls it. A touch held for the long-press time runs [onMenu] instead,
  * with a haptic tick, and the rest of that gesture is swallowed. [source] receives the press, so pressed-state visuals work.
+ *
+ * A mouse press also counts as a drag as soon as a parent (a row being dragged) consumes the move, even if the pointer
+ * stayed near its start inside the card.
  */
 @Composable
 fun Modifier.clickOrMenu(
@@ -87,11 +91,15 @@ fun Modifier.clickOrMenu(
                 var release: PointerInputChange? = null
                 var moved = false
                 while (release == null && !moved) {
-                    val change = awaitPointerEvent().changes.first()
-                    if (!change.pressed) {
-                        release = change
-                    } else if ((change.position - start).getDistance() > CLICK_SLOP_PX) {
-                        moved = true
+                    // The Final pass runs after every parent has had its turn, so a row that took this drag has
+                    // already consumed it by now.
+                    val change = awaitPointerEvent(PointerEventPass.Final).changes.first()
+                    when {
+                        !change.pressed -> release = change
+                        // Dragging a shelf moves the card along with the cursor, so the distance measured inside the
+                        // card barely grows. The parent consuming the move is the reliable sign of a drag.
+                        change.isConsumed && change.position != change.previousPosition -> moved = true
+                        (change.position - start).getDistance() > CLICK_SLOP_PX -> moved = true
                     }
                 }
                 if (release != null && !moved) {
