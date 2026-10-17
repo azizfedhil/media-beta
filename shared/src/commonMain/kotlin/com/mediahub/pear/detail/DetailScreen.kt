@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -96,6 +98,9 @@ import kotlinx.coroutines.launch
 
 /** The phone hero's height: iOS's 500 pt, less the status bar, which the app pads at the root (MainActivity). */
 private val PhoneDetailHeroHeight = 440.dp
+
+/** Seasons with fewer episodes than this fit on screen, so they get no First / Last buttons. */
+private const val EPISODE_JUMP_MIN = 4
 
 /**
  * The fade into the page at the bottom of the phone hero: eleven stops on a smoothstep curve, so the edge has no kink
@@ -585,6 +590,8 @@ private fun SeasonsAndEpisodesSection(
     episodeListState: LazyListState,
 ) {
     val env = LocalAppEnv.current
+    val scope = rememberCoroutineScope()
+    val gridState = rememberLazyGridState()
     val seasons = details?.seasons?.filter { (it.episodeCount ?: 1) > 0 } ?: (1..1).map { SeasonInfo(it, "Season 1", it) }
 
     val isWide = LocalWideLayout.current
@@ -602,6 +609,21 @@ private fun SeasonsAndEpisodesSection(
             if (isWide && episodes.isNotEmpty()) {
                 DevChip("One row", !twoRows) { env.data.prefs.setBool(PrefKeys.DESKTOP_EPISODES_TWO_ROWS, false) }
                 DevChip("Two rows", twoRows) { env.data.prefs.setBool(PrefKeys.DESKTOP_EPISODES_TWO_ROWS, true) }
+            }
+            if (isWide && episodes.size >= EPISODE_JUMP_MIN) {
+                Spacer(Modifier.width(16.dp))
+                DevChip("First", false) {
+                    scope.launch {
+                        if (twoRows) gridState.animateScrollToItem(0) else episodeListState.animateScrollToItem(0)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                DevChip("Last", false) {
+                    scope.launch {
+                        val last = episodes.lastIndex
+                        if (twoRows) gridState.animateScrollToItem(last) else episodeListState.animateScrollToItem(last)
+                    }
+                }
             }
         }
 
@@ -635,6 +657,7 @@ private fun SeasonsAndEpisodesSection(
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
+                    state = gridState,
                 ) {
                     gridItems(episodes) { ep ->
                         EpisodeCard(
