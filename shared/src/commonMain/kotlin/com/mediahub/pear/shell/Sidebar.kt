@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -49,6 +53,7 @@ import com.mediahub.pear.theme.monospacedDigits
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.delay
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import com.mediahub.pear.theme.PearMotion
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.rememberCoroutineScope
@@ -181,6 +186,11 @@ private fun NavRow(tab: AppTab, isSelected: Boolean, iconsOnly: Boolean, onClick
 @Composable
 private fun CatalogueList(items: List<CatalogueItem>, selectedId: String?, onPick: (CatalogueItem) -> Unit) {
     val t = PearTheme.type
+    var expanded by remember { mutableStateOf(false) }
+    val overflow = items.size > SIDEBAR_CATALOGUE_ROWS
+    // A selected catalogue must never be hidden: while it sits below the fold the list stays open.
+    val selectedHidden = overflow && items.indexOfFirst { it.id == selectedId } >= SIDEBAR_CATALOGUE_ROWS
+    val open = !overflow || expanded || selectedHidden
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PearText(
             "Catalogues",
@@ -189,11 +199,52 @@ private fun CatalogueList(items: List<CatalogueItem>, selectedId: String?, onPic
             modifier = Modifier.padding(start = 14.dp, top = 28.dp, bottom = 4.dp),
         )
 
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            items.forEach { item ->
+        Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            val shown = if (open) items else items.take(SIDEBAR_CATALOGUE_ROWS)
+            shown.forEach { item ->
                 CatalogueRow(item, item.id == selectedId) { onPick(item) }
             }
+            if (overflow && !open) {
+                // The next row, cut off at SIDEBAR_PEEK_HEIGHT and faded into the sidebar colour. Not clickable as a
+                // row: pressing the faded area opens the list instead.
+                Box(Modifier.fillMaxWidth().height(SIDEBAR_PEEK_HEIGHT).clipToBounds()) {
+                    Column(Modifier.fillMaxWidth().wrapContentHeight(Alignment.Top, unbounded = true)) {
+                        CatalogueRow(items[SIDEBAR_CATALOGUE_ROWS], false) {}
+                    }
+                    Box(
+                        Modifier.matchParentSize()
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, PearTheme.colors.sidebar)))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { expanded = true },
+                    )
+                }
+            }
+            if (overflow && !selectedHidden) {
+                ShowMoreRow(open) { expanded = !expanded }
+            }
         }
+    }
+}
+
+@Composable
+private fun ShowMoreRow(open: Boolean, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    val color by animateColorAsState(
+        if (hovered) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.55f),
+        PearMotion.snappy<Color>(PearMotion.FAST),
+    )
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(PearRadii.sm))
+            .hoverable(source)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        PearText(if (open) "Show less" else "Show more", style = PearTheme.type.footnote.weight(FontWeight.Medium), color = color, maxLines = 1)
+        PearIcon(if (open) "chevron.up" else "chevron.down", size = 12.dp, tint = color)
     }
 }
 
@@ -257,6 +308,12 @@ private fun BrandBadge(title: String) {
 
 /** How many titles the sidebar's Continue Watching lists. Its header opens the whole page, which lists the rest. */
 private const val SIDEBAR_CONTINUE_ROWS = 3
+
+/** Catalogue rows shown in full before the rest fold behind "Show more". */
+private const val SIDEBAR_CATALOGUE_ROWS = 5
+
+/** How much of the first hidden row bleeds out under the fade. */
+private val SIDEBAR_PEEK_HEIGHT = 26.dp
 
 /**
  * Continue Watching, under the tabs and above the pinned titles. It lists the most recent titles in progress, each with how
