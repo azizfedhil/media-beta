@@ -95,12 +95,12 @@ internal fun Sidebar(
             }
 
             if (!iconsOnly) {
-                // One scrolling column for the rest, top to bottom: Continue Watching and Recently Watched, then the pinned
-                // titles, then the catalogues.
+                // One scrolling column for the rest, top to bottom: Continue Watching, then the pinned titles, then the
+                // catalogues, with Recently Watched first among them.
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
                     HistoryRows(shell.catalogue?.id) { shell.selectCatalogue(it) }
                     PinnedList()
-                    CatalogueList(catalogues, shell.catalogue?.id) { shell.selectCatalogue(it) }
+                    CatalogueList(listOf(HistoryShortcuts.recentlyWatched) + catalogues, shell.catalogue?.id) { shell.selectCatalogue(it) }
                     Spacer(Modifier.height(8.dp))
                 }
             } else {
@@ -259,9 +259,9 @@ private fun BrandBadge(title: String) {
 private const val SIDEBAR_CONTINUE_ROWS = 3
 
 /**
- * Continue Watching and Recently Watched, under the tabs and above the pinned titles. Continue Watching lists the most recent titles in progress,
- * each with how far it has got; its header opens the whole page. Both open as a catalogue does, so selection, Back and tab
- * switching work the same way.
+ * Continue Watching, under the tabs and above the pinned titles. It lists the most recent titles in progress, each with how
+ * far it has got; its header opens the whole page, as a catalogue does, so selection, Back and tab switching work the same
+ * way. Recently Watched is listed with the catalogues.
  */
 @Composable
 private fun HistoryRows(selectedId: String?, onPick: (CatalogueItem) -> Unit) {
@@ -272,9 +272,6 @@ private fun HistoryRows(selectedId: String?, onPick: (CatalogueItem) -> Unit) {
             onPick(HistoryShortcuts.continueWatching)
         }
         recent.forEach { entry -> ContinueSidebarRow(entry) }
-        ShortcutRow(HistoryShortcuts.recentlyWatched, "clock", selectedId == HistoryShortcuts.recentlyWatched.id) {
-            onPick(HistoryShortcuts.recentlyWatched)
-        }
     }
 }
 
@@ -499,44 +496,6 @@ private fun continueSubtitle(entry: HistoryEntry): String {
     val se = entry.seasonEpisode
     val where = if (se != null) "S${se.season} · E${se.episode}" else entry.item.year?.toString()
     return listOfNotNull(where, "$percent%").joinToString(" · ")
-}
-
-/** A row styled exactly as [CatalogueRow], with a symbol in its circle instead of a brand badge. */
-@Composable
-private fun ShortcutRow(item: CatalogueItem, symbol: String, isSelected: Boolean, onClick: () -> Unit) {
-    val source = remember { MutableInteractionSource() }
-    val hovered by source.collectIsHoveredAsState()
-    val bg by animateColorAsState(
-        when {
-            isSelected -> Color.White
-            hovered -> Color.White.copy(alpha = 0.08f)
-            else -> Color.Transparent
-        },
-        PearMotion.snappy<Color>(PearMotion.FAST),
-    )
-    val fg by animateColorAsState(if (isSelected) Color.Black else Color.White.copy(alpha = 0.85f), PearMotion.snappy<Color>(PearMotion.FAST))
-
-    Row(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(PearRadii.sm))
-            .background(bg)
-            .hoverable(source)
-            .clickable(interactionSource = source, indication = null, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        // The symbol takes the row's colour, so it stays visible on the selected white pill.
-        Box(Modifier.size(22.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-            PearIcon(symbol, size = 11.dp, tint = fg)
-        }
-        PearText(
-            item.title,
-            style = PearTheme.type.footnote.weight(if (isSelected) FontWeight.Bold else FontWeight.Medium),
-            color = fg,
-            maxLines = 1,
-        )
-    }
 }
 
 /** The sidebar's trailing hairline. Set to 0 to remove it. */

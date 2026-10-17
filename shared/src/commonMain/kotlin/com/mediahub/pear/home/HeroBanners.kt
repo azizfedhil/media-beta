@@ -16,6 +16,11 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +71,7 @@ import com.mediahub.pear.net.attempt
 import com.mediahub.pear.net.rememberDominantColor
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.WideScale
+import com.mediahub.pear.shell.shiftWheelHorizontal
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
@@ -201,6 +207,11 @@ private fun HeroInfo(
     onDetails: () -> Unit,
 ) {
     var overflows by remember(item.id) { mutableStateOf(false) }
+    // Each control gets its own interaction source, so it draws no hover or press overlay.
+    val moreSource = remember { MutableInteractionSource() }
+    // The ratings also scroll by mouse drag and Shift + wheel, as the Home rows do.
+    val ratingsScroll = rememberScrollState()
+    val ratingsScope = rememberCoroutineScope()
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (wide) 16.dp else 10.dp)) {
         HeroTypePill(item, wide)
         TitleArt(
@@ -211,7 +222,13 @@ private fun HeroInfo(
         )
         if (ratings.isNotEmpty()) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                Modifier.fillMaxWidth()
+                    .draggable(
+                        rememberDraggableState { d -> ratingsScope.launch { ratingsScroll.scrollBy(-d) } },
+                        Orientation.Horizontal,
+                    )
+                    .shiftWheelHorizontal { ratingsScroll.scrollBy(it) }
+                    .horizontalScroll(ratingsScroll),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -235,7 +252,7 @@ private fun HeroInfo(
                     text = if (expanded) "Less" else "More",
                     style = PearTheme.type.subheadline.weight(FontWeight.SemiBold),
                     color = Color.White,
-                    modifier = Modifier.clickable(onClick = onToggleExpanded),
+                    modifier = Modifier.clickable(interactionSource = moreSource, indication = null, onClick = onToggleExpanded),
                 )
             }
         }
@@ -272,11 +289,12 @@ private fun HeroTypePill(item: MetaPreview, wide: Boolean) {
 @Composable
 private fun HeroDetailsButton(onClick: () -> Unit) {
     val c = PearTheme.colors
+    val source = remember { MutableInteractionSource() }
     Row(
         Modifier
             .clip(RoundedCornerShape(PearRadii.pill))
             .background(c.accent)
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -292,6 +310,7 @@ private fun HeroDots(count: Int, index: Int, wide: Boolean, onSelect: (Int) -> U
         for (i in 0 until count) {
             key(i) {
                 val current = i == index
+                val source = remember { MutableInteractionSource() }
                 val width by animateDpAsState(
                     targetValue = if (current) (if (wide) 22.dp else 20.dp) else 6.dp,
                     animationSpec = tween(durationMillis = 400),
@@ -300,7 +319,7 @@ private fun HeroDots(count: Int, index: Int, wide: Boolean, onSelect: (Int) -> U
                     Modifier.height(5.dp).width(width)
                         .clip(RoundedCornerShape(PearRadii.pill))
                         .background(if (current) Color.White else Color.White.copy(alpha = 0.40f))
-                        .clickable { onSelect(i) },
+                        .clickable(interactionSource = source, indication = null) { onSelect(i) },
                 )
             }
         }
@@ -341,7 +360,8 @@ fun HeroCarousel(
     Box(modifier.fillMaxWidth().height(PhoneHeroHeight)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val item = items.getOrElse(page) { items.first() }
-            Box(Modifier.fillMaxSize().clickable { onSelectTitle(item) }) {
+            val tapSource = remember { MutableInteractionSource() }
+            Box(Modifier.fillMaxSize().clickable(interactionSource = tapSource, indication = null) { onSelectTitle(item) }) {
                 HeroArt(
                     url = item.heroUrl(false) ?: item.backdropUrl ?: item.posterUrl,
                     active = page == pagerState.currentPage,
@@ -406,7 +426,8 @@ fun WideHeroPanel(
                 label = "hero-wide",
             ) { i ->
                 val item = items.getOrElse(i) { items.first() }
-                Box(Modifier.fillMaxSize().clickable { onSelectTitle(item) }) {
+                val tapSource = remember { MutableInteractionSource() }
+                Box(Modifier.fillMaxSize().clickable(interactionSource = tapSource, indication = null) { onSelectTitle(item) }) {
                     HeroArt(
                         url = item.largePosterUrl() ?: item.backdropUrl,
                         active = i == index.intValue,

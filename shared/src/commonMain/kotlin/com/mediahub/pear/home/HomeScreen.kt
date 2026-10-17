@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.player.ui.PlayerSpinner
 import com.mediahub.pear.shell.PearCapsuleButton
 import com.mediahub.pear.theme.PearIcon
@@ -85,38 +86,56 @@ fun HomeScreen(
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
         LaunchedEffect(scroll) {
-            snapshotFlow { scroll.value }.collect { fc.vertical = (it / 260f).coerceIn(0f, 1f) }
+            snapshotFlow { scroll.value }.collect {
+                fc.vertical = (it / 260f).coerceIn(0f, 1f)
+                // Back at the top, the sideways row drags are forgotten too, so nothing keeps the hero folded.
+                if (it == 0) fc.expand()
+            }
         }
         val fold by animateFloatAsState(fc.progress, tween(140))
         CompositionLocalProvider(LocalFeedCollapse provides fc) {
             // One wash behind the hero and the feed together. It used to sit only on the feed column, so the hero's
             // faded right edge met a plain black page at a hard vertical line.
-            Row(modifier.fillMaxSize().attachedAmbient(AmbientTuning.WIDE_REACH_DP)) {
-                if (model.hero.isNotEmpty()) {
-                    WideHeroPanel(
-                        items = model.hero,
-                        collapse = fold,
-                        onSelectTitle = { onSelectTitle(it, null, null) },
-                        scroll = scroll,
-                    )
-                }
-                Box(Modifier.weight(1f).fillMaxHeight()) {
-                    Column(
-                        Modifier.fillMaxSize()
-                            .draggable(
-                                rememberDraggableState { delta -> scope.launch { scroll.scrollBy(-delta) } },
-                                Orientation.Vertical,
-                            )
-                            .verticalScroll(scroll),
-                    ) {
+            Box(Modifier.fillMaxSize()) {
+                Row(modifier.fillMaxSize().attachedAmbient(AmbientTuning.WIDE_REACH_DP)) {
+                    if (model.hero.isNotEmpty()) {
+                        WideHeroPanel(
+                            items = model.hero,
+                            collapse = fold,
+                            onSelectTitle = { onSelectTitle(it, null, null) },
+                            scroll = scroll,
+                        )
+                    }
+                    Box(Modifier.weight(1f).fillMaxHeight()) {
                         Column(
-                            Modifier.fillMaxWidth()
-                                .padding(start = 14.dp, top = 18.dp, bottom = bottomInset + 40.dp),
-                            verticalArrangement = Arrangement.spacedBy(28.dp),
+                            Modifier.fillMaxSize()
+                                .draggable(
+                                    rememberDraggableState { delta -> scope.launch { scroll.scrollBy(-delta) } },
+                                    Orientation.Vertical,
+                                )
+                                .verticalScroll(scroll),
                         ) {
-                            FeedRows(model, onSelectTitle, onSeeAll)
+                            Column(
+                                Modifier.fillMaxWidth()
+                                    .padding(start = 14.dp, top = 18.dp, bottom = bottomInset + 40.dp),
+                                verticalArrangement = Arrangement.spacedBy(28.dp),
+                            ) {
+                                FeedRows(model, onSelectTitle, onSeeAll)
+                            }
                         }
                     }
+                }
+                // The chevron that opens a folded hero, as on Detail. It sits outside the Row, so it stays over the hero.
+                if (fold > 0.5f) {
+                    GlassButton(
+                        onClick = {
+                            fc.expand()
+                            scope.launch { scroll.animateScrollTo(0) }
+                        },
+                        symbol = "chevron.right",
+                        size = 38.dp,
+                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+                    )
                 }
             }
         }

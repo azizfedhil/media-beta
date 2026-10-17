@@ -119,6 +119,8 @@ class HomeModel(private val data: AppData) {
         val movies = attempt { data.meta.tmdb.trending("movie") } ?: emptyList()
         val shows = attempt { data.meta.tmdb.trending("tv") } ?: emptyList()
         val because = if (lastWatched != null) attempt { data.meta.tmdb.recommendations(lastWatched.id, lastWatched.type) } ?: emptyList() else emptyList()
+        // Both trending lists failed (offline, a timeout): keep the rows on screen rather than blank them.
+        if (movies.isEmpty() && shows.isEmpty() && suggested.isNotEmpty()) return
 
         val mFiltered = data.classifier.filter(movies, rules)
         val sFiltered = data.classifier.filter(shows, rules)
@@ -327,6 +329,9 @@ class HomeModel(private val data: AppData) {
         }
         val pool = mixed.ifEmpty { rows.firstOrNull()?.items ?: emptyList() }
             .filter { it.backdropUrl != null || it.posterUrl != null }
+
+        // A refresh that came back empty (a failed fetch) keeps the hero already on screen.
+        if (pool.isEmpty() && hero.isNotEmpty()) return
 
         if (pool.size <= 7) {
             hero = pool
