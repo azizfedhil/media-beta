@@ -198,8 +198,11 @@ object PearLogFile : LogSink {
 }
 
 /**
- * Shows the report from the last run. [folderOpener] opens the logs folder in the file manager, or is null where the
- * platform cannot (Android). Dismissing renames the shown file to `*.seen`, so it is not shown again.
+ * Shows the report from the last run, once. [pending] takes the report out of the folder as it reads it, so it is not
+ * offered again. The file moves to a `.seen-<time>` name, or is deleted if the move fails. Every other unclean report
+ * goes the same way, so an older one does not surface one launch later. The `crash-<stamp>.txt` archive copies stay.
+ * If neither a move nor a delete works, the file's time goes into `crash-seen.txt`, and older files are skipped from
+ * then on. [folderOpener] opens the logs folder in the file manager, or is null where the platform cannot (Android).
  */
 class FileCrashReportSource(
     private val dir: File,
@@ -208,13 +211,22 @@ class FileCrashReportSource(
     private var shown: File? = null
 
     override fun pending(): CrashReport? {
-        val file = File(dir, "last-crash.txt").takeIf { it.isFile } ?: newestUnclean() ?: return null
+        val mark = seenMark()
+        val unseen: (File) -> Boolean = { f -> f.isFile && (mark == null || f.lastModified() > mark) }
+        val uncleans = dir.listFiles { f -> f.name.startsWith("unclean-") && f.name.endsWith(".txt") }
+            ?.filter(unseen)
+            ?.sortedByDescending { it.name }
+            .orEmpty()
+        val file = File(dir, "last-crash.txt").takeIf(unseen) ?: uncleans.firstOrNull() ?: return null
+        val text = runCatching { file.readText() }.getOrNull() ?: return null
         shown = file
-        return CrashReport("Pear. closed unexpectedly last time", file.readText())
+        // Consumed as it is read, so it can only show once. Every other unseen unclean report is consumed with it.
+        val failed = (listOf(file) + uncleans.filter { it != file }).mapNotNull { consume(it) }
+        failed.maxOrNull()?.let { writeSeenMark(it) }
+        return CrashReport("Pear. closed unexpectedly last time", text)
     }
 
     override fun dismiss() {
-        runCatching { shown?.let { it.renameTo(File(it.path + ".seen")) } }
         shown = null
     }
 
@@ -226,6 +238,26 @@ class FileCrashReportSource(
         return runCatching { opener(dir) }.isSuccess
     }
 
-    private fun newestUnclean(): File? =
-        dir.listFiles { f -> f.name.startsWith("unclean-") && f.name.endsWith(".txt") }?.maxByOrNull { it.name }
+    /**
+     * Takes [file] out of the folder for good: moved to a unique `.seen-<time>` name, or deleted if the move fails. Returns
+     * the file's time when neither works, so the caller can record it.
+     */
+    private fun consume(file: File): Long? {
+        val modified = file.lastModified()
+        val moved = runCatching { file.renameTo(File(dir, "${file.name}.seen-${System.currentTimeMillis()}")) }.getOrDefault(false)
+        if (moved) return null
+        val deleted = runCatching { file.delete() }.getOrDefault(false)
+        return if (deleted) null else modified
+    }
+
+    /** The newest time of a report that could not be consumed. Reports at or before it are skipped. */
+    private fun seenMark(): Long? = runCatching { File(dir, SEEN_MARK).readText().trim().toLong() }.getOrNull()
+
+    private fun writeSeenMark(modified: Long) {
+        runCatching { File(dir, SEEN_MARK).writeText(modified.toString()) }
+    }
+
+    private companion object {
+        const val SEEN_MARK = "crash-seen.txt"
+    }
 }
