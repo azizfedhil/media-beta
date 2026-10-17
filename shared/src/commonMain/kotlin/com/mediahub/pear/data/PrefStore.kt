@@ -7,10 +7,14 @@ import kotlin.concurrent.Volatile
  * (`tmdb.key`, `addon.manifestURLs`, `ui.accent`, ...). Every change is handed to [persistence], which writes it
  * out in the background.
  *
- * Call it from one thread (the UI thread). Reads are plain map lookups, so it is cheap to read often.
+ * Writes are safe from any thread: each one is applied and saved under [lock], so two threads writing at once can't
+ * lose each other's changes, and saves reach [persistence] in order. Listeners are called after the lock is released.
+ * Reads are plain map lookups, so it is cheap to read often.
  */
 class PrefStore(private val persistence: PrefsPersistence = NoPersistence) {
-    // @Volatile: the metadata clients read API keys from background coroutines. Writes still come from one thread.
+    private val lock = Any()
+
+    // @Volatile: the metadata clients read API keys from background coroutines. Writes happen under [lock].
     @Volatile
     private var map: Map<String, PrefValue> = persistence.load()
     private val listeners = mutableListOf<(Set<String>) -> Unit>()
@@ -71,17 +75,27 @@ class PrefStore(private val persistence: PrefsPersistence = NoPersistence) {
     /** Several values, one save. */
     fun putAll(values: Map<String, PrefValue>) {
         if (values.isEmpty()) return
-        val changed = values.filter { (k, v) -> map[k] != v }.keys
-        if (changed.isEmpty()) return
-        map = map + values
-        changed(changed)
+        val changed = synchronized(lock) {
+            val differing = values.filter { (k, v) -> map[k] != v }.keys
+            if (differing.isNotEmpty()) {
+                map = map + values
+                persistence.save(map)
+            }
+            differing
+        }
+        if (changed.isNotEmpty()) announce(changed)
     }
 
     fun removeAll(keys: Collection<String>) {
-        val gone = keys.filter { it in map }.toSet()
-        if (gone.isEmpty()) return
-        map = map - gone
-        changed(gone)
+        val gone = synchronized(lock) {
+            val present = keys.filter { it in map }.toSet()
+            if (present.isNotEmpty()) {
+                map = map - present
+                persistence.save(map)
+            }
+            present
+        }
+        if (gone.isNotEmpty()) announce(gone)
     }
 
     /** Waits until everything is on disk. Call when the app closes. */
@@ -91,12 +105,12 @@ class PrefStore(private val persistence: PrefsPersistence = NoPersistence) {
 
     /** [listener] gets the keys that changed. Returns a function that removes it. */
     fun listen(listener: (Set<String>) -> Unit): () -> Unit {
-        listeners += listener
-        return { listeners -= listener }
+        synchronized(lock) { listeners += listener }
+        return { synchronized(lock) { listeners -= listener } }
     }
 
-    private fun changed(keys: Set<String>) {
-        persistence.save(map)
-        listeners.toList().forEach { it(keys) }
+    private fun announce(keys: Set<String>) {
+        val current = synchronized(lock) { listeners.toList() }
+        current.forEach { it(keys) }
     }
 }

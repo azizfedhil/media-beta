@@ -23,6 +23,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -50,7 +55,7 @@ fun DragLazyRow(
         DisposableEffect(id) { onDispose { feed.forget(id) } }
     }
     LazyRow(
-        modifier = modifier.draggable(drag, Orientation.Horizontal),
+        modifier = modifier.draggable(drag, Orientation.Horizontal).shiftWheelHorizontal { state.scrollBy(it) },
         state = state,
         contentPadding = contentPadding,
         horizontalArrangement = horizontalArrangement,
@@ -77,7 +82,7 @@ fun DragLazyGrid(
     val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
     LazyHorizontalGrid(
         rows = GridCells.Fixed(rows),
-        modifier = modifier.draggable(drag, Orientation.Horizontal),
+        modifier = modifier.draggable(drag, Orientation.Horizontal).shiftWheelHorizontal { state.scrollBy(it) },
         state = state,
         contentPadding = contentPadding,
         horizontalArrangement = horizontalArrangement,
@@ -85,6 +90,32 @@ fun DragLazyGrid(
         content = content,
     )
 }
+
+/**
+ * Android: a mouse wheel with Shift held, or a horizontal trackpad swipe, scrolls a horizontal row. A plain wheel is left
+ * alone, so it still scrolls the page. A change something below already consumed is skipped, so nothing moves twice.
+ * Desktop returns the modifier unchanged.
+ */
+fun Modifier.shiftWheelHorizontal(scrollBy: suspend (Float) -> Unit): Modifier =
+    if (!PlatformCaps.isTouchFirst) this else pointerInput(scrollBy) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Main)
+                if (event.type != PointerEventType.Scroll) continue
+                val change = event.changes.firstOrNull() ?: continue
+                if (change.isConsumed || change.type != PointerType.Mouse) continue
+                val delta = change.scrollDelta
+                val along = when {
+                    event.keyboardModifiers.isShiftPressed -> delta.y // Shift + wheel
+                    delta.y == 0f -> delta.x // a horizontal trackpad swipe
+                    else -> 0f // a plain wheel scrolls the page
+                }
+                if (along == 0f) continue
+                change.consume()
+                scrollBy(along * 40f)
+            }
+        }
+    }
 
 /**
  * Makes a Row (or any horizontal content) scroll by the wheel, by touch, and by holding the mouse button and dragging. A plain
@@ -95,5 +126,5 @@ fun DragLazyGrid(
 fun Modifier.dragHorizontalScroll(state: ScrollState): Modifier {
     val scope = rememberCoroutineScope()
     val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
-    return this.draggable(drag, Orientation.Horizontal).horizontalScroll(state)
+    return this.draggable(drag, Orientation.Horizontal).horizontalScroll(state).shiftWheelHorizontal { state.scrollBy(it) }
 }

@@ -62,6 +62,10 @@ object PrefKeys {
     const val DESKTOP_PLAYER_BLUR_PLAYING = "desktop.playerBlurWhilePlaying"
     /** Android only: the player's Liquid Glass choice (false = Frosted). A device setting, so it is not in BackupRules. */
     const val ANDROID_PLAYER_LIQUID_GLASS = "android.playerLiquidGlass"
+    /** Android only, device setting: the app may lower the glass by itself when it runs slowly (false = it never does). Not in BackupRules. */
+    const val ANDROID_GLASS_AUTO = "android.glassAutoStep"
+    /** Android only, device setting: the last glass change was made by the app, not the person. Not in BackupRules. */
+    const val ANDROID_GLASS_AUTO_CHANGED = "android.glassAutoChanged"
     const val DESKTOP_APPEARANCE = "desktop.appearance"
 
     /** Desktop only: episode cards on two rows in the wide layout (the phone layout is always one row). */

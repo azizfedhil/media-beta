@@ -32,28 +32,24 @@ fun GlassTopBar(
 ) {
     val page = PearTheme.colors.background
     val endInset = if (LocalWideLayout.current) 0.dp else 58.dp
-    val flat = (LocalGlassStore.current.mode == GlassMode.Flat || PowerStatus.lowBattery) && !LocalFlatSeeThrough.current
     Box(
         Modifier
             .fillMaxWidth()
             .drawBehind {
-                if (flat) {
-                    drawRect(page, size = size)
-                } else {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                page,
-                                page.copy(alpha = 0.95f),
-                                page.copy(alpha = 0.85f),
-                                Color.Transparent,
-                            ),
-                            startY = 0f,
-                            endY = size.height,
+                // Always the fading edge, in every mode: a solid backdrop would hide the content scrolling under the bar.
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            page,
+                            page.copy(alpha = 0.95f),
+                            page.copy(alpha = 0.85f),
+                            Color.Transparent,
                         ),
-                        size = size,
-                    )
-                }
+                        startY = 0f,
+                        endY = size.height,
+                    ),
+                    size = size,
+                )
             }
             .padding(bottom = EDGE_DP.dp),
     ) {

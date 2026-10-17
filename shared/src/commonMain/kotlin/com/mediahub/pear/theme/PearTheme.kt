@@ -33,7 +33,7 @@ fun PearTheme(store: ThemeStore, content: @Composable () -> Unit) {
     val colors = remember(store.accentHex, dark) { pearColors(store.accentHex, dark) }
     val type = remember { PearTypography(interFontFamily() ?: FontFamily.Default) }
     CompositionLocalProvider(LocalPearColors provides colors, LocalPearType provides type) {
-        content()
+        ProvideSystemDark(dark) { content() }
     }
 }
 
@@ -44,5 +44,7 @@ fun PearTheme(store: ThemeStore, content: @Composable () -> Unit) {
 @Composable
 fun PearDark(store: ThemeStore, content: @Composable () -> Unit) {
     val colors = remember(store.accentHex) { pearColors(store.accentHex, dark = true) }
-    CompositionLocalProvider(LocalPearColors provides colors, content = content)
+    CompositionLocalProvider(LocalPearColors provides colors) {
+        ProvideSystemDark(dark = true, content = content)
+    }
 }

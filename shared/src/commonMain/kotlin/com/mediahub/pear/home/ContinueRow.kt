@@ -8,7 +8,7 @@ import com.mediahub.pear.shell.MenuAnchor
 import com.mediahub.pear.shell.clickOrMenu
 import com.mediahub.pear.shell.menuAnchor
 import com.mediahub.pear.shell.titleMenuItems
-import com.mediahub.pear.shell.PlatformCaps
+import com.mediahub.pear.shell.touchStyle
 import com.mediahub.pear.shell.WideScale
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.LocalAppEnv
@@ -95,6 +95,8 @@ fun ContinueRow(
     val scope = rememberCoroutineScope()
     // Wide layout: the cards are a third bigger. The phone layout keeps 1x.
     val wideScale = if (LocalWideLayout.current) WideScale.CARD else 1f
+    // Touch rules on a touch screen, desktop rules when a mouse is in use on a wide layout (see touchStyle).
+    val touch = touchStyle()
     // A card opens the source chooser for its title or episode. Only a title with no IMDb id falls back to the details page.
     fun choose(item: MetaPreview, season: Int?, episode: Int?, title: String?, thumb: String?) {
         scope.launch {
@@ -145,7 +147,7 @@ fun ContinueRow(
                             },
                             onClick = {
                                 // Touch opens the title's page on this episode, as iOS does. Desktop keeps the source chooser.
-                                if (PlatformCaps.isTouchFirst) onSelectTitle(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode)
+                                if (touch) onSelectTitle(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode)
                                 else choose(e.item, e.seasonEpisode?.season, e.seasonEpisode?.episode, e.episodeTitle, e.thumb)
                             },
                         )
@@ -169,7 +171,7 @@ fun ContinueRow(
                                 )
                             },
                             onClick = {
-                                if (PlatformCaps.isTouchFirst) onSelectTitle(n.item, n.season, n.episode)
+                                if (touch) onSelectTitle(n.item, n.season, n.episode)
                                 else choose(n.item, n.season, n.episode, n.title, n.thumb)
                             },
                         )

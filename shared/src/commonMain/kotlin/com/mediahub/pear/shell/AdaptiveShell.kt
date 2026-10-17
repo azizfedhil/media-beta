@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,6 +44,10 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -67,8 +72,15 @@ fun AdaptiveShell(
 ) {
     val env = LocalAppEnv.current
     val focus = remember { FocusRequester() }
+    // True while the shell, or something inside it (a text field, say), holds the keyboard focus. Set by the root's onFocusChanged.
+    var hasFocus by remember { mutableStateOf(false) }
     val layoutMemory = remember { ShellLayoutMemory() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    // Android: the keyboard focus is lost when the app comes back to the front, and then every key is dropped until a click.
+    // Desktop keeps its focus, so it is left alone.
+    LaunchedEffect(Unit) {
+        AppLifecycle.foregrounded.collect { if (PlatformCaps.isTouchFirst) runCatching { focus.requestFocus() } }
+    }
 
     val window = LocalWindowControl.current
     DisposableEffect(shell, window) {
@@ -85,13 +97,36 @@ fun AdaptiveShell(
 
     BoxWithConstraints(
         modifier.fillMaxSize().background(Color(0xFF09090B))
-            .focusRequester(focus).focusable()
+            .focusRequester(focus)
+            .onFocusChanged { hasFocus = it.hasFocus }
+            .focusable()
             .onPreviewKeyEvent { handleShellKey(it, shell) }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        // The input used last: a mouse follows desktop rules on a wide layout (see touchStyle).
+                        when (event.changes.firstOrNull()?.type) {
+                            PointerType.Mouse -> InputMode.mouseActive = true
+                            PointerType.Touch, PointerType.Stylus -> InputMode.mouseActive = false
+                        }
+                        // Android: a press while nothing holds the focus brings it back, so the keys reach the shell again.
+                        // Something inside that holds it (a text field) keeps it.
+                        if (PlatformCaps.isTouchFirst && event.type == PointerEventType.Press && !hasFocus) {
+                            runCatching { focus.requestFocus() }
+                        }
+                    }
+                }
+            }
             .mouseBack(shell),
     ) {
         val windowWidth = maxWidth
         val mode = layoutModeFor(windowWidth, shell.layoutOverride, allowWide = PlatformCaps.supportsWideLayout)
         val playerOnTop = shell.currentNav().top is Route.Player
+        // Android: when the player closes, its focus goes with it, so the shell takes the focus back (desktop is left alone).
+        LaunchedEffect(playerOnTop) {
+            if (PlatformCaps.isTouchFirst && !playerOnTop) runCatching { focus.requestFocus() }
+        }
         // While a film is on top, the layout does not follow the window size. A brief resize or minimise (the Windows key in full
         // screen causes one) must not switch the layout branch: that rebuilds the player and restarts the film.
         if (!playerOnTop && windowWidth > 1.dp) layoutMemory.mode = mode

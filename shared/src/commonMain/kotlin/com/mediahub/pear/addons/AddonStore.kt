@@ -97,6 +97,17 @@ class AddonStore(
             return known.filter { it !in loaded }
         }
 
+    /**
+     * Every saved add-on that isn't installed right now: still loading during the launch restore, or not loaded at
+     * all. Unlike [unreachable] this is never empty just because the restore is running, so a saved add-on never
+     * looks missing while it is being fetched.
+     */
+    val notLoaded: List<String>
+        get() {
+            val loaded = addons.map { it.manifestUrl }.toSet()
+            return known.filter { it !in loaded }
+        }
+
     fun isEnabled(addon: Addon): Boolean = addon.id !in disabledIds
 
     /** True when this add-on's catalogues are added to Home one by one instead of all showing by default. */
@@ -114,7 +125,7 @@ class AddonStore(
     /** Treats an add-on like AIOMetadata even though it doesn't say so by name (a self-hosted copy). */
     suspend fun setCatalogPicker(addon: Addon, on: Boolean) = withContext(dispatcher) {
         pickerIds = if (on) pickerIds + addon.id else pickerIds - addon.id
-        prefs.setStringList(PrefKeys.ADDON_CATALOG_PICKER, pickerIds.sorted())
+        persistPicker()
     }
 
     /** Switches an add-on on or off without uninstalling it. */
@@ -226,18 +237,20 @@ class AddonStore(
         pickerIds = pickerIds - addon.id
         persist()
         persistDisabled()
-        prefs.setStringList(PrefKeys.ADDON_CATALOG_PICKER, pickerIds.sorted())
+        persistPicker()
     }
 
     /** Removes a saved add-on that never loaded (it is in [unreachable] but not in [addons]). */
     suspend fun removeUnreachable(url: String) = withContext(dispatcher) {
         restoreJob?.join()
+        // It may have loaded while the restore ran (the row showed "Loading…"): drop it from the list too.
+        addons = addons.filter { it.manifestUrl != url }
         known = known.filter { it != url }
         disabledIds = disabledIds - url
         pickerIds = pickerIds - url
         persist()
         persistDisabled()
-        prefs.setStringList(PrefKeys.ADDON_CATALOG_PICKER, pickerIds.sorted())
+        persistPicker()
     }
 
     /** Stops the background work. The saved settings are not touched. */
@@ -247,9 +260,21 @@ class AddonStore(
 
     // MARK: Saving
 
-    private fun persist() = prefs.setStringList(PrefKeys.ADDON_MANIFEST_URLS, known)
+    // Each save is flushed at once, so a change made just before the app closes or is killed still reaches disk.
+    private fun persist() {
+        prefs.setStringList(PrefKeys.ADDON_MANIFEST_URLS, known)
+        prefs.flush()
+    }
 
-    private fun persistDisabled() = prefs.setStringList(PrefKeys.ADDON_DISABLED, disabledIds.sorted())
+    private fun persistDisabled() {
+        prefs.setStringList(PrefKeys.ADDON_DISABLED, disabledIds.sorted())
+        prefs.flush()
+    }
+
+    private fun persistPicker() {
+        prefs.setStringList(PrefKeys.ADDON_CATALOG_PICKER, pickerIds.sorted())
+        prefs.flush()
+    }
 
     private fun loadSet(key: String): Set<String> = prefs.stringList(key)?.toSet() ?: emptySet()
 

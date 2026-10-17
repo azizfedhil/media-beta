@@ -41,9 +41,34 @@ class GlassStore(
         prefs?.string(PrefKeys.DESKTOP_GLASS_PERFORMANCE)?.let { n -> GlassPerformance.entries.firstOrNull { it.name == n } } ?: initialPerformance,
     )
 
+    /** Android only: may the app lower the glass by itself when it runs slowly. Turned off by a choice the person makes. */
+    private var autoStepState by mutableStateOf(prefs?.bool(PrefKeys.ANDROID_GLASS_AUTO) ?: true)
+
+    /** Android only: the current [mode] was set by the app's step-down, so the person's next choice undoes it. */
+    private var autoChangedState by mutableStateOf(prefs?.bool(PrefKeys.ANDROID_GLASS_AUTO_CHANGED) ?: false)
+
+    var autoStepEnabled: Boolean
+        get() = autoStepState
+        set(value) {
+            autoStepState = value
+            prefs?.setBool(PrefKeys.ANDROID_GLASS_AUTO, value)
+        }
+
+    private var autoChanged: Boolean
+        get() = autoChangedState
+        set(value) {
+            autoChangedState = value
+            prefs?.setBool(PrefKeys.ANDROID_GLASS_AUTO_CHANGED, value)
+        }
+
+    /** The person's choice. A choice made after the app stepped the glass down turns the automatic step-down off. */
     var mode: GlassMode
         get() = modeState
         set(value) {
+            if (autoChanged) {
+                autoStepEnabled = false
+                autoChanged = false
+            }
             modeState = value
             prefs?.setString(PrefKeys.DESKTOP_GLASS_MODE, value.name)
         }
@@ -55,15 +80,30 @@ class GlassStore(
             prefs?.setString(PrefKeys.DESKTOP_GLASS_PERFORMANCE, value.name)
         }
 
-    /** One tier down: Liquid Glass (Glass or Clear) -> Frosted Blur -> Flat. Returns the new mode, or null when it is already Flat. */
+    /**
+     * One tier down: Liquid Glass (Glass or Clear) -> Frosted Blur -> Flat. Returns the new mode, or null when it is already
+     * Flat or the automatic step-down is off ([autoStepEnabled]).
+     */
     fun stepDown(): GlassMode? {
+        if (!autoStepEnabled) return null
         val next = when (mode) {
             GlassMode.Glass, GlassMode.Clear -> GlassMode.Frosted
             GlassMode.Frosted -> GlassMode.Flat
             GlassMode.Flat -> null
         }
-        if (next != null) mode = next
+        if (next != null) {
+            // Not through [mode]: that setter is the person's path, and this change is the app's.
+            modeState = next
+            prefs?.setString(PrefKeys.DESKTOP_GLASS_MODE, next.name)
+            autoChanged = true
+        }
         return next
+    }
+
+    /** Turns the automatic step-down back on (the person's switch in Settings). The current mode is kept. */
+    fun resetAuto() {
+        autoStepEnabled = true
+        autoChanged = false
     }
 }
 

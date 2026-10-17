@@ -91,7 +91,7 @@ fun AddonsSettingsScreen(
             // Installed Add-ons List
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    PearText("Installed (${store.addons.size})", style = PearTheme.type.headline)
+                    PearText("Installed (${store.addons.size + store.notLoaded.size})", style = PearTheme.type.headline)
                     DevChip(if (isReloadingAll) "Reloading…" else "Reload all", false) {
                         scope.launch {
                             isReloadingAll = true
@@ -143,10 +143,13 @@ fun AddonsSettingsScreen(
                     }
                 }
                 }
-                // Saved add-ons that didn't load (offline, server asleep). They stay saved until Retry works or Delete removes them.
-                if (store.unreachable.isNotEmpty()) {
-                    PearText("Couldn't load (still saved)", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
-                    store.unreachable.forEach { url -> key(url) {
+                // Saved add-ons not installed yet: still loading at launch, or they didn't load (offline, server asleep).
+                // They stay saved until Retry works or Delete removes them.
+                if (store.notLoaded.isNotEmpty()) {
+                    if (!store.isRestoring) {
+                        PearText("Couldn't load (still saved)", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
+                    }
+                    store.notLoaded.forEach { url -> key(url) {
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -154,7 +157,11 @@ fun AddonsSettingsScreen(
                         ) {
                             PearText(unreachableHost(url), style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), modifier = Modifier.weight(1f))
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                GlassButton(onClick = { scope.launch { store.retryUnreachable() } }, label = "Retry", symbol = "arrow.clockwise", size = 32.dp)
+                                if (store.isRestoring) {
+                                    PearText("Loading…", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
+                                } else {
+                                    GlassButton(onClick = { scope.launch { store.retryUnreachable() } }, label = "Retry", symbol = "arrow.clockwise", size = 32.dp)
+                                }
                                 GlassButton(onClick = { scope.launch { store.removeUnreachable(url) } }, symbol = "trash", size = 32.dp)
                             }
                         }

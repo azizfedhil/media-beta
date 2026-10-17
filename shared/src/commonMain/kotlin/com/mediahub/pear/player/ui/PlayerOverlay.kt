@@ -29,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import com.mediahub.pear.player.PipState
 import com.mediahub.pear.shell.PlatformCaps
+import com.mediahub.pear.shell.touchStyle
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -216,7 +217,7 @@ fun PlayerOverlay(
     val overBottom = remember { mutableStateOf(false) }
 
     // Touch screens: the controls follow a tap (touchShown), not the pointer. Picture in Picture shows the picture alone.
-    val touch = PlatformCaps.isTouchFirst
+    val touch = touchStyle()
     var touchShown by remember { mutableStateOf(true) }
     val pipOnly = PipState.active
     val visible = !pipOnly && controlsVisible(
@@ -333,7 +334,7 @@ fun PlayerOverlay(
             CompositionLocalProvider(LocalPlayerLook provides look, LocalDensity provides scaled, LocalPlayerMetrics provides metrics, LocalPlayerMargins provides margins) {
                 // Click and double-click on the picture. The controls and panels sit above and take their own clicks.
                 Box(
-                    Modifier.fillMaxSize().pointerInput(Unit) {
+                    Modifier.fillMaxSize().pointerInput(touch) {
                         if (touch) detectTapGestures(onTap = { onTap() }) else detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
                     },
                 )

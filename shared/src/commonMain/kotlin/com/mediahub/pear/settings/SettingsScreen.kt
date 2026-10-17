@@ -158,6 +158,21 @@ fun SettingsScreen(
                     )
                     PearText("Flat is solid everywhere except the player.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
                 }
+                if (PlatformCaps.hasPlayerGlassChoice) {
+                    SettingsDivider()
+                    SettingsRow(
+                        title = "Lower effects automatically when slow",
+                        trailing = {
+                            PearSwitch(checked = env.glass.autoStepEnabled, onCheckedChange = {
+                                if (it) {
+                                    env.glass.resetAuto()
+                                } else {
+                                    env.glass.autoStepEnabled = false
+                                }
+                            })
+                        },
+                    )
+                }
                 SettingsDivider()
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     PearText("Accent colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
