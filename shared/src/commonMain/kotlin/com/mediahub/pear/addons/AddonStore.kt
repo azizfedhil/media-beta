@@ -6,9 +6,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.PrefStore
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.net.MetaException
 import com.mediahub.pear.net.attempt
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,8 +39,11 @@ class AddonStore(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
     private val defaults: List<String> = listOf(DEFAULT_ADDON_URL),
     var serverAddons: () -> List<Addon> = { emptyList() },
+    // false: the app calls [start] itself, after the first composition has been applied.
+    private val autoStart: Boolean = true,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    @Volatile
     private var restoreJob: Job? = null
 
     /** Every installed add-on, in the user's order (the order is saved). */
@@ -78,6 +83,12 @@ class AddonStore(
         if (prefs.stringList(PrefKeys.ADDON_MANIFEST_URLS) == null) {
             persist()
         }
+        if (autoStart) start()
+    }
+
+    /** Starts the launch restore once. The app calls this after the first composition has been applied. */
+    fun start() {
+        if (restoreJob != null) return
         restoreJob = scope.launch { restore(known) }
     }
 
@@ -289,8 +300,8 @@ class AddonStore(
      * [known], so it is still saved and [retryUnreachable] can bring it back).
      */
     private suspend fun restore(urls: List<String>) {
-        isRestoring = true
         try {
+            isRestoring = true
             coroutineScope {
                 for (s in urls) {
                     launch {
@@ -304,6 +315,7 @@ class AddonStore(
                     }
                 }
             }
+            PearLog.i("Addons", "restore finished: ${addons.size} of ${urls.size} loaded")
         } finally {
             isRestoring = false
         }

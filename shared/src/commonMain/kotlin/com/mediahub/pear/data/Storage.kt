@@ -52,6 +52,7 @@ class AppData(
     val storage: Storage,
     val network: Network = Network.offline(),
     addonDispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
+    autoStartAddons: Boolean = true,
 ) {
     val prefs: PrefStore get() = storage.prefs
     val secrets: SecretStore get() = storage.secrets
@@ -66,7 +67,7 @@ class AppData(
     /** P2P: the switch, the network check and the one engine (4.5b). Off until the user turns it on. */
     val p2p = P2PService(storage.prefs)
     val addonClient = AddonClient(network.http, network.cache, streamFilter = { p2p.gate(it) })
-    val addons = AddonStore(storage.prefs, addonClient, addonDispatcher).apply {
+    val addons = AddonStore(storage.prefs, addonClient, addonDispatcher, autoStart = autoStartAddons).apply {
         serverAddons = { mediaServers.addons }
     }
 

@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mediahub.pear.shell.PlatformCaps
 import com.mediahub.pear.theme.PearTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -114,8 +115,9 @@ fun PearWordmark(
 }
 
 /**
- * The launch screen: the intro on the splash colour, on top of the app while it loads. After the intro and a short
- * beat it fades out (`PearLaunchScreen` in the Swift app: 350 ms beat, 350 ms fade).
+ * The launch screen: the intro on the splash colour, on top of the app while it loads. The intro runs at 2x on touch
+ * devices (about 2 s) and is slowed to 5 s on desktop, so the app has longer to load there. Then a 350 ms beat and a
+ * 350 ms fade (`PearLaunchScreen` in the Swift app uses the same beat and fade).
  */
 @Composable
 fun PearLaunchOverlay() {
@@ -132,6 +134,8 @@ fun PearLaunchOverlay() {
         }
     }
     AnimatedVisibility(visible = showing, exit = fadeOut(tween(350))) {
+        // Touch devices keep the normal 2x speed (~2 s). Desktop slows the intro to 5 s so the app has longer to load.
+        val introSpeed = if (PlatformCaps.isTouchFirst) 2.0 else (PearGeometry.duration(PearMode.Intro) ?: 3940.0) / 5000.0
         Box(
             Modifier.fillMaxSize().background(PearBrand.splash)
                 // Swallows clicks, so the app underneath can't be used while the intro plays.
@@ -141,6 +145,7 @@ fun PearLaunchOverlay() {
             PearAnimation(
                 mode = PearMode.Intro,
                 modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 28.dp),
+                speed = introSpeed,
                 onFinish = { dismissing = true },
             )
         }

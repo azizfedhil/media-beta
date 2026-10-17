@@ -49,7 +49,9 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null, network: Network? = null, overlay: @Composable BoxScope.() -> Unit = {}) {
-    val data = remember(storage, network) { AppData(storage ?: Storage.inMemory(), network ?: Network.offline()) }
+    val data = remember(storage, network) {
+        AppData(storage ?: Storage.inMemory(), network ?: Network.offline(), autoStartAddons = false)
+    }
     DisposableEffect(data) { onDispose { data.close() } }
     val theme = remember(data) { ThemeStore(prefs = data.prefs) }
     // A setting that syncs from another device can change the accent: the theme re-reads it (see AppData.reloadAfterSettings).
@@ -117,8 +119,10 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
             }
         }
     }
-    // Saved add-ons that missed the launch fetch (no connection yet) are asked for again at launch and every time the app comes back to the front.
+    // The launch restore of the saved add-ons is started here, after the first composition has been applied. Saved
+    // add-ons that missed the launch fetch (no connection yet) are asked for again at launch and every time the app comes back to the front.
     LaunchedEffect(data) {
+        data.addons.start()
         data.addons.retryUnreachable()
         AppLifecycle.foregrounded.collect { data.addons.retryUnreachable() }
     }
