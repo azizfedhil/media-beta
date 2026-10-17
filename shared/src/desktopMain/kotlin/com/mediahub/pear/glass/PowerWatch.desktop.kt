@@ -7,6 +7,7 @@ import com.sun.jna.Structure
 import com.sun.jna.win32.StdCallLibrary
 import com.sun.jna.win32.W32APIOptions
 import kotlinx.coroutines.delay
+import com.mediahub.pear.log.PearTrace
 import java.io.File
 
 /** Keeps [PowerStatus.lowBattery] current, read every 30 seconds. Call once from the window. */
@@ -14,7 +15,11 @@ import java.io.File
 fun BatteryWatch() {
     LaunchedEffect(Unit) {
         while (true) {
-            PowerStatus.lowBattery = readLowBattery()
+            val before = PowerStatus.lowBattery
+            val now = readLowBattery()
+            PowerStatus.lowBattery = now
+            // A change flips every glass surface to Flat, which can look like a flicker: it is logged when it happens.
+            if (now != before) PearTrace.event("Power") { "lowBattery $before -> $now" }
             delay(30_000)
         }
     }

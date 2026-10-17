@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,9 @@ import com.mediahub.pear.player.ProgressRules
 import com.mediahub.pear.player.PipState
 import com.mediahub.pear.player.VideoSurface
 import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.PearTrace
+import com.mediahub.pear.log.TraceRecompose
+import com.mediahub.pear.log.safeLogUrl
 import com.mediahub.pear.player.createDefaultPlayerEngine
 import com.mediahub.pear.player.withSource
 import com.mediahub.pear.player.ui.AudioPanel
@@ -105,6 +109,7 @@ fun PlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    TraceRecompose("PlayerScreen")
     val env = LocalAppEnv.current
     val data = env.data
     val prefs = data.prefs
@@ -193,8 +198,10 @@ fun PlayerScreen(
     }
 
     DisposableEffect(engine, leave) {
+        PearTrace.event("UI") { "route player opened" }
         val unregister = AppExit.register(leave) // the window's close button exits the process without disposing
         onDispose {
+            PearTrace.event("UI") { "route player disposed" }
             unregister()
             leave() // before release: the engine's clock is still readable, and the screen may go away without onClose
             PearLog.i("Player", "engine released")
@@ -266,6 +273,7 @@ fun PlayerScreen(
         if (torrent == null) {
             // Leaving a torrent for a link: the user has left that stream, so the engine goes with it (4.5d).
             data.p2p.engine.requestStop()
+            PearTrace.event("Player") { "load ${safeLogUrl(current.url)}" }
             engine.load(current.url, current.headers, startPositionSeconds = loadAt)
             playback.sourceLoaded()
             return@LaunchedEffect
@@ -276,6 +284,7 @@ fun PlayerScreen(
             if (!data.p2p.canStreamNow()) throw P2PFailure.NetworkBlocked
             val stream = data.p2p.engine.open(torrent)
             p2pOpening = false
+            PearTrace.event("Player") { "load ${safeLogUrl(stream.url)} (torrent)" }
             engine.load(stream.url, emptyMap(), startPositionSeconds = loadAt)
             playback.sourceLoaded()
         } catch (e: CancellationException) {
@@ -324,6 +333,32 @@ fun PlayerScreen(
         blurWhilePlaying = if (PlatformCaps.hasPlayerGlassChoice) true else blurPlaying && PlatformCaps.videoBlurSupported,
         videoSampleable = sampleable,
     )
+    // Each change of the look is logged once, and the settings the player opened with are logged once.
+    LaunchedEffect(look) {
+        PearTrace.event("UI") { "look -> $look" }
+        PearLog.context("player.look", look.name)
+    }
+    LaunchedEffect(Unit) {
+        PearTrace.event("UI") {
+            "player opened glassOn=$glassOn blurPlaying=$blurPlaying glassMode=${env.glass.mode} sampleable=$sampleable performance=$performance"
+        }
+    }
+    // UI frame-clock probe, only while tracing: the gap between frames is measured, so a stall in the UI shows in the trace.
+    // While tracing, Compose asks for a frame every vsync. That is a known, accepted side effect of this probe.
+    val traceOn by PearTrace.enabledFlow.collectAsState()
+    if (traceOn) LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) {
+            val t = withFrameNanos { it }
+            if (last != 0L) {
+                val gapMs = (t - last) / 1_000_000.0
+                PearTrace.count("ui.frames")
+                PearTrace.sample("ui.frameGapMs", gapMs)
+                if (gapMs > 40.0) PearTrace.event("UI") { "frame gap ${gapMs.toLong()} ms" }
+            }
+            last = t
+        }
+    }
     // Picture in Picture follows the Settings switch. The platform opens the window; the player says when it may.
     val pipAllowed = rememberPref(prefs, PrefKeys.PLAYER_PIP) { it.bool(PrefKeys.PLAYER_PIP, true) }
     LaunchedEffect(state, pipAllowed) { PipState.wanted = pipAllowed && state == PlaybackState.Playing }

@@ -79,6 +79,8 @@ object PearLogFile : LogSink {
         // Never block the UI: when the writer falls far behind, the oldest line goes.
         if (queue.size >= QUEUE_LIMIT) queue.poll()
         queue.offer(text)
+        // The flicker trace gets the message (no stack trace), when it is on.
+        PearTrace.event("LOG") { "$level [$tag] $msg" }
     }
 
     override fun context(key: String, value: String?) {
@@ -86,6 +88,9 @@ object PearLogFile : LogSink {
             if (value == null) contextMap.remove(key) else contextMap[key] = value
         }
     }
+
+    /** A copy of the current facts, for the trace's FACTS lines. */
+    fun contextSnapshot(): Map<String, String> = synchronized(contextMap) { LinkedHashMap(contextMap) }
 
     private fun writerLoop() {
         while (true) {

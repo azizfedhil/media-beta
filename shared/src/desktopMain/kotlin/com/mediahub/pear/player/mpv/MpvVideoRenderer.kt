@@ -3,6 +3,7 @@ package com.mediahub.pear.player.mpv
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.PearTrace
 import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.Pointer
@@ -31,6 +32,8 @@ class VideoFrame internal constructor(
     private val source: Image,
     val width: Int,
     val height: Int,
+    internal val seq: Long,
+    internal val publishedNanos: Long,
 ) {
     private val lock = Any()
     private var refs = 1 // the renderer's reference
@@ -83,6 +86,13 @@ class MpvVideoRenderer private constructor(
     private var bitmapW = 0
     private var bitmapH = 0
 
+    // Trace only (render thread): the frame counter, the last publish time, and the last pixel probe.
+    private var nextSeq = 1L
+    private var lastPublishNanos = 0L
+    private var lumaPrev = 0.0
+    private var lumaPrevSum = 0L
+    private var lumaHavePrev = false
+
     // Parameter blocks, allocated once. mpv_render_param is { int type; void *data }.
     private val ptrSize = Native.POINTER_SIZE
     private val paramStride = ptrSize * 2
@@ -105,10 +115,13 @@ class MpvVideoRenderer private constructor(
                 break
             }
             signal.drainPermits()
+            PearTrace.count("r.wake")
             synchronized(renderLock) {
                 if (closed) return@synchronized
                 val flags = mpv.mpv_render_context_update(ctx)
+                PearTrace.count("r.update")
                 val newFrame = (flags and MpvRenderParam.UPDATE_FRAME) != 0L
+                if (newFrame) PearTrace.count("r.newFrame") else if (needRedraw) PearTrace.count("r.redrawOnly")
                 if (newFrame || needRedraw) {
                     needRedraw = false
                     renderOnce()
@@ -125,23 +138,32 @@ class MpvVideoRenderer private constructor(
     private fun ensureBitmap(w: Int, h: Int): Bitmap? {
         val paddedW = (w + 15) and 15.inv()
         if (bitmap != null && bitmapW == paddedW && bitmapH == h) return bitmap
+        val oldW = bitmapW
+        val oldH = bitmapH
         bitmap?.close()
         val bmp = Bitmap()
         val ok = bmp.allocPixels(ImageInfo(paddedW, h, ColorType.BGRA_8888, ColorAlphaType.OPAQUE))
         if (!ok) {
             bitmap = null
+            PearTrace.event("Render") { "bitmap alloc FAILED" }
             return null
         }
         bitmap = bmp
         bitmapW = paddedW
         bitmapH = h
+        PearTrace.count("r.realloc")
+        PearTrace.event("Render") { "bitmap realloc ${oldW}x$oldH -> ${paddedW}x$h" }
         return bmp
     }
 
     private fun renderOnce() {
         val w = targetW
         val h = targetH
-        if (w <= 0 || h <= 0) return
+        if (w <= 0 || h <= 0) {
+            PearTrace.count("r.noSize")
+            return
+        }
+        val tr = PearTrace.enabled
         val bmp = ensureBitmap(w, h) ?: return
         val addr = bmp.peekPixels()?.addr ?: return
 
@@ -154,22 +176,79 @@ class MpvVideoRenderer private constructor(
         setParam(3, MpvRenderParam.SW_POINTER, Pointer(addr))
         setParam(4, 0, null)
 
-        if (mpv.mpv_render_context_render(ctx, params) < 0) return
+        val renderStart = if (tr) System.nanoTime() else 0L
+        val rc = mpv.mpv_render_context_render(ctx, params)
+        if (tr) PearTrace.sample("r.renderMs", (System.nanoTime() - renderStart) / 1_000_000.0)
+        if (rc < 0) {
+            if (tr) {
+                PearTrace.count("r.renderFail")
+                PearTrace.event("Render") { "render failed code=$rc" }
+            }
+            return
+        }
         bmp.notifyPixelsChanged()
 
         // Skia copies the pixels (the shared bitmap is mutable), so the frame never refers to memory the next render writes.
         // On failure keep showing the last good frame; the next render tries again instead of killing this thread.
+        val copyStart = if (tr) System.nanoTime() else 0L
         val source = try {
             Image.makeFromBitmap(bmp)
         } catch (e: RuntimeException) {
             PearLog.w("Player", "Video frame skipped: could not copy the rendered picture", e)
+            if (tr) PearTrace.count("r.copyFail")
             return
         }
-        val frame = VideoFrame(source.toComposeImageBitmap(), source, w, h)
+        val image = source.toComposeImageBitmap()
+        if (tr) PearTrace.sample("r.copyMs", (System.nanoTime() - copyStart) / 1_000_000.0)
+
+        val now = System.nanoTime()
+        val seq = nextSeq++
+        val frame = VideoFrame(image, source, w, h, seq, now)
         val previous = _frames.value
         _frames.value = frame
         // Drops only the renderer's reference. A draw still using the previous frame keeps it alive until it finishes.
         previous?.release()
+        if (tr) {
+            PearTrace.count("r.published")
+            if (lastPublishNanos != 0L) {
+                val gapMs = (now - lastPublishNanos) / 1_000_000.0
+                PearTrace.sample("r.gapMs", gapMs)
+                if (gapMs > 80.0) PearTrace.event("Render") { "gap ${gapMs.toLong()} ms before seq=$seq" }
+            }
+            probeLuma(addr, bmp.rowBytes, w, h, seq)
+        }
+        lastPublishNanos = now
+    }
+
+    /**
+     * Trace only: averages 64 pixels on an 8x8 grid of the rendered bitmap. It notes a sudden drop in brightness, and a frame
+     * identical to the one before. Reads the same memory mpv just wrote, on the same thread, so there is no race.
+     */
+    private fun probeLuma(addr: Long, rowBytes: Int, w: Int, h: Int, seq: Long) {
+        val base = Pointer(addr)
+        var sum = 0L
+        var luma = 0L
+        for (gy in 0 until 8) {
+            val y = (gy * 2 + 1) * h / 16
+            for (gx in 0 until 8) {
+                val x = (gx * 2 + 1) * w / 16
+                val v = base.getInt(y.toLong() * rowBytes + x * 4L)
+                sum += v
+                luma += ((v shr 16) and 0xFF) + ((v shr 8) and 0xFF) + (v and 0xFF)
+            }
+        }
+        val avg = luma / (64.0 * 3.0)
+        PearTrace.sample("r.luma", avg)
+        if (lumaHavePrev) {
+            if (lumaPrev > 20.0 && avg < lumaPrev * 0.3) {
+                PearTrace.count("r.lumaDip")
+                PearTrace.event("Render") { "LUMA DIP seq=$seq prev=${lumaPrev.toInt()} now=${avg.toInt()}" }
+            }
+            if (sum == lumaPrevSum) PearTrace.count("r.sameAsPrev")
+        }
+        lumaPrev = avg
+        lumaPrevSum = sum
+        lumaHavePrev = true
     }
 
     /** Render size in pixels. Above [maxPixels] it is scaled down, keeping the shape (4K performance mode). */
@@ -177,8 +256,15 @@ class MpvVideoRenderer private constructor(
         if (width <= 0 || height <= 0) return
         val px = width.toLong() * height
         val scale = if (px > maxPixels) sqrt(maxPixels.toDouble() / px) else 1.0
-        targetW = max(2, (width * scale).toInt())
-        targetH = max(2, (height * scale).toInt())
+        val oldW = targetW
+        val oldH = targetH
+        val newW = max(2, (width * scale).toInt())
+        val newH = max(2, (height * scale).toInt())
+        targetW = newW
+        targetH = newH
+        if (newW != oldW || newH != oldH) {
+            PearTrace.event("Render") { "target ${oldW}x$oldH -> ${newW}x$newH (asked ${width}x$height, max $maxPixels)" }
+        }
         needRedraw = true
         signal.release()
     }
@@ -186,6 +272,7 @@ class MpvVideoRenderer private constructor(
     fun close() {
         if (closed) return
         closed = true
+        PearTrace.event("Render") { "renderer closed" }
         signal.release()
         synchronized(renderLock) {
             mpv.mpv_render_context_set_update_callback(ctx, null, null)
@@ -215,6 +302,7 @@ class MpvVideoRenderer private constructor(
             mpv.mpv_render_context_set_update_callback(ctx, renderer.callback, null)
             renderer.thread.start()
             renderer.signal.release() // draw the first frame
+            PearTrace.event("Render") { "renderer created" }
             return renderer
         }
     }

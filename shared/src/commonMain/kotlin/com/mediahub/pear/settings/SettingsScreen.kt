@@ -52,7 +52,12 @@ import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.mediahub.pear.log.Diagnostics
+import com.mediahub.pear.log.PearTrace
 import com.mediahub.pear.shell.SettingsGroup
 import com.mediahub.pear.shell.SettingsRow
 import com.mediahub.pear.shell.SettingsDivider
@@ -375,24 +380,27 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection.Developer -> SettingsGroup(title = "Developer tools") {
-                Column(Modifier.padding(16.dp)) {
-                    ChipFlow {
-                        DevChip("Theme preview", false) { onNavigateDeveloperCheck("ThemePreview") }
-                        DevChip("Glass gallery", false) { onNavigateDeveloperCheck("GlassGallery") }
-                        DevChip("Backup check", false) { onNavigateDeveloperCheck("BackupCheck") }
-                        DevChip("Storage", false) { onNavigateDeveloperCheck("StorageCheck") }
-                        DevChip("Metadata", false) { onNavigateDeveloperCheck("MetadataCheck") }
-                        DevChip("Add-ons", false) { onNavigateDeveloperCheck("AddonsCheck") }
-                        DevChip("History", false) { onNavigateDeveloperCheck("HistoryCheck") }
-                        DevChip("Player", false) { onNavigateDeveloperCheck("PlayerCheck") }
-                        DevChip("P2P", false) { onNavigateDeveloperCheck("P2PCheck") }
-                        DevChip("Replay onboarding", false) {
-                            OnboardingState.replay(env.data.prefs)
-                            env.shell.onboardingVisible = true
+            SettingsSection.Developer -> {
+                SettingsGroup(title = "Developer tools") {
+                    Column(Modifier.padding(16.dp)) {
+                        ChipFlow {
+                            DevChip("Theme preview", false) { onNavigateDeveloperCheck("ThemePreview") }
+                            DevChip("Glass gallery", false) { onNavigateDeveloperCheck("GlassGallery") }
+                            DevChip("Backup check", false) { onNavigateDeveloperCheck("BackupCheck") }
+                            DevChip("Storage", false) { onNavigateDeveloperCheck("StorageCheck") }
+                            DevChip("Metadata", false) { onNavigateDeveloperCheck("MetadataCheck") }
+                            DevChip("Add-ons", false) { onNavigateDeveloperCheck("AddonsCheck") }
+                            DevChip("History", false) { onNavigateDeveloperCheck("HistoryCheck") }
+                            DevChip("Player", false) { onNavigateDeveloperCheck("PlayerCheck") }
+                            DevChip("P2P", false) { onNavigateDeveloperCheck("P2PCheck") }
+                            DevChip("Replay onboarding", false) {
+                                OnboardingState.replay(env.data.prefs)
+                                env.shell.onboardingVisible = true
+                            }
                         }
                     }
                 }
+                if (Diagnostics.exportZip != null) DiagnosticsGroup(scope)
             }
 
             SettingsSection.About -> SettingsGroup {
@@ -561,4 +569,40 @@ private fun SettingsRailItem(title: String, selected: Boolean, onClick: () -> Un
 @Composable
 private fun SettingsChevron() {
     PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
+}
+
+/** Settings -> Developer tools -> Diagnostics: the trace switch, the logs folder, and the diagnostics zip. Desktop only. */
+@Composable
+private fun DiagnosticsGroup(scope: CoroutineScope) {
+    val traceOn by PearTrace.enabledFlow.collectAsState()
+    var zipStatus by remember { mutableStateOf<String?>(null) }
+    SettingsGroup(title = "Diagnostics") {
+        SettingsRow(
+            title = "Record a trace",
+            subtitle = "Turn on before you press Play. While playing, press F8 each time you see the flicker. Ctrl+Shift+F9 also toggles this anywhere.",
+            trailing = {
+                PearSwitch(checked = traceOn, onCheckedChange = { on ->
+                    // Off the UI thread: starting or stopping writes to the disk.
+                    scope.launch(Dispatchers.Default) { if (on) PearTrace.start() else PearTrace.stop() }
+                })
+            },
+        )
+        SettingsDivider()
+        SettingsRow(
+            title = "Open logs folder",
+            onClick = { scope.launch(Dispatchers.Default) { Diagnostics.openLogsFolder?.invoke() } },
+        )
+        SettingsDivider()
+        SettingsRow(
+            title = "Save diagnostics zip",
+            subtitle = zipStatus,
+            onClick = {
+                zipStatus = "Saving..."
+                scope.launch {
+                    val path = withContext(Dispatchers.Default) { Diagnostics.exportZip?.invoke() }
+                    zipStatus = if (path != null) "Saved: $path" else "Could not save"
+                }
+            },
+        )
+    }
 }

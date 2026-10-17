@@ -7,6 +7,10 @@ import com.mediahub.pear.player.PlayerEngine
 import com.mediahub.pear.player.PlayerTrack
 import com.mediahub.pear.player.SubtitleRendering
 import com.mediahub.pear.player.TrackKind
+import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.PearLogFile
+import com.mediahub.pear.log.PearTrace
+import com.mediahub.pear.log.PearTraceFile
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.ByteByReference
 import com.sun.jna.ptr.DoubleByReference
@@ -14,9 +18,12 @@ import com.sun.jna.ptr.IntByReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -69,6 +76,9 @@ class MpvPlayerEngine private constructor(
     private val _subtitleText = MutableStateFlow<String?>(null)
     override val subtitleText: StateFlow<String?> = _subtitleText.asStateFlow()
 
+    /** Trace only: the coroutine that reads mpv's counters while tracing is on. Cancelled when the engine is released. */
+    private var traceJob: Job? = null
+
     init {
         // Observe properties
         mpv.mpv_observe_property(handle, 1L, "pause", MpvFormat.FLAG)
@@ -91,28 +101,31 @@ class MpvPlayerEngine private constructor(
                 when (event.event_id) {
                     MpvEventId.SHUTDOWN -> break
                     MpvEventId.START_FILE -> {
+                        PearTrace.event("Player") { "START_FILE" }
                         // The lists belong to the file being left until the new one reports its own: clear them now, so
                         // the language preference never picks from the previous file's tracks.
                         _audioTracks.value = emptyList()
                         _subtitleTracks.value = emptyList()
                         _subtitleText.value = null
-                        _state.value = PlaybackState.Loading
+                        setState(PlaybackState.Loading, "start-file")
                     }
                     MpvEventId.FILE_LOADED -> {
+                        PearTrace.event("Player") { "FILE_LOADED" }
                         refreshTrackList()
-                        _state.value = PlaybackState.Playing
+                        setState(PlaybackState.Playing, "file-loaded")
                     }
                     MpvEventId.END_FILE -> {
                         // struct mpv_event_end_file { int reason; int error; ... }
                         val d = event.data
                         val reason = d?.getInt(0) ?: 0
                         val err = d?.getInt(4) ?: 0
+                        PearTrace.event("Player") { "END_FILE reason=$reason err=$err" }
                         when (reason) {
                             END_REASON_ERROR -> {
                                 _errorMessage.value = native<String?>(null) { mpv.mpv_error_string(err) } ?: "Could not play this source."
-                                _state.value = PlaybackState.Error
+                                setState(PlaybackState.Error, "end-file reason=$reason")
                             }
-                            END_REASON_EOF -> _state.value = PlaybackState.Ended
+                            END_REASON_EOF -> setState(PlaybackState.Ended, "end-file reason=$reason")
                             else -> {} // stop/redirect: a new file is replacing this one
                         }
                     }
@@ -126,6 +139,7 @@ class MpvPlayerEngine private constructor(
             }
             // The render context must go before the mpv handle.
             renderer?.close()
+            traceJob?.cancel()
             synchronized(lock) {
                 destroyed = true
                 mpv.mpv_terminate_destroy(handle)
@@ -133,6 +147,19 @@ class MpvPlayerEngine private constructor(
         }, "mpv-event-loop")
         eventThread.isDaemon = true
         eventThread.start()
+
+        // Trace only: mpv's counters are read once a second while tracing is on. Suspended, not polling, while it is off.
+        traceJob = scope.launch {
+            PearTrace.enabledFlow.collectLatest { on -> if (on) pollWhileTracing() }
+        }
+    }
+
+    /** Every state change goes through here, so the trace shows what changed and why. */
+    private fun setState(new: PlaybackState, why: String) {
+        val old = _state.value
+        _state.value = new
+        PearLog.context("player.state", new.name)
+        if (old != new) PearTrace.event("Player") { "state $old -> $new ($why)" }
     }
 
     private fun handlePropertyChange(prop: MpvEventProperty) {
@@ -159,7 +186,7 @@ class MpvPlayerEngine private constructor(
                 if (prop.format == MpvFormat.FLAG) {
                     val isPaused = data.getInt(0) != 0
                     if (_state.value != PlaybackState.Loading && _state.value != PlaybackState.Ended) {
-                        _state.value = if (isPaused) PlaybackState.Paused else PlaybackState.Playing
+                        setState(if (isPaused) PlaybackState.Paused else PlaybackState.Playing, "pause=$isPaused")
                     }
                 }
             }
@@ -167,9 +194,9 @@ class MpvPlayerEngine private constructor(
                 if (prop.format == MpvFormat.FLAG) {
                     val buffering = data.getInt(0) != 0
                     if (buffering && _state.value == PlaybackState.Playing) {
-                        _state.value = PlaybackState.Buffering
+                        setState(PlaybackState.Buffering, "paused-for-cache=$buffering")
                     } else if (!buffering && _state.value == PlaybackState.Buffering) {
-                        _state.value = PlaybackState.Playing
+                        setState(PlaybackState.Playing, "paused-for-cache=$buffering")
                     }
                 }
             }
@@ -182,6 +209,7 @@ class MpvPlayerEngine private constructor(
             "video-params/gamma" -> {
                 if (prop.format == MpvFormat.STRING) {
                     val gamma = data.getPointer(0)?.getString(0)
+                    PearTrace.event("Player") { "gamma=$gamma" }
                     val hdr = gamma == "pq" || gamma == "hlg"
                     native(Unit) { applyHdrFilter(hdr && hdrToneMap) }
                 }
@@ -189,7 +217,7 @@ class MpvPlayerEngine private constructor(
             "eof-reached" -> {
                 // keep-open=always: end of file is reported here, not via END_FILE
                 if (prop.format == MpvFormat.FLAG && data.getInt(0) != 0 && _state.value != PlaybackState.Error) {
-                    _state.value = PlaybackState.Ended
+                    setState(PlaybackState.Ended, "eof")
                 }
             }
             "speed" -> {
@@ -250,6 +278,48 @@ class MpvPlayerEngine private constructor(
         native(0) { mpv.mpv_set_property_string(handle, "sub-visibility", if (appDraws) "no" else "yes") }
     }
 
+    /** Trace only: reads mpv's frame, timing and video counters once a second, and writes them as one Mpv line. */
+    private suspend fun pollWhileTracing() {
+        var lastDrop = -1L
+        var lastDecDrop = -1L
+        var lastDelayed = -1L
+        var lastMistimed = -1L
+        while (!isReleased.get() && PearTrace.enabled) {
+            delay(1_000L)
+            if (isReleased.get() || !PearTrace.enabled) break
+            val drop = getPropertyString("frame-drop-count")?.toLongOrNull()
+            val decDrop = getPropertyString("decoder-frame-drop-count")?.toLongOrNull()
+            val delayed = getPropertyString("vo-delayed-frame-count")?.toLongOrNull()
+            val mistimed = getPropertyString("mistimed-frame-count")?.toLongOrNull()
+            val fps = getPropertyString("estimated-vf-fps")
+            val containerFps = getPropertyString("container-fps")
+            val avsync = getPropertyString("avsync")
+            val cache = getPropertyString("demuxer-cache-duration")
+            val cacheSpeed = getPropertyString("cache-speed")
+            val hwdec = getPropertyString("hwdec-current")
+            val w = getPropertyString("video-params/w")
+            val h = getPropertyString("video-params/h")
+            val pixFmt = getPropertyString("video-params/pixelformat")
+            val codec = getPropertyString("video-codec")
+            PearTrace.count("mpv.dropped", changeOf(drop, lastDrop))
+            PearTrace.count("mpv.decDropped", changeOf(decDrop, lastDecDrop))
+            PearTrace.count("mpv.delayed", changeOf(delayed, lastDelayed))
+            PearTrace.count("mpv.mistimed", changeOf(mistimed, lastMistimed))
+            lastDrop = drop ?: lastDrop
+            lastDecDrop = decDrop ?: lastDecDrop
+            lastDelayed = delayed ?: lastDelayed
+            lastMistimed = mistimed ?: lastMistimed
+            PearTrace.event("Mpv") {
+                "frame-drop=${drop ?: "?"} decoder-drop=${decDrop ?: "?"} delayed=${delayed ?: "?"} mistimed=${mistimed ?: "?"} " +
+                    "fps=${fps ?: "?"} (container ${containerFps ?: "?"}) avsync=${avsync ?: "?"} cache=${cache ?: "?"}s " +
+                    "speed=${cacheSpeed ?: "?"} hwdec=${hwdec ?: "?"} ${w ?: "?"}x${h ?: "?"} ${pixFmt ?: "?"} ${codec ?: "?"}"
+            }
+        }
+    }
+
+    /** The change since the last reading. Zero when there is no earlier reading, or the counter started again. */
+    private fun changeOf(now: Long?, prev: Long): Long = if (now != null && prev >= 0L && now >= prev) now - prev else 0L
+
     private fun getPropertyString(name: String): String? {
         return native<String?>(null) {
             val ptr = mpv.mpv_get_property_string(handle, name)
@@ -268,7 +338,7 @@ class MpvPlayerEngine private constructor(
         hardwareDecoding: Boolean,
     ) {
         if (isReleased.get()) return
-        _state.value = PlaybackState.Loading
+        setState(PlaybackState.Loading, "load()")
         _errorMessage.value = null
 
         val err = native(0) {
@@ -286,7 +356,7 @@ class MpvPlayerEngine private constructor(
         if (err < 0) {
             val msg = native<String?>(null) { mpv.mpv_error_string(err) } ?: "Could not load media."
             _errorMessage.value = msg
-            _state.value = PlaybackState.Error
+            setState(PlaybackState.Error, "load error")
         }
     }
 
@@ -303,10 +373,12 @@ class MpvPlayerEngine private constructor(
     }
 
     override fun seek(positionSeconds: Double) {
+        PearTrace.event("Player") { "seek $positionSeconds" }
         native(0) { mpv.mpv_command(handle, arrayOf("seek", positionSeconds.toString(), "absolute+exact", null)) }
     }
 
     override fun setRate(rate: Double) {
+        PearTrace.event("Player") { "rate $rate" }
         native(0) { mpv.mpv_set_property_string(handle, "speed", rate.toString()) }
     }
 
@@ -316,6 +388,7 @@ class MpvPlayerEngine private constructor(
     }
 
     override fun selectTrack(kind: TrackKind, trackId: Int?) {
+        PearTrace.event("Player") { "select ${kind.name} id=$trackId" }
         val prop = when (kind) {
             TrackKind.Audio -> "aid"
             TrackKind.Subtitle -> "sid"
@@ -342,6 +415,7 @@ class MpvPlayerEngine private constructor(
     }
 
     override fun setAspectMode(mode: AspectMode) {
+        PearTrace.event("Player") { "aspect $mode" }
         native(0) {
             mpv.mpv_set_property_string(handle, "keepaspect", if (mode == AspectMode.Stretch) "no" else "yes")
             mpv.mpv_set_property_string(handle, "panscan", if (mode == AspectMode.Fill) "1.0" else "0.0")
@@ -350,6 +424,7 @@ class MpvPlayerEngine private constructor(
     }
 
     override fun setHdrToneMapping(enabled: Boolean) {
+        PearTrace.event("Player") { "HDR tone mapping $enabled" }
         hdrToneMap = enabled
         if (!enabled) native(Unit) { applyHdrFilter(false) }
     }
@@ -375,6 +450,7 @@ class MpvPlayerEngine private constructor(
     private fun applyHdrFilter(on: Boolean) {
         if (on == hdrFilterOn) return
         hdrFilterOn = on
+        PearTrace.event("Player") { "HDR filter ${if (on) "ADD" else "REMOVE"}" }
         if (on) {
             mpv.mpv_command(handle, arrayOf("vf", "add", "@pearhdr:lavfi=[zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p]", null))
         } else {
@@ -390,6 +466,18 @@ class MpvPlayerEngine private constructor(
     companion object {
         private const val END_REASON_EOF = 0
         private const val END_REASON_ERROR = 4
+
+        /** Trace only, before initialization: mpv's own verbose log goes to a file in the logs folder. */
+        private fun traceMpvLog(mpv: LibMpv, handle: Pointer) {
+            runCatching {
+                val dir = PearLogFile.logsDir() ?: return
+                val file = PearTraceFile.newMpvLog(dir) ?: return
+                mpv.mpv_set_option_string(handle, "log-file", file.absolutePath)
+                mpv.mpv_set_option_string(handle, "msg-level", "all=v")
+                mpv.mpv_set_option_string(handle, "msg-time", "yes")
+                PearTrace.event("Player") { "mpv log file: ${file.name}" }
+            }
+        }
 
         fun create(): PlayerEngine {
             val found = MpvNativeLoader.loadWithReport()
@@ -409,6 +497,7 @@ class MpvPlayerEngine private constructor(
             mpv.mpv_set_option_string(handle, "input-default-bindings", "no")
             mpv.mpv_set_option_string(handle, "input-vo-keyboard", "no")
 
+            if (PearTrace.enabled) traceMpvLog(mpv, handle)
             val initErr = mpv.mpv_initialize(handle)
             if (initErr < 0) {
                 mpv.mpv_destroy(handle)

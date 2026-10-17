@@ -22,6 +22,9 @@ import com.mediahub.pear.glass.BatteryWatch
 import com.mediahub.pear.log.FileCrashReportSource
 import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.log.PearLogFile
+import com.mediahub.pear.log.PearTrace
+import com.mediahub.pear.log.TraceDesktop
+import com.mediahub.pear.log.TraceWindow
 import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.CrashReports
 import com.mediahub.pear.update.PearBuild
@@ -40,7 +43,7 @@ import javax.swing.SwingUtilities
 import java.io.File
 
 fun main(args: Array<String>) = application {
-    startLogging()
+    startLogging(traceAtStart = "--trace" in args)
     System.setProperty("awt.useSystemAAFontSettings", "lcd")
     System.setProperty("swing.aatext", "true")
 
@@ -146,6 +149,7 @@ fun main(args: Array<String>) = application {
         }
         BatteryWatch()
         NativeTitleBar(window)
+        TraceWindow(window)
         RememberWindowGeometry(window, windowState, storage.prefs)
         // Windows: waits for libmpv (fetched on first run, or again if it went missing) before the app starts.
         LibmpvSetupGate {
@@ -158,11 +162,14 @@ fun main(args: Array<String>) = application {
  * Starts the file log and the crash briefing before anything else runs. The logs live in the app's config folder, in logs/.
  * Nothing here can stop the app from starting: the logger never throws.
  */
-private fun startLogging() {
+private fun startLogging(traceAtStart: Boolean) {
     val logs = File(AppDirs.detect().config, "logs")
     PearLogFile.init(logs, PearBuild.VERSION, "desktop", trackSessions = true)
     val opener: ((File) -> Unit)? = if (Desktop.isDesktopSupported()) ::openInFileManager else null
     CrashReports.source = FileCrashReportSource(logs, opener)
+    TraceDesktop.install(logs)
+    // --trace starts the flicker trace at launch. Otherwise it is off until Settings or Ctrl+Shift+F9 turns it on.
+    if (traceAtStart) PearTrace.start()
 }
 
 private fun openInFileManager(dir: File) {

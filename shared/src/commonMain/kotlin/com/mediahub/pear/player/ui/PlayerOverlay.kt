@@ -27,6 +27,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.PearTrace
+import com.mediahub.pear.log.TraceRecompose
 import com.mediahub.pear.player.PipState
 import com.mediahub.pear.shell.PlatformCaps
 import com.mediahub.pear.shell.touchStyle
@@ -186,6 +189,7 @@ fun PlayerOverlay(
     remote: Boolean = false,
     video: @Composable BoxScope.() -> Unit,
 ) {
+    TraceRecompose("PlayerOverlay")
     val state by engine.state.collectAsState()
 
     // Mouse activity: every pointer event pings, the countdown restarts on each ping.
@@ -229,6 +233,11 @@ fun PlayerOverlay(
         volumeActive = pillActive,
         panelOpen = panel != null,
     )
+    // Trace only in effect: each change of the controls is logged once. The cursor is hidden exactly when they are hidden.
+    LaunchedEffect(visible) {
+        PearTrace.event("UI") { "controls visible=$visible (cursor ${if (visible) "shown" else "hidden"})" }
+        PearLog.context("player.controls", visible.toString())
+    }
     // Touch: the controls go on their own after AUTO_HIDE_MILLIS while the film plays and nothing is being adjusted.
     LaunchedEffect(touchShown, state, scrubbing, panel, pillActive) {
         if (touch && touchShown && state == PlaybackState.Playing && !scrubbing && panel == null && !pillActive) {
@@ -237,6 +246,7 @@ fun PlayerOverlay(
         }
     }
     val covered = panelCoversControls(panel)
+    LaunchedEffect(panel) { PearTrace.event("UI") { "panel ${panel?.name ?: "none"}" } }
 
     val hiddenCursor = remember { hiddenPointerIcon() }
 
