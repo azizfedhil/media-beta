@@ -10,6 +10,7 @@ import com.mediahub.pear.p2p.p2pSource
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.alpha
 import com.mediahub.pear.glass.GlassSurface
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,12 +37,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.addons.AddonClient
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.shell.dragHorizontalScroll
 import com.mediahub.pear.glass.GlassSheet
+import com.mediahub.pear.glass.rememberSheetDrag
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.PlayRequest
@@ -67,6 +70,8 @@ fun SourceSheet(
     modifier: Modifier = Modifier,
     thumb: String? = null,
     logo: String? = null,
+    /** The list's height when the sheet is pulled up to expand it. The collapsed list is 400 dp. */
+    expandedListHeight: Dp = 400.dp,
 ) {
     val env = LocalAppEnv.current
     val p2pReady by env.data.p2p.canStream.collectAsState()
@@ -88,7 +93,8 @@ fun SourceSheet(
         loading = false
     }
 
-    GlassSheet(modifier.width(460.dp)) {
+    val drag = rememberSheetDrag(expandable = true, onDismiss = onClose)
+    GlassSheet(modifier.width(460.dp), drag = drag) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -119,8 +125,9 @@ fun SourceSheet(
             }
         }
 
+        val listHeight = animateDpAsState(if (drag.expanded) expandedListHeight else 400.dp).value
         Column(
-            Modifier.fillMaxWidth().height(400.dp).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxWidth().height(listHeight).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (loading && streams.isEmpty()) {

@@ -103,18 +103,22 @@ fun SourcePickerOverlay(request: SourcePickerRequest, onClose: () -> Unit) {
         if (wide) {
             WideSourcePicker(request, onSelect = select, onClose = onClose, modifier = panel)
         } else {
-            SourceSheet(
-                item = request.item,
-                imdbId = request.imdbId,
-                season = request.season,
-                episode = request.episode,
-                episodeTitle = request.episodeTitle,
-                onSelectSource = select,
-                onClose = onClose,
-                modifier = panel,
-                thumb = request.thumb,
-                logo = request.logo,
-            )
+            // The expanded list leaves about 190 dp above it for the header and margins, and is never shorter than the collapsed one.
+            BoxWithConstraints {
+                SourceSheet(
+                    item = request.item,
+                    imdbId = request.imdbId,
+                    season = request.season,
+                    episode = request.episode,
+                    episodeTitle = request.episodeTitle,
+                    onSelectSource = select,
+                    onClose = onClose,
+                    modifier = panel,
+                    thumb = request.thumb,
+                    logo = request.logo,
+                    expandedListHeight = (maxHeight - 190.dp).coerceAtLeast(400.dp),
+                )
+            }
         }
     }
 }

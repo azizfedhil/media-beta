@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import com.mediahub.pear.data.Profile
 import com.mediahub.pear.glass.FlatSheet
 import com.mediahub.pear.glass.GlassSurface
+import com.mediahub.pear.glass.SheetDragState
+import com.mediahub.pear.glass.rememberSheetDrag
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.PearButtonStyle
@@ -151,6 +153,7 @@ fun ProfileSheetOverlay(
 ) {
     val swallow = remember { MutableInteractionSource() }
     if (sidebarWidth == null) {
+        val drag = rememberSheetDrag(expandable = false, onDismiss = onDismiss)
         Box(
             Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(onClick = onDismiss),
             contentAlignment = Alignment.BottomCenter,
@@ -162,6 +165,7 @@ fun ProfileSheetOverlay(
                 onOpenSimkl = onOpenSimkl,
                 onOpenPearPair = onOpenPearPair,
                 onOpenWatchParty = onOpenWatchParty,
+                drag = drag,
                 modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
                     .clickable(interactionSource = swallow, indication = null) {},
             )
@@ -218,6 +222,7 @@ fun ProfileSheet(
     onOpenWatchParty: () -> Unit = {},
     modifier: Modifier = Modifier,
     floating: Boolean = false,
+    drag: SheetDragState? = null,
 ) {
     val env = LocalAppEnv.current
     val profiles = env.data.profiles
@@ -228,7 +233,7 @@ fun ProfileSheet(
     val avatarSize = if (floating) 56.dp else 72.dp
     val avatarGap = if (floating) 14.dp else 18.dp
 
-    FlatSheet(modifier = modifier, floating = floating) {
+    FlatSheet(modifier = modifier, floating = floating, drag = drag) {
         if (editingProfile != null || isCreatingNew) {
             ProfileEditor(
                 profile = editingProfile,

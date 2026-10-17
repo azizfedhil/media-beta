@@ -192,39 +192,67 @@ fun GlassMenuDivider() {
     Box(Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 8.dp).height(1.dp).background(PearTheme.colors.outline))
 }
 
+/** The grabber's hit area on a drag sheet: taller than its pill, so a finger can take hold of it. */
+private val GrabberHitHeight = 24.dp
+private val GrabberPillHeight = 5.dp
+
+/** The top padding above a sheet's content. A drag sheet's taller grabber takes the room, and it never goes below 0. */
+private fun sheetTopPadding(floating: Boolean, drag: SheetDragState?): Dp = when {
+    floating -> 20.dp
+    drag == null -> 10.dp
+    else -> (10.dp - (GrabberHitHeight - GrabberPillHeight)).coerceAtLeast(0.dp)
+}
+
+/** A sheet's grabber. On a drag sheet it is a 24 dp strip that takes the drag, with the same pill inside. */
+@Composable
+private fun SheetGrabber(drag: SheetDragState?) {
+    val pill = Modifier.size(width = 36.dp, height = GrabberPillHeight).clip(RoundedCornerShape(percent = 50)).background(PearTheme.colors.textTertiary)
+    if (drag == null) {
+        Box(pill)
+    } else {
+        Box(Modifier.fillMaxWidth().height(GrabberHitHeight).sheetHandleDrag(drag), contentAlignment = Alignment.Center) {
+            Box(pill)
+        }
+    }
+}
+
 /**
  * A solid sheet with the same shape as [GlassSheet]: no glass and no blur. Used where a panel floats over a busy picture, so
- * the controls inside it don't sit in glass on glass.
+ * the controls inside it don't sit in glass on glass. With [drag], the sheet moves with a drag and takes a pull to expand.
  */
 @Composable
-fun FlatSheet(modifier: Modifier = Modifier, floating: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+fun FlatSheet(modifier: Modifier = Modifier, floating: Boolean = false, drag: SheetDragState? = null, content: @Composable ColumnScope.() -> Unit) {
     val c = PearTheme.colors
     val shape = if (floating) {
         RoundedCornerShape(PearRadii.sheet)
     } else {
         RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)
     }
-    Box(modifier.clip(shape).background(c.surface)) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(top = if (floating) 20.dp else 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!floating) Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
+    val outer = if (drag != null && !floating) modifier.sheetDragOffset(drag) else modifier
+    Box(outer.clip(shape).background(c.surface)) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = sheetTopPadding(floating, drag), bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!floating) SheetGrabber(drag)
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
         }
     }
 }
 
-/** Bottom sheet panel: rounded top corners and a grabber. */
+/**
+ * Bottom sheet panel: rounded top corners and a grabber. With [drag], the sheet moves with a drag, takes a pull to expand,
+ * and closes when pulled away.
+ */
 @Composable
-fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
-    val c = PearTheme.colors
+fun GlassSheet(modifier: Modifier = Modifier, floating: Boolean = false, drag: SheetDragState? = null, content: @Composable ColumnScope.() -> Unit) {
     // A sheet rises from the bottom edge with a handle; a floating panel is a card with all corners rounded and no handle.
     val shape = if (floating) {
         RoundedCornerShape(PearRadii.sheet)
     } else {
         RoundedCornerShape(topStart = PearRadii.sheet, topEnd = PearRadii.sheet, bottomStart = 0.dp, bottomEnd = 0.dp)
     }
-    GlassSurface(modifier, shape) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(top = if (floating) 20.dp else 10.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!floating) Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(percent = 50)).background(c.textTertiary))
+    val outer = if (drag != null && !floating) modifier.sheetDragOffset(drag) else modifier
+    GlassSurface(outer, shape) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = sheetTopPadding(floating, drag), bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!floating) SheetGrabber(drag)
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
         }
     }
