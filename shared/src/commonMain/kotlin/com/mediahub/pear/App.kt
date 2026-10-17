@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +42,7 @@ import com.mediahub.pear.shell.LocalWindowControl
 import com.mediahub.pear.shell.ShellState
 import com.mediahub.pear.shell.SystemBackHandler
 import com.mediahub.pear.shell.WindowControl
+import com.mediahub.pear.theme.NoIndication
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.ThemeStore
 import kotlinx.coroutines.delay
@@ -125,6 +127,7 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
             LocalAppEnv provides env,
             LocalWindowControl provides windowControl,
             LocalHttp provides data.network.http,
+            LocalIndication provides NoIndication,
         ) {
             val catalogues = HomeCatalogs.jobs(data.addons.enabledAddons, data.content.rules, data.addons.pickerIds)
                 .map { (addon, cat) ->

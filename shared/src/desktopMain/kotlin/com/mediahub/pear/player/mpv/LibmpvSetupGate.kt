@@ -2,6 +2,7 @@ package com.mediahub.pear.player.mpv
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -156,11 +157,12 @@ private fun FailedScreen(reasons: List<String>, onRetry: () -> Unit, onContinue:
 
 @Composable
 private fun PillButton(label: String, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
     Box(
         Modifier
             .clip(RoundedCornerShape(percent = 50))
             .background(Color.White)
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
         BasicText(label, style = TextStyle(color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))

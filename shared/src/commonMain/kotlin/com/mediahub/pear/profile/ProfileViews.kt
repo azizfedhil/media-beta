@@ -152,10 +152,11 @@ fun ProfileSheetOverlay(
     sidebarWidth: Dp? = null,
 ) {
     val swallow = remember { MutableInteractionSource() }
+    val outside = remember { MutableInteractionSource() }
     if (sidebarWidth == null) {
         val drag = rememberSheetDrag(expandable = false, onDismiss = onDismiss)
         Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(onClick = onDismiss),
+            Modifier.fillMaxSize().clickable(interactionSource = outside, indication = null, onClick = onDismiss),
             contentAlignment = Alignment.BottomCenter,
         ) {
             ProfileSheet(
@@ -172,7 +173,7 @@ fun ProfileSheetOverlay(
         }
     } else {
         Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)).clickable(onClick = onDismiss),
+            Modifier.fillMaxSize().clickable(interactionSource = outside, indication = null, onClick = onDismiss),
         ) {
             Box(Modifier.fillMaxSize().padding(start = sidebarWidth + 12.dp, top = 16.dp), contentAlignment = Alignment.TopStart) {
                 ProfileSheet(
