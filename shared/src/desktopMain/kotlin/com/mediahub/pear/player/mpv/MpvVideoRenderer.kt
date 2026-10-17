@@ -23,7 +23,7 @@ import kotlin.math.sqrt
 /**
  * One rendered frame. [image] may be wider than [width] (rows are padded to 16 px); draw only the top-left [width] x [height].
  *
- * Reference-counted: the renderer holds one reference until it publishes a newer frame, and every draw holds one for as
+ * Reference-counted: the renderer holds one reference until it has published two newer frames, and every draw holds one for as
  * long as it is drawing. The native memory is freed only when the last reference is released, so a frame can never be
  * freed while the UI is still drawing it.
  */
@@ -77,6 +77,9 @@ class MpvVideoRenderer private constructor(
 
     private val _frames = MutableStateFlow<VideoFrame?>(null)
     val frames: StateFlow<VideoFrame?> = _frames.asStateFlow()
+
+    // Touched only under renderLock. The frame published before the current one; released one publish later (see renderOnce).
+    private var retired: VideoFrame? = null
 
     @Volatile private var targetW = 0
     @Volatile private var targetH = 0
@@ -206,8 +209,11 @@ class MpvVideoRenderer private constructor(
         val frame = VideoFrame(image, source, w, h, seq, now)
         val previous = _frames.value
         _frames.value = frame
-        // Drops only the renderer's reference. A draw still using the previous frame keeps it alive until it finishes.
-        previous?.release()
+        // One-publish delay. VideoSurface reads frames through collectAsState(), which lags _frames by one UI event-loop turn,
+        // so a draw can still pick up the previous frame after this publish. The previous frame is therefore retired now and
+        // released on the next publish, not here. A draw that already retained a frame holds its own reference regardless.
+        retired?.release()   // the frame before the previous one: no draw can still hold it
+        retired = previous   // the previous one lives one more frame, for a draw that read it through the lagging State
         if (tr) {
             PearTrace.count("r.published")
             if (lastPublishNanos != 0L) {
@@ -282,6 +288,8 @@ class MpvVideoRenderer private constructor(
             val last = _frames.value
             _frames.value = null
             last?.release()
+            retired?.release()
+            retired = null
         }
     }
 
