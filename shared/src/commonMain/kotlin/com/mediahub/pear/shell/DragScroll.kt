@@ -29,7 +29,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /** A LazyRow you can also scroll by holding the mouse button and dragging (desktop LazyRows only react to the wheel). */
@@ -99,25 +99,25 @@ fun DragLazyGrid(
  */
 fun Modifier.shiftWheelHorizontal(scrollBy: suspend (Float) -> Unit): Modifier =
     if (!PlatformCaps.isTouchFirst) this else pointerInput(scrollBy) {
-        awaitPointerEventScope {
-            while (true) {
-                val event = awaitPointerEvent(PointerEventPass.Main)
-                if (event.type != PointerEventType.Scroll) continue
-                val change = event.changes.firstOrNull() ?: continue
-                if (change.isConsumed || change.type != PointerType.Mouse) continue
-                val delta = change.scrollDelta
-                val along = when {
-                    event.keyboardModifiers.isShiftPressed -> delta.y // Shift + wheel
-                    delta.y == 0f -> delta.x // a horizontal trackpad swipe
-                    else -> 0f // a plain wheel scrolls the page
+        coroutineScope {
+            // Captured here, outside awaitPointerEventScope (which restricts suspension), so the scroll can be launched on it.
+            val scope = this
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Main)
+                    if (event.type != PointerEventType.Scroll) continue
+                    val change = event.changes.firstOrNull() ?: continue
+                    if (change.isConsumed || change.type != PointerType.Mouse) continue
+                    val delta = change.scrollDelta
+                    val along = when {
+                        event.keyboardModifiers.isShiftPressed -> delta.y // Shift + wheel
+                        delta.y == 0f -> delta.x // a horizontal trackpad swipe
+                        else -> 0f // a plain wheel scrolls the page
+                    }
+                    if (along == 0f) continue
+                    change.consume()
+                    scope.launch { scrollBy(along * 40f) }
                 }
-                if (along == 0f) continue
-                change.consume()
-                // The callers' lambdas hit restricted suspending functions (LazyListState.scrollBy and friends), which the
-                // compiler only allows to run on a context inherited directly from this awaitPointerEventScope. A plain
-                // launch{} would install a fresh Job in that context and trip ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL,
-                // so start UNDISPATCHED: the lambda runs synchronously here, keeps this scope's context, and nothing else changes.
-                launch(start = CoroutineStart.UNDISPATCHED) { scrollBy(along * 40f) }
             }
         }
     }
