@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.history.Fmt
 import com.mediahub.pear.history.HistoryEntry
+import com.mediahub.pear.history.SE
 import com.mediahub.pear.history.UpNextItem
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.upgradeTmdbStill
@@ -188,6 +189,7 @@ fun ContinueRow(
  */
 @Composable
 private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f) {
+    val still = rememberEpisodeStill(entry.item, entry.seasonEpisode, entry.thumb)
     val width = (CARD_WIDTH_DP * scale).dp
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
@@ -212,7 +214,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
 
             // Clear from the middle of the still to black at half strength at the bottom, so the bar and the pill read.
             Box(
@@ -254,6 +256,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
 
 @Composable
 private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f) {
+    val still = rememberEpisodeStill(item.item, SE(item.season, item.episode), item.thumb)
     val width = (CARD_WIDTH_DP * scale).dp
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
@@ -275,7 +278,7 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, onMenu: (Rect) -> 
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(item.thumb ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize())
 
             Box(
                 Modifier.align(Alignment.TopStart).padding(8.dp)

@@ -118,7 +118,7 @@ object SourceChooser {
             episode = episode.id,
             episodeTitle = episode.name,
             logo = current.logo,
-            thumb = episode.image ?: current.item.backdropUrl,
+            thumb = episode.image ?: current.thumb.takeIf { current.episode == episode.id && current.season == season },
             p2p = stream.p2pSource(),
             sourceAddonID = addon.id,
             sourceSignature = stream.signature,

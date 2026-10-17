@@ -56,6 +56,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.mediahub.pear.detail.openSourceChooser
 import com.mediahub.pear.history.HistoryEntry
+import com.mediahub.pear.home.rememberEpisodeStill
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.upgradeTmdbStill
 import com.mediahub.pear.net.RemoteImage
@@ -325,6 +326,7 @@ private fun ContinueSidebarRow(entry: HistoryEntry) {
         PearMotion.snappy<Color>(PearMotion.FAST),
     )
     val se = entry.seasonEpisode
+    val still = rememberEpisodeStill(entry.item, se, entry.thumb)
 
     fun openDetails() {
         env.shell.currentNav().push(Route.Detail(entry.item, se?.season, se?.episode))
@@ -368,7 +370,7 @@ private fun ContinueSidebarRow(entry: HistoryEntry) {
                 .clip(RoundedCornerShape(PearRadii.xs))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             PearText(entry.item.name, style = PearTheme.type.footnote.weight(FontWeight.SemiBold), maxLines = 1)

@@ -43,6 +43,7 @@ import com.mediahub.pear.home.PosterCard
 import com.mediahub.pear.home.scaledBy
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.upgradeTmdbStill
+import com.mediahub.pear.home.rememberEpisodeStill
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.net.attempt
 import com.mediahub.pear.shell.AppEnv
@@ -298,6 +299,7 @@ private fun ContinueCard(
     onClick: () -> Unit,
     onMenu: (Rect) -> Unit,
 ) {
+    val still = rememberEpisodeStill(entry.item, entry.seasonEpisode, entry.thumb)
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
@@ -317,7 +319,7 @@ private fun ContinueCard(
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(entry.thumb ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
 
             // Bottom progress bar
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.25f))) {
@@ -344,6 +346,7 @@ private fun UpNextCard(
     onClick: () -> Unit,
     onMenu: (Rect) -> Unit,
 ) {
+    val still = rememberEpisodeStill(item.item, SE(item.season, item.episode), item.thumb)
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
@@ -363,7 +366,7 @@ private fun UpNextCard(
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(item.thumb ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize())
 
             // UP NEXT badge, top-left, as on Home
             Box(

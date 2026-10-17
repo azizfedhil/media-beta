@@ -130,7 +130,7 @@ object PartySourcePicker {
             season = if (series) source.season else null,
             episode = if (series) source.episode else null,
             episodeTitle = source.episodeTitle,
-            thumb = source.poster,
+            thumb = if (series) null else source.poster,
             p2p = stream.p2pSource(),
             sourceAddonID = addon.id,
             sourceSignature = stream.signature,

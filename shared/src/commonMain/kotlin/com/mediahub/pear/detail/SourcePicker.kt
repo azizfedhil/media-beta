@@ -153,7 +153,7 @@ suspend fun openSourceChooser(
             season = season,
             episode = episode,
             episodeTitle = episodeTitle ?: episodeInfo?.name,
-            thumb = thumb ?: episodeInfo?.image ?: item.backdropUrl,
+            thumb = thumb ?: episodeInfo?.image ?: (if (season == null) item.backdropUrl else null),
             logo = logo,
             episodeInfo = episodeInfo,
             onSelect = { request ->

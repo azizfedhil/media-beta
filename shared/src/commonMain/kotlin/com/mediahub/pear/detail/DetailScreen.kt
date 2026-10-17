@@ -196,7 +196,7 @@ fun DetailScreen(
                 season = if (isSeries) selectedSeason else null,
                 episode = if (isSeries) selectedEpisode else null,
                 episodeTitle = episodes.firstOrNull { it.id == selectedEpisode }?.name,
-                thumb = (if (isSeries) episodes.firstOrNull { it.id == selectedEpisode }?.image else null) ?: item.backdropUrl,
+                thumb = if (isSeries) episodes.firstOrNull { it.id == selectedEpisode }?.image else item.backdropUrl,
                 logo = logoUrl,
                 episodeInfo = episodes.firstOrNull { it.id == selectedEpisode },
                 onSelect = { request -> onPlay(request) },

@@ -199,7 +199,16 @@ class WatchHistory(
         season: Int?, episode: Int?, episodeTitle: String?, thumb: String?,
     ): HistoryEntry {
         val old = entry(item.id)
-        var e = HistoryEntry(item, key, position, duration, now(), season, episode, episodeTitle, thumb)
+        // A series keeps the still of its episode, never the show's backdrop or poster. A save with no still of its own
+        // keeps the one already stored for the same episode.
+        val sameEpisode = old != null && season != null && episode != null && old.seasonEpisode == SE(season, episode)
+        val storedThumb = if (item.type == "series") {
+            val own = thumb?.takeIf { it != item.backdropUrl && it != item.posterUrl }
+            own ?: old?.thumb?.takeIf { sameEpisode && it != item.backdropUrl && it != item.posterUrl }
+        } else {
+            thumb
+        }
+        var e = HistoryEntry(item, key, position, duration, now(), season, episode, episodeTitle, storedThumb)
         e = e.copy(alias = old?.alias, done = old?.done, hS = old?.hS, hE = old?.hE)
         var wt = old?.watchedThrough
         if (e.isFinished) {
