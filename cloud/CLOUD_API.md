@@ -65,6 +65,7 @@ Each record is identified by `(profileId, kind, key)`.
 | `library` | title id | the app's `LibraryEntry` JSON |
 | `progress` | title id | `{position, duration, season?, episode?}` |
 | `settings` | the pref key name, for example `ui.accent`. A per-profile key (`content.prefs`) uses its base name | `{"t": "<type>", "v": <value>}`. `t` is `s` (text), `b` (flag), `i` (whole number), `d` (number), `l` (list of text) or `j` (JSON text) |
+| `watchlog` | the month as `yyyy-MM`, for example `2026-10` | `{"d": {"2026-10-05": [24 whole numbers]}}`. Each day key is `yyyy-MM-dd`; the 24 numbers are the seconds watched in each hour of that day (index 0 is midnight). A month holds about 5 KB at most |
 
 The server checks that `data` is a JSON object of at most 32 KB. It does not check the fields inside.
 
@@ -91,8 +92,8 @@ Response:
 
 - A push holds at most 200 changes. More returns `400 too_many_changes`.
 - `accepted` lists the indexes of the changes the server took. A change older than the stored record is also accepted, but it is not applied. The rule is last write wins by `updatedAt`.
-- `rejected` lists refused changes with a reason: `bad_shape`, `bad_profile_id`, `unknown_kind`, `bad_key`, `bad_updated_at`, `future_timestamp` (more than one day ahead), `missing_data`, `too_large` (data over 32 KB), `profile_limit`, `history_limit`, `library_limit`, `settings_limit`.
-- Limits: 20 profiles per account, and 5000 live history records and 5000 live library records per profile. Only new records count against a limit. Updates and tombstones always pass. Progress has no limit.
+- `rejected` lists refused changes with a reason: `bad_shape`, `bad_profile_id`, `unknown_kind`, `bad_key`, `bad_updated_at`, `future_timestamp` (more than one day ahead), `missing_data`, `too_large` (data over 32 KB), `profile_limit`, `history_limit`, `library_limit`, `settings_limit`, `watchlog_limit`.
+- Limits: 20 profiles per account, and 5000 live history records, 5000 live library records and 5000 watch-log months per profile. Only new records count against a limit. Updates and tombstones always pass. Progress has no limit.
 - The accepted changes of one push are written in one batch, and every one is stamped with the push's `serverTs`.
 - Clients never move their pull cursor from a push response. Only pulls move it.
 
@@ -123,7 +124,8 @@ A delete is a tombstone: `"deleted": true` and no `data`. Tombstones are kept fo
 These run in the apps. The server does not do them.
 - A pulled `progress` never lowers a `history` entry's watched marker. `watchedThrough` takes the larger value, unless the newer side explicitly cleared it (`wS == 0`).
 - On first sign-in to an account from a device with local data, ask: "Merge with this account" (the default, last write wins per record) or "Replace this device's data with the account's".
-- When Simkl is the active library, `library` is not synced. `history`, `progress` and `profile` still are.
+- When Simkl is the active library, `library` is not synced. `history`, `progress`, `profile` and `watchlog` still are.
+- A pulled `watchlog` month is merged, not replaced: each hour keeps the larger of the two counts, and the result is kept for the next push. The server keeps the last write, so a month that a device pushes before it has pulled can replace another device's larger counts until that device pushes again. Clients never send a tombstone for a `watchlog` record.
 - Offline edits go into a local outbox. Nothing in the outbox is dropped.
 
 ## 3. Watch party

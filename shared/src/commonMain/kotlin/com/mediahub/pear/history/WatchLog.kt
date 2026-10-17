@@ -17,6 +17,43 @@ import kotlinx.serialization.builtins.serializer
 
 private val logSerializer = MapSerializer(String.serializer(), ListSerializer(Int.serializer()))
 
+/**
+ * The most seconds one hour of one day can hold when a log is read from another device. On the night the clocks go
+ * back, the repeated hour can hold two hours of playback, and one tick can overshoot an hour by up to 20 s
+ * (ProgressRules.MAX_TICK_SECONDS). A day above this is treated as damaged and left out.
+ */
+internal const val MAX_HOUR_SECONDS = 2L * 3_600L + 120L
+
+private const val TRIM_ABOVE_DAYS = 430
+private const val KEEP_DAYS = 400
+
+/** Keeps the newest [KEEP_DAYS] days once a log holds more than [TRIM_ABOVE_DAYS]. A smaller log comes back as it is. */
+internal fun trimLog(days: Map<String, List<Int>>): Map<String, List<Int>> {
+    if (days.size <= TRIM_ABOVE_DAYS) return days
+    val keep = days.keys.sorted().takeLast(KEEP_DAYS).toSet()
+    return days.filterKeys { it in keep }
+}
+
+/** A stored log, or null when its text cannot be read. */
+internal fun decodeWatchLog(text: String): Map<String, List<Int>>? =
+    attempt { PearJson.decodeFromString(logSerializer, text) }
+
+internal fun encodeWatchLog(days: Map<String, List<Int>>): String = PearJson.encodeToString(logSerializer, days)
+
+/**
+ * Two logs as one: for each day, the larger count of each hour, with a day missing on one side counting as zeros. The
+ * result does not depend on the order of [a] and [b], and merging a log with itself changes nothing.
+ */
+internal fun mergeLogs(a: Map<String, List<Int>>, b: Map<String, List<Int>>): Map<String, List<Int>> {
+    val out = LinkedHashMap<String, List<Int>>()
+    for (day in a.keys + b.keys) {
+        val x = a[day]
+        val y = b[day]
+        out[day] = List(24) { h -> maxOf(x?.getOrNull(h) ?: 0, y?.getOrNull(h) ?: 0) }
+    }
+    return trimLog(out)
+}
+
 /** Days since 1970-01-01 of a calendar date (proleptic Gregorian). */
 internal fun daysFromCivil(year: Int, month: Int, day: Int): Long {
     val y = if (month <= 2) year - 1 else year
@@ -42,6 +79,9 @@ class WatchLog(
     private var dirty = false
     private var lastSave: Long? = null
 
+    /** Seconds recorded since the last save, per day. They are part of [days] but not yet in storage. */
+    private val unsaved = HashMap<String, IntArray>()
+
     var days: Map<String, List<Int>> by mutableStateOf(read(initialProfile))
         private set
 
@@ -53,8 +93,28 @@ class WatchLog(
     /** After a settings import: storage is the truth, so unsaved in-memory data is dropped, not written over it. */
     fun reload(profile: String = profileID) {
         dirty = false
+        unsaved.clear()
         profileID = profile
         days = read(profile)
+    }
+
+    /**
+     * Reloads from storage after a pull, and keeps the seconds recorded since the last save. [reload] would drop them, and
+     * a pull can arrive while the player is running. A reload of another profile keeps nothing.
+     */
+    fun reloadKeepingUnsaved(profile: String = profileID) {
+        val kept: Map<String, IntArray> = if (profile == profileID) unsaved.mapValues { it.value.copyOf() } else emptyMap()
+        reload(profile)
+        if (kept.isEmpty()) return
+        val merged = days.toMutableMap()
+        for ((day, secs) in kept) {
+            val hours = (merged[day] ?: List(24) { 0 }).toMutableList()
+            for (h in 0 until 24) hours[h] = hours[h] + secs[h]
+            merged[day] = hours
+            unsaved[day] = secs
+        }
+        days = merged
+        dirty = true
     }
 
     fun load(profile: String) {
@@ -73,8 +133,10 @@ class WatchLog(
         val key = dayKey(p)
         val hours = (days[key] ?: List(24) { 0 }).toMutableList()
         val h = p.hour.coerceIn(0, 23)
-        hours[h] = hours[h] + (seconds + 0.5).toInt()
+        val add = (seconds + 0.5).toInt()
+        hours[h] = hours[h] + add
         days = days + (key to hours)
+        unsaved.getOrPut(key) { IntArray(24) }[h] += add
         dirty = true
         val last = lastSave
         if (last == null || now() - last > 60_000) flush() // the 10 s player tick would otherwise rewrite it constantly
@@ -84,11 +146,9 @@ class WatchLog(
         if (!dirty) return
         dirty = false
         lastSave = now()
-        if (days.size > 430) {
-            val drop = days.keys.sorted().dropLast(400).toSet()
-            days = days.filterKeys { it !in drop }
-        }
-        prefs.setJsonText(storeKey(profileID), PearJson.encodeToString(logSerializer, days))
+        days = trimLog(days)
+        prefs.setJsonText(storeKey(profileID), encodeWatchLog(days))
+        unsaved.clear()
     }
 
     // MARK: Queries

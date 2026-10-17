@@ -1,6 +1,6 @@
 // Checks each change in a Pear.pair push. Pure functions: no database access here.
 
-export const SYNC_KINDS = ["profile", "history", "library", "progress", "settings"] as const;
+export const SYNC_KINDS = ["profile", "history", "library", "progress", "settings", "watchlog"] as const;
 export type SyncKind = (typeof SYNC_KINDS)[number];
 
 export const MAX_CHANGES_PER_PUSH = 200;
@@ -45,6 +45,8 @@ export function parseChange(raw: unknown, index: number, now: number): ParseResu
   if (!isId(key)) return { ok: false, reason: "bad_key" };
   // A profile record is keyed by its own id.
   if (kind === "profile" && key !== profileId) return { ok: false, reason: "bad_key" };
+  // A watch-log record is one month of one profile's log.
+  if (kind === "watchlog" && !/^\d{4}-\d{2}$/.test(key)) return { ok: false, reason: "bad_key" };
   if (typeof updatedAt !== "number" || !Number.isSafeInteger(updatedAt) || updatedAt <= 0) {
     return { ok: false, reason: "bad_updated_at" };
   }

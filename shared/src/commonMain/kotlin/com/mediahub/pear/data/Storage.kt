@@ -126,6 +126,7 @@ class AppData(
         onRemoteApplied = { reloadAfterSync() },
         onSettingsApplied = { keys -> reloadAfterSettings(keys) },
         scope = uiScope,
+        flushWatchLog = { watchLog.flush() },
     )
 
     init {
@@ -149,6 +150,8 @@ class AppData(
         profiles.reload()
         val profile = profiles.activeID
         history.reload(profile)
+        // Keeps the seconds not yet saved. A plain reload drops up to a minute of playback on every pull that changes data.
+        watchLog.reloadKeepingUnsaved(profile)
         library.reload(profile)
         libraryPrefs.reload(profile)
     }

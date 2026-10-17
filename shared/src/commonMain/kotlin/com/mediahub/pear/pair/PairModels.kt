@@ -9,7 +9,8 @@ enum class SyncKind(val wire: String) {
     HISTORY("history"),
     LIBRARY("library"),
     PROGRESS("progress"),
-    SETTINGS("settings");
+    SETTINGS("settings"),
+    WATCHLOG("watchlog");
 
     companion object {
         /** The kind for a wire name, or null for a kind this app does not know (such changes are skipped). */
@@ -81,6 +82,9 @@ object SyncRules {
     const val PULL_EVERY_MILLIS = 10 * 60_000L
     const val PROGRESS_EVERY_MILLIS = 60_000L
     const val PROGRESS_MOVED_SECONDS = 15.0
+
+    /** A profile's watch log goes out at most this often. The log changes every minute while playing, so this keeps the pushes few. */
+    const val WATCHLOG_EVERY_MILLIS = 5 * 60_000L
     const val RETRY_MIN_MILLIS = 30_000L
     const val RETRY_MAX_MILLIS = 10 * 60_000L
     const val DAY_MILLIS = 86_400_000L

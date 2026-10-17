@@ -8,12 +8,14 @@ import com.mediahub.pear.data.ProfileKeys
 import com.mediahub.pear.data.ProfileStore
 import com.mediahub.pear.history.HistoryEntry
 import com.mediahub.pear.history.LibraryEntry
+import com.mediahub.pear.history.MAX_HOUR_SECONDS
 import com.mediahub.pear.model.jObject
 import com.mediahub.pear.model.jStr
 import com.mediahub.pear.net.attempt
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 // The pure rules of the sync: keys, fingerprints, decoding, and how a pulled record merges into the local lists.
 // Nothing here touches the network or the timers, so the engine (SyncEngine.kt) stays about ordering only.
@@ -103,6 +105,45 @@ internal fun profileFingerprint(p: Profile): String = encodeJson(Profile.seriali
 internal fun libraryFingerprint(e: LibraryEntry): String = encodeJson(LibraryEntry.serializer(), e).toString()
 
 internal fun progressFingerprint(p: ProgressData): String = encodeJson(ProgressData.serializer(), p).toString()
+
+// MARK: Watch log, one record per profile and month (cloud/CLOUD_API.md §2.2)
+
+private val watchLogDayKey = Regex("\\d{4}-\\d{2}-\\d{2}")
+
+/** The days of a watch log, grouped by month. A month is the first seven characters of a day key (`yyyy-MM`). */
+internal fun watchLogMonths(days: Map<String, List<Int>>): Map<String, Map<String, List<Int>>> {
+    val out = LinkedHashMap<String, MutableMap<String, List<Int>>>()
+    for ((day, hours) in days) out.getOrPut(day.take(7)) { LinkedHashMap() }[day] = hours
+    return out
+}
+
+/**
+ * One month of one profile's watch log as a record: `{"d": {day: [24 whole numbers]}}`, days in ascending order. The
+ * fingerprint is that JSON text, so the same days give the same fingerprint on every device.
+ */
+internal fun watchLogMonthLocal(profile: String, month: String, days: Map<String, List<Int>>): LocalRecord {
+    val byDay = LinkedHashMap<String, JsonElement>()
+    for (day in days.keys.sorted()) byDay[day] = JsonArray(days.getValue(day).map { JsonPrimitive(it) })
+    val data = JsonObject(mapOf("d" to JsonObject(byDay)))
+    return LocalRecord(profile, SyncKind.WATCHLOG, month, null, data, data.toString())
+}
+
+/**
+ * Reads one pulled month. A day is kept when its key is a date and its 24 values are whole numbers from 0 to
+ * [MAX_HOUR_SECONDS]. Any other day is left out, and only that day. Null when the record has no `d` object.
+ */
+internal fun decodeWatchLogMonth(data: JsonObject): Map<String, List<Int>>? {
+    val days = data["d"] as? JsonObject ?: return null
+    val out = LinkedHashMap<String, List<Int>>()
+    for ((day, value) in days) {
+        if (!watchLogDayKey.matches(day)) continue
+        val arr = value as? JsonArray ?: continue
+        if (arr.size != 24) continue
+        val hours = arr.mapNotNull { el -> el.jLong()?.takeIf { it in 0L..MAX_HOUR_SECONDS }?.toInt() }
+        if (hours.size == 24) out[day] = hours
+    }
+    return out
+}
 
 // MARK: Merging a pulled history record (cloud/CLOUD_API.md §2.2, client rules)
 

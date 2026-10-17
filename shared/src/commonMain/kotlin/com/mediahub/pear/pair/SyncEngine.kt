@@ -11,6 +11,9 @@ import com.mediahub.pear.data.ProfileStore
 import com.mediahub.pear.epochMillis
 import com.mediahub.pear.history.HistoryEntry
 import com.mediahub.pear.history.LibraryEntry
+import com.mediahub.pear.history.decodeWatchLog
+import com.mediahub.pear.history.encodeWatchLog
+import com.mediahub.pear.history.mergeLogs
 import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.jDouble
 import com.mediahub.pear.net.attempt
@@ -29,6 +32,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.math.abs
 
 private const val TAG = "Pear.pair"
+
+/** A watch-log record's key: the month, `yyyy-MM` (cloud/CLOUD_API.md §2.2). */
+private val WATCHLOG_MONTH = Regex("\\d{4}-\\d{2}")
 
 /** Playback saves reach the sync engine through this (see PlaybackProgress). */
 fun interface PlaybackSaveSink {
@@ -76,6 +82,8 @@ class SyncEngine(
     private val onSettingsApplied: (Set<String>) -> Unit = {},
     private val scope: CoroutineScope,
     private val clock: () -> Long = ::epochMillis,
+    /** Saves the watch seconds not yet on disk, so a merge reads them. Storage passes the log's flush. */
+    private val flushWatchLog: () -> Unit = {},
 ) : PlaybackSaveSink {
 
     private val mutableState = MutableStateFlow(PairSyncState())
@@ -92,6 +100,9 @@ class SyncEngine(
     /** Progress tokens due for the 60-second cadence. */
     private val due = HashSet<String>()
     private val lastProgressPush = HashMap<String, Long>()
+
+    /** When each profile's watch log last went out. The throttle is per profile, see [pushScopes]. */
+    private val lastWatchLogPush = HashMap<String, Long>()
 
     private var running = false
     private var scheduled = false
@@ -246,6 +257,7 @@ class SyncEngine(
         profileOf(k, PrefKeys.WATCH_ARCHIVE)?.let { return listOf(Scope(it, SyncKind.HISTORY), Scope(it, SyncKind.PROGRESS)) }
         profileOf(k, PrefKeys.LIBRARY_LOCAL)?.let { return listOf(Scope(it, SyncKind.LIBRARY)) }
         profileOf(k, PrefKeys.LIBRARY_PREFS)?.let { return listOf(Scope(it, SyncKind.LIBRARY)) }
+        profileOf(k, PrefKeys.WATCH_LOG)?.let { return listOf(Scope(it, SyncKind.WATCHLOG)) }
         profileOf(k, PrefKeys.CONTENT_PREFS)?.let { return listOf(Scope(it, SyncKind.SETTINGS)) }
         if (k in SyncedSettings.accountKeys) return listOf(Scope(SyncRules.ACCOUNT_SCOPE, SyncKind.SETTINGS))
         return emptyList()
@@ -298,7 +310,8 @@ class SyncEngine(
                 } else {
                     outcome = pushScopes(bearer, taken)
                 }
-                if (changed) onRemoteApplied()
+                // A replace wipes local data even when the account sends nothing back, so the screens must re-read.
+                if (changed || replaceLocal) onRemoteApplied()
                 retryMillis = SyncRules.RETRY_MIN_MILLIS
                 if (full || outcome.sent > 0) store.lastSyncAt = clock()
                 mutableState.value = mutableState.value.copy(
@@ -367,6 +380,7 @@ class SyncEngine(
         for (p in profileList().first) {
             out += Scope(p.id, SyncKind.HISTORY)
             out += Scope(p.id, SyncKind.PROGRESS)
+            out += Scope(p.id, SyncKind.WATCHLOG)
             if (!usesSimkl(p.id)) out += Scope(p.id, SyncKind.LIBRARY)
             if (settingsOn) out += Scope(p.id, SyncKind.SETTINGS)
         }
@@ -387,13 +401,22 @@ class SyncEngine(
         val pending = ArrayList<Pending>()
         for (target in targets) {
             val local = localRecords(target)
+            // Decided once per profile and cycle, so every changed month of that profile goes out together. The window
+            // is recorded only when something was queued, so an unchanged log never uses up the next window.
+            val dueNow = watchLogDue(target.profileId, now)
+            var queuedWatchLog = false
             for ((k, rec) in local.records) {
                 val old = snapshot[k]
                 if (old != null && old.fingerprint == rec.fingerprint) continue
                 if (rec.kind == SyncKind.PROGRESS && !progressMayPush(rec, old, now)) continue
+                if (rec.kind == SyncKind.WATCHLOG) {
+                    if (!dueNow) continue
+                    queuedWatchLog = true
+                }
                 val change = OutgoingChange(rec.profileId, rec.kind, rec.key, stampFor(rec.intrinsicAt, old, now), rec.data)
                 pending.add(Pending(k, change, rec.fingerprint))
             }
+            if (queuedWatchLog) lastWatchLogPush[target.profileId] = now
             // A record the snapshot has but this device no longer holds is a delete. Skipped when the scope could not
             // be read in full, so a damaged local file can never delete data on the server.
             if (local.complete) {
@@ -451,6 +474,12 @@ class SyncEngine(
         return false
     }
 
+    /** True when [profile]'s watch log may go out now: none went out in the last [SyncRules.WATCHLOG_EVERY_MILLIS]. */
+    private fun watchLogDue(profile: String, now: Long): Boolean {
+        val last = lastWatchLogPush[profile] ?: return true
+        return now - last >= SyncRules.WATCHLOG_EVERY_MILLIS
+    }
+
     private fun movedEnough(data: JsonObject, oldFingerprint: String): Boolean {
         val newPos = data["position"].jDouble() ?: return true
         val oldObj = attempt { PearJson.parseToJsonElement(oldFingerprint) as? JsonObject } ?: return true
@@ -501,12 +530,13 @@ class SyncEngine(
         val groups = changes
             .filter { it.kind != SyncKind.PROFILE && it.kind != SyncKind.SETTINGS }
             .groupBy { Scope(it.profileId, it.kind) }
-        for (kind in listOf(SyncKind.HISTORY, SyncKind.LIBRARY, SyncKind.PROGRESS)) {
+        for (kind in listOf(SyncKind.HISTORY, SyncKind.LIBRARY, SyncKind.PROGRESS, SyncKind.WATCHLOG)) {
             for ((target, list) in groups) {
                 if (target.kind != kind) continue
                 val did = when (kind) {
                     SyncKind.HISTORY -> applyHistory(target.profileId, list)
                     SyncKind.LIBRARY -> applyLibrary(target.profileId, list)
+                    SyncKind.WATCHLOG -> applyWatchLog(target.profileId, list)
                     else -> applyProgress(target.profileId, list)
                 }
                 if (did) changed = true
@@ -689,6 +719,48 @@ class SyncEngine(
         return true
     }
 
+    /**
+     * Merges pulled watch-log months into this device's log (see [mergeLogs]). Deletes are ignored, and a local change that
+     * has not gone out is not skipped: the merge keeps both sides, so nothing is lost. The snapshot takes the server's form
+     * of each month, so a month holding more than the server has differs from the snapshot and is pushed back.
+     */
+    private fun applyWatchLog(profile: String, changes: List<RemoteChange>): Boolean {
+        // Seconds not yet on disk go in first, so the merge sees them. Not during a replace: the flush writes the whole
+        // in-memory log, and the replace has just wiped the stored one.
+        if (!replacing) flushWatchLog()
+        val storeKey = ProfileKeys.scoped(PrefKeys.WATCH_LOG, profile)
+        val stored = prefs.jsonText(storeKey)
+        val local: Map<String, List<Int>> = if (stored == null) {
+            emptyMap()
+        } else {
+            decodeWatchLog(stored) ?: run {
+                PearLog.w(TAG, "A profile's watch log could not be read. Its changes wait for the next sync.")
+                return false
+            }
+        }
+        val snapshot = store.readSynced()
+        var merged = local
+        var applied = false
+        for (c in changes) {
+            // A watch log is never removed from the server, so a delete is ignored.
+            val data = c.data
+            if (c.deleted || data == null) continue
+            if (!WATCHLOG_MONTH.matches(c.key)) continue
+            val days = decodeWatchLogMonth(data)?.filterKeys { it.take(7) == c.key }
+            if (days == null || days.isEmpty()) continue
+            merged = mergeLogs(merged, days)
+            // The snapshot holds what the server holds: this month in its canonical form, not the merged one.
+            val remote = watchLogMonthLocal(profile, c.key, days)
+            snapshot[compositeKey(profile, SyncKind.WATCHLOG, c.key)] = SyncedRecord(remote.fingerprint, c.updatedAt)
+            applied = true
+        }
+        if (!applied) return false
+        val changed = merged != local
+        if (changed) prefs.setJsonText(storeKey, encodeWatchLog(merged))
+        store.writeSynced(snapshot)
+        return changed
+    }
+
     private fun writeHistoryLists(profile: String, lists: HistoryLists) {
         prefs.setJsonText(
             ProfileKeys.scoped(PrefKeys.WATCH_HISTORY, profile),
@@ -758,6 +830,18 @@ class SyncEngine(
                 true,
             )
         }
+        SyncKind.WATCHLOG -> {
+            // One record per month. Incomplete on purpose: a month missing here is not a delete, so no tombstone is sent.
+            val days = prefs.jsonText(ProfileKeys.scoped(PrefKeys.WATCH_LOG, target.profileId))?.let { decodeWatchLog(it) }
+            val records = LinkedHashMap<String, LocalRecord>()
+            if (days != null) {
+                for ((month, monthDays) in watchLogMonths(days)) {
+                    records[compositeKey(target.profileId, SyncKind.WATCHLOG, month)] =
+                        watchLogMonthLocal(target.profileId, month, monthDays)
+                }
+            }
+            LocalSet(records, complete = false)
+        }
     }
 
     private fun readHistory(profile: String): HistoryRead {
@@ -786,6 +870,7 @@ class SyncEngine(
             keys.add(ProfileKeys.scoped(PrefKeys.WATCH_HISTORY, id))
             keys.add(ProfileKeys.scoped(PrefKeys.WATCH_ARCHIVE, id))
             keys.add(ProfileKeys.scoped(PrefKeys.LIBRARY_LOCAL, id))
+            keys.add(ProfileKeys.scoped(PrefKeys.WATCH_LOG, id))
         }
         keys.add(PrefKeys.PROFILES_LIST)
         val settingKeys = if (syncSettingsOn()) SyncedSettings.allPrefKeys(profileIds).filter { it in prefs } else emptyList()
