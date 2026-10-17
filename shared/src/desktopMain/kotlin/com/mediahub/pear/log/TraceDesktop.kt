@@ -17,7 +17,7 @@ import java.lang.management.ManagementFactory
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.SwingUtilities
 
-private const val MAX_STALL_DUMPS = 40
+private const val MAX_STALL_DUMPS = 60
 private const val MB = 1024L * 1024L
 
 /**
@@ -151,7 +151,7 @@ private object TraceProbes {
         pendingSince.set(0L)
     }
 
-    /** Every 100 ms: one probe on the event queue. A slow answer is logged, and a probe still unanswered after 250 ms gets a stack. */
+    /** Every 100 ms: one probe on the event queue. A slow answer is logged, and a probe still unanswered after 100 ms gets a stack. */
     private fun edtWatch() {
         var dumps = 0
         var stallLogged = false
@@ -178,7 +178,7 @@ private object TraceProbes {
                 }
             } else {
                 val waitedMs = (System.nanoTime() - since) / 1_000_000.0
-                if (waitedMs > 250.0 && !stallLogged && dumps < MAX_STALL_DUMPS) {
+                if (waitedMs > 100.0 && !stallLogged && dumps < MAX_STALL_DUMPS) {
                     stallLogged = true
                     dumps++
                     PearTrace.event("EDT") { "STALL in progress ${waitedMs.toLong()} ms, stack:\n" + edtStack() }
@@ -187,11 +187,34 @@ private object TraceProbes {
         }
     }
 
-    private fun edtStack(): String {
-        val edtThread = Thread.getAllStackTraces().entries.firstOrNull { it.key.name.startsWith("AWT-EventQueue") }
-        return edtThread?.value?.take(14)?.joinToString("\n") { "        at $it" }
-            ?: "        (no AWT-EventQueue thread found)"
-    }
+    /**
+     * The stall report, as one block: the EDT's state, its top 24 frames, and the lock it waits on. If a thread owns that lock,
+     * its state and top 12 frames follow. Then the top 10 frames of each mpv thread that is alive. Never throws.
+     */
+    private fun edtStack(): String = runCatching {
+        val all = Thread.getAllStackTraces()
+        val out = StringBuilder()
+        val edt = all.keys.firstOrNull { it.name.startsWith("AWT-EventQueue") }
+        if (edt == null) {
+            out.append("        (no AWT-EventQueue thread found)\n")
+        } else {
+            val mx = ManagementFactory.getThreadMXBean()
+            val info = runCatching { mx.getThreadInfo(edt.id, 24) }.getOrNull()
+            out.append("        EDT state=${edt.state} lock=${info?.lockName ?: "none"} lockOwner=${info?.lockOwnerName ?: "none"}\n")
+            all[edt]?.take(24)?.forEach { out.append("        at $it\n") }
+            if (info != null && info.lockOwnerName != null) {
+                val owner = runCatching { mx.getThreadInfo(info.lockOwnerId, 12) }.getOrNull()
+                out.append("        lock owner \"${info.lockOwnerName}\" state=${owner?.threadState ?: "gone"}, top 12 frames:\n")
+                owner?.stackTrace?.forEach { out.append("            at $it\n") }
+            }
+        }
+        for (name in listOf("mpv-render", "mpv-event-loop", "mpv-commands")) {
+            val t = all.keys.firstOrNull { it.name == name } ?: continue
+            out.append("        $name state=${t.state}\n")
+            all[t]?.take(10)?.forEach { out.append("            at $it\n") }
+        }
+        out.toString().trimEnd()
+    }.getOrElse { "        (stack unavailable: ${it::class.simpleName})" }
 
     /** Once a second: GC count and time since the last second, and the heap in use. */
     private fun gcSample() {

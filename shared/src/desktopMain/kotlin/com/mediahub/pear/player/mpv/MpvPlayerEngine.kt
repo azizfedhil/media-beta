@@ -43,8 +43,37 @@ class MpvPlayerEngine private constructor(
     /** True while the selected subtitle is drawn by the app (plain text), so its cue text is kept. */
     @Volatile private var appDrawsSubtitles = false
 
-    /** Runs a native call only while the handle is alive; destroy takes the same lock, so no use-after-free. */
-    private inline fun <T> native(default: T, block: () -> T): T = synchronized(lock) { if (destroyed) default else block() }
+    /**
+     * Runs a native call only while the handle is alive; destroy takes the same lock, so no use-after-free. While tracing, a call
+     * that waited or ran for more than 30 ms is reported (see [reportSlowNative]).
+     */
+    private inline fun <T> native(default: T, block: () -> T): T {
+        if (!PearTrace.enabled) return synchronized(lock) { if (destroyed) default else block() }
+        val t0 = System.nanoTime()
+        var t1 = t0
+        val result = synchronized(lock) {
+            t1 = System.nanoTime()
+            if (destroyed) default else block()
+        }
+        val t2 = System.nanoTime()
+        if (t2 - t0 > 30_000_000L) reportSlowNative(t0, t1, t2)
+        return result
+    }
+
+    /** Trace only: a native call that was slow. [t0] start, [t1] lock taken, [t2] call done (System.nanoTime). Never throws. */
+    private fun reportSlowNative(t0: Long, t1: Long, t2: Long) {
+        runCatching {
+            val caller = Throwable().stackTrace
+                .firstOrNull { it.className.startsWith(MpvPlayerEngine::class.java.name) && it.methodName != "reportSlowNative" }
+                ?.let { "${it.methodName}:${it.lineNumber}" } ?: "unknown"
+            val waited = (t1 - t0) / 1_000_000L
+            val ran = (t2 - t1) / 1_000_000L
+            PearTrace.count("mpv.slowNative")
+            PearTrace.event("Player") {
+                "SLOW native call: waited=$waited ms ran=$ran ms thread=${Thread.currentThread().name} caller=$caller"
+            }
+        }
+    }
 
     private val _state = MutableStateFlow(PlaybackState.Idle)
     override val state: StateFlow<PlaybackState> = _state.asStateFlow()

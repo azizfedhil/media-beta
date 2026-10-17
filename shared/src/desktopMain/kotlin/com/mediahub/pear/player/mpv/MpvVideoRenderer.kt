@@ -16,6 +16,8 @@ import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
+import java.lang.management.ManagementFactory
+import java.lang.management.ThreadMXBean
 import java.util.concurrent.Semaphore
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -80,6 +82,7 @@ class MpvVideoRenderer private constructor(
 
     // Touched only under renderLock. The frame published before the current one; released one publish later (see renderOnce).
     private var retired: VideoFrame? = null
+    private var freed = false // guarded by renderLock: set by the one close() that frees the context
 
     @Volatile private var targetW = 0
     @Volatile private var targetH = 0
@@ -95,6 +98,19 @@ class MpvVideoRenderer private constructor(
     private var lumaPrev = 0.0
     private var lumaPrevSum = 0L
     private var lumaHavePrev = false
+
+    // Trace only: the render thread's CPU clock, switched on when this JVM can measure it. Read only while tracing.
+    private val cpuMx: ThreadMXBean? by lazy {
+        runCatching {
+            val mx = ManagementFactory.getThreadMXBean()
+            if (mx.isCurrentThreadCpuTimeSupported) {
+                runCatching { mx.setThreadCpuTimeEnabled(true) }
+                mx
+            } else {
+                null
+            }
+        }.getOrNull()
+    }
 
     // Parameter blocks, allocated once. mpv_render_param is { int type; void *data }.
     private val ptrSize = Native.POINTER_SIZE
@@ -179,9 +195,13 @@ class MpvVideoRenderer private constructor(
         setParam(3, MpvRenderParam.SW_POINTER, Pointer(addr))
         setParam(4, 0, null)
 
+        val renderCpuStart = if (tr) threadCpuNanos() else -1L
         val renderStart = if (tr) System.nanoTime() else 0L
         val rc = mpv.mpv_render_context_render(ctx, params)
-        if (tr) PearTrace.sample("r.renderMs", (System.nanoTime() - renderStart) / 1_000_000.0)
+        val renderEnd = if (tr) System.nanoTime() else 0L
+        val renderCpuEnd = if (tr) threadCpuNanos() else -1L
+        if (tr) PearTrace.sample("r.renderMs", (renderEnd - renderStart) / 1_000_000.0)
+        if (tr) sampleCpuWait("r.renderCpuMs", "r.renderWaitMs", renderCpuStart, renderCpuEnd, renderEnd - renderStart)
         if (rc < 0) {
             if (tr) {
                 PearTrace.count("r.renderFail")
@@ -193,6 +213,7 @@ class MpvVideoRenderer private constructor(
 
         // Skia copies the pixels (the shared bitmap is mutable), so the frame never refers to memory the next render writes.
         // On failure keep showing the last good frame; the next render tries again instead of killing this thread.
+        val copyCpuStart = if (tr) threadCpuNanos() else -1L
         val copyStart = if (tr) System.nanoTime() else 0L
         val source = try {
             Image.makeFromBitmap(bmp)
@@ -202,7 +223,9 @@ class MpvVideoRenderer private constructor(
             return
         }
         val image = source.toComposeImageBitmap()
+        val copyCpuEnd = if (tr) threadCpuNanos() else -1L
         if (tr) PearTrace.sample("r.copyMs", (System.nanoTime() - copyStart) / 1_000_000.0)
+        if (tr && copyCpuStart >= 0L && copyCpuEnd >= 0L) PearTrace.sample("r.copyCpuMs", (copyCpuEnd - copyCpuStart) / 1_000_000.0)
 
         val now = System.nanoTime()
         val seq = nextSeq++
@@ -257,6 +280,20 @@ class MpvVideoRenderer private constructor(
         lumaHavePrev = true
     }
 
+    /** Trace only: the calling thread's CPU time in ns, or -1 when this JVM cannot tell. Never throws. */
+    private fun threadCpuNanos(): Long = runCatching { cpuMx?.currentThreadCpuTime ?: -1L }.getOrDefault(-1L)
+
+    /**
+     * Trace only: [cpuKey] is the CPU time of a span, from two readings. [waitKey] is the rest of its wall time. A span that
+     * mostly waits for mpv (a frame's display time, say) shows a large wait and a small CPU time.
+     */
+    private fun sampleCpuWait(cpuKey: String, waitKey: String, cpuStart: Long, cpuEnd: Long, wallNs: Long) {
+        if (cpuStart < 0L || cpuEnd < 0L) return
+        val cpuMs = (cpuEnd - cpuStart) / 1_000_000.0
+        PearTrace.sample(cpuKey, cpuMs)
+        PearTrace.sample(waitKey, max(0.0, wallNs / 1_000_000.0 - cpuMs))
+    }
+
     /** Render size in pixels. Above [maxPixels] it is scaled down, keeping the shape (4K performance mode). */
     fun setTargetSize(width: Int, height: Int, maxPixels: Long) {
         if (width <= 0 || height <= 0) return
@@ -275,14 +312,24 @@ class MpvVideoRenderer private constructor(
         signal.release()
     }
 
+    /**
+     * Frees the render context and the frames. Safe from any thread, and more than once: the call that frees waits for the
+     * render thread to leave, and a later call waits for that one, then returns. The engine relies on it: mpv is destroyed
+     * only after the context is gone.
+     */
     fun close() {
-        if (closed) return
+        val tr = PearTrace.enabled
+        val t0 = if (tr) System.nanoTime() else 0L
+        if (tr) PearTrace.event("Render") { "renderer closing" }
         closed = true
-        PearTrace.event("Render") { "renderer closed" }
         signal.release()
         synchronized(renderLock) {
+            val t1 = if (tr) System.nanoTime() else 0L
+            if (freed) return
+            freed = true
             mpv.mpv_render_context_set_update_callback(ctx, null, null)
             mpv.mpv_render_context_free(ctx)
+            val t2 = if (tr) System.nanoTime() else 0L
             bitmap?.close()
             bitmap = null
             val last = _frames.value
@@ -290,6 +337,11 @@ class MpvVideoRenderer private constructor(
             last?.release()
             retired?.release()
             retired = null
+            if (tr) {
+                PearTrace.event("Render") {
+                    "renderer closed: waited for render lock ${(t1 - t0) / 1_000_000L} ms, freed context in ${(t2 - t1) / 1_000_000L} ms"
+                }
+            }
         }
     }
 

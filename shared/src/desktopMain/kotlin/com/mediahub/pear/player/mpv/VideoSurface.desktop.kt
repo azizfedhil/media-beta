@@ -12,6 +12,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,10 @@ private class DrawTrace {
     var lastDrawNanos = 0L
     var lastScaledLogNanos = 0L
     var lastBoxLogNanos = 0L
+    /** When the box last changed size, or 0 once its settle has been logged. */
+    var boxChangedNanos = 0L
+    /** Stretched draws since the box last changed size. */
+    var scaledSinceChange = 0L
 }
 
 /** [sampleable] is ignored: desktop frames are drawn into a Compose canvas, so glass can always sample them. */
@@ -51,11 +56,15 @@ actual fun VideoSurface(
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
     val renderer = remember(engine) { (engine as? MpvPlayerEngine)?.createRenderer() }
     val trace = remember { DrawTrace() }
+    // The size callback reads these, so it never works from a stale renderer or performance mode.
+    val rendererNow by rememberUpdatedState(renderer)
+    val performanceNow by rememberUpdatedState(performanceMode)
     DisposableEffect(renderer) {
         if (renderer != null) PearTrace.event("Player") { "surface: renderer attached" }
         onDispose {
             if (renderer != null) PearTrace.event("Player") { "surface: renderer disposed" }
-            renderer?.close()
+            // Closing waits for the render thread and for mpv to free its context. Keep that off the UI thread.
+            renderer?.let { r -> Thread({ runCatching { r.close() } }, "mpv-render-close").apply { isDaemon = true; start() } }
         }
     }
 
@@ -70,8 +79,14 @@ actual fun VideoSurface(
         modifier.background(Color.Black)
             .onSizeChanged { next ->
                 PearLog.context("video.box", "${next.width}x${next.height}")
-                if (PearTrace.enabled) traceBoxChange(trace, boxSize, next)
+                if (PearTrace.enabled) {
+                    traceBoxChange(trace, boxSize, next)
+                    trace.boxChangedNanos = System.nanoTime()
+                    trace.scaledSinceChange = 0L
+                }
                 boxSize = next
+                // The renderer starts on the new size now, not one composition later. The LaunchedEffect above still covers the rest.
+                rendererNow?.setTargetSize(next.width, next.height, if (performanceNow) PERFORMANCE_MAX_PIXELS else NORMAL_MAX_PIXELS)
             }
             .pointerInput(onDoubleClick) { detectTapGestures(onDoubleTap = { onDoubleClick() }) },
     ) {
@@ -133,10 +148,20 @@ private fun traceDrawn(trace: DrawTrace, frame: VideoFrame, now: Long, canvasW: 
     val ch = canvasH.toInt()
     if (frame.width != cw || frame.height != ch) {
         PearTrace.count("d.scaled")
+        trace.scaledSinceChange++
         if (now - trace.lastScaledLogNanos >= 250_000_000L) {
             trace.lastScaledLogNanos = now
             PearTrace.event("Draw") { "scaled draw frame=${frame.width}x${frame.height} canvas=${cw}x$ch seq=${frame.seq}" }
         }
+    } else if (trace.boxChangedNanos != 0L) {
+        // The first frame at the canvas size since the box changed: the catch-up time, and what was stretched meanwhile.
+        val settleMs = (now - trace.boxChangedNanos) / 1_000_000.0
+        PearTrace.sample("d.settleMs", settleMs)
+        if (trace.scaledSinceChange > 0L) {
+            PearTrace.event("Draw") { "settled ${settleMs.toLong()} ms after resize, ${trace.scaledSinceChange} stretched draws" }
+        }
+        trace.boxChangedNanos = 0L
+        trace.scaledSinceChange = 0L
     }
 }
 
