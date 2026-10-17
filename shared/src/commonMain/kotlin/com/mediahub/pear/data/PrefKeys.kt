@@ -92,6 +92,13 @@ object PrefKeys {
 
     /** Pear.pair: whether this device syncs the settings in `SyncedSettings` (the switch in Pear.pair). Off until the person turns it on. Not in backups. */
     const val PAIR_SYNC_SETTINGS = "pair.syncSettings"
+
+    /**
+     * Desktop update check (see `update/ReleaseCheck.kt`): the installer this machine last saw, and the version it was
+     * for. Device settings, so not in BackupRules: a restored backup must not make another machine think it is current.
+     */
+    const val UPDATE_SEEN_HASH = "update.seenHash"
+    const val UPDATE_SEEN_VERSION = "update.seenVersion"
 }
 
 /** Secret names, kept outside [PrefStore] (iOS keeps them in the keychain). */
