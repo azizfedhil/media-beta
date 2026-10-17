@@ -9,6 +9,7 @@ import com.mediahub.pear.model.jBool
 import com.mediahub.pear.model.jDouble
 import com.mediahub.pear.model.jStr
 import com.mediahub.pear.model.jStrings
+import com.mediahub.pear.shell.PlatformCaps
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -26,8 +27,7 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 internal object SyncedSettings {
 
-    /** Account-wide keys. Their records use the profile id [SyncRules.ACCOUNT_SCOPE]. */
-    val accountKeys: Set<String> = setOf(
+    private val allAccountKeys: Set<String> = setOf(
         // Add-ons
         PrefKeys.ADDON_MANIFEST_URLS,
         PrefKeys.ADDON_DISABLED,
@@ -57,6 +57,13 @@ internal object SyncedSettings {
         PrefKeys.SKIP_ENABLED,
         PrefKeys.SKIP_FALLBACK_SECONDS,
     )
+
+    /** Keys the desktop keeps to itself: its subtitle look is its own, so it neither sends nor takes the account's. */
+    private val desktopLocalKeys: Set<String> = setOf(PrefKeys.SUB_STYLE)
+
+    /** Account-wide keys this platform shares. Their records use the profile id [SyncRules.ACCOUNT_SCOPE]. */
+    val accountKeys: Set<String> =
+        if (PlatformCaps.isTouchFirst) allAccountKeys else allAccountKeys - desktopLocalKeys
 
     /** Per-profile keys. Their records use the profile's own id, and the local key is [ProfileKeys.scoped] to it. */
     val profileKeys: Set<String> = setOf(PrefKeys.CONTENT_PREFS)

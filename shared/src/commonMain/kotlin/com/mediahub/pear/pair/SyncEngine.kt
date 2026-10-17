@@ -421,7 +421,7 @@ class SyncEngine(
             // be read in full, so a damaged local file can never delete data on the server.
             if (local.complete) {
                 for ((k, old) in snapshot) {
-                    if (k in local.records || !inScope(k, target)) continue
+                    if (k in local.records || !inScope(k, target) || isUnsharedSetting(k)) continue
                     val parts = parseKey(k) ?: continue
                     val change = OutgoingChange(parts.profileId, parts.kind, parts.key, maxOf(now, old.updatedAt + 1), null)
                     pending.add(Pending(k, change, null))
@@ -772,6 +772,15 @@ class SyncEngine(
         )
     }
 
+    /**
+     * A settings record of the snapshot for a key this platform does not share (the desktop's subtitle style, or a key
+     * an older build synced). It is never a delete and never pending: the account's copy is not ours to remove.
+     */
+    private fun isUnsharedSetting(composite: String): Boolean {
+        val parts = parseKey(composite) ?: return false
+        return parts.kind == SyncKind.SETTINGS && SyncedSettings.prefKeyFor(parts.profileId, parts.key) == null
+    }
+
     /** Keys whose local record differs from the snapshot (or that the snapshot has and this device no longer holds). */
     private fun pendingKeys(target: Scope): Set<String> {
         val snapshot = store.readSynced()
@@ -782,7 +791,7 @@ class SyncEngine(
         }
         if (local.complete) {
             for (k in snapshot.keys) {
-                if (inScope(k, target) && k !in local.records) out += k
+                if (inScope(k, target) && k !in local.records && !isUnsharedSetting(k)) out += k
             }
         }
         return out
