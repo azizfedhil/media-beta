@@ -29,6 +29,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
 /** A LazyRow you can also scroll by holding the mouse button and dragging (desktop LazyRows only react to the wheel). */
@@ -112,7 +113,11 @@ fun Modifier.shiftWheelHorizontal(scrollBy: suspend (Float) -> Unit): Modifier =
                 }
                 if (along == 0f) continue
                 change.consume()
-                scrollBy(along * 40f)
+                // The callers' lambdas hit restricted suspending functions (LazyListState.scrollBy and friends), which the
+                // compiler only allows to run on a context inherited directly from this awaitPointerEventScope. A plain
+                // launch{} would install a fresh Job in that context and trip ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL,
+                // so start UNDISPATCHED: the lambda runs synchronously here, keeps this scope's context, and nothing else changes.
+                launch(start = CoroutineStart.UNDISPATCHED) { scrollBy(along * 40f) }
             }
         }
     }
