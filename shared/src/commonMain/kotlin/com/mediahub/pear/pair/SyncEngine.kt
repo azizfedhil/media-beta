@@ -4,6 +4,7 @@ import com.mediahub.pear.cloud.CloudError
 import com.mediahub.pear.data.PearJson
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.PrefStore
+import com.mediahub.pear.data.PrefValue
 import com.mediahub.pear.data.Profile
 import com.mediahub.pear.data.ProfileKeys
 import com.mediahub.pear.data.ProfileStore
@@ -71,6 +72,8 @@ class SyncEngine(
     private val usesSimkl: (String) -> Boolean,
     /** Called after a pull changed local data, so the screens re-read their stores. */
     private val onRemoteApplied: () -> Unit,
+    /** Called with the local keys of the synced settings that a pull (or a replace) changed, once per pull page. */
+    private val onSettingsApplied: (Set<String>) -> Unit = {},
     private val scope: CoroutineScope,
     private val clock: () -> Long = ::epochMillis,
 ) : PlaybackSaveSink {
@@ -98,6 +101,9 @@ class SyncEngine(
 
     /** True only while a replace pull runs: the default profile that the device synthesizes must not be kept. */
     private var replacing = false
+
+    /** Set when the settings switch goes on: the next full pull starts from the beginning, so the account's settings come in. */
+    private var rePullSettings = false
 
     private class Pending(val key: String, val change: OutgoingChange, val fingerprint: String?)
     private class PushOutcome(val sent: Int, val refused: String?)
@@ -194,9 +200,18 @@ class SyncEngine(
     /** A preference write changed some synced keys: mark their scopes dirty and push soon. */
     private fun markDirty(keys: Set<String>) {
         if (!store.isSignedIn) return
+        // The settings switch itself: a full sync at once. Turning it on also pulls from the start, because the cursor
+        // may already be past the account's settings.
+        if (PrefKeys.PAIR_SYNC_SETTINGS in keys) {
+            if (syncSettingsOn()) rePullSettings = true
+            syncNow()
+        }
+        val settingsOn = syncSettingsOn()
         var any = false
         for (k in keys) {
             for (s in scopesOfKey(k)) {
+                // While the switch is off, settings are not synced, so their changes mark nothing dirty.
+                if (s.kind == SyncKind.SETTINGS && !settingsOn) continue
                 dirty += s
                 any = true
             }
@@ -231,8 +246,13 @@ class SyncEngine(
         profileOf(k, PrefKeys.WATCH_ARCHIVE)?.let { return listOf(Scope(it, SyncKind.HISTORY), Scope(it, SyncKind.PROGRESS)) }
         profileOf(k, PrefKeys.LIBRARY_LOCAL)?.let { return listOf(Scope(it, SyncKind.LIBRARY)) }
         profileOf(k, PrefKeys.LIBRARY_PREFS)?.let { return listOf(Scope(it, SyncKind.LIBRARY)) }
+        profileOf(k, PrefKeys.CONTENT_PREFS)?.let { return listOf(Scope(it, SyncKind.SETTINGS)) }
+        if (k in SyncedSettings.accountKeys) return listOf(Scope(SyncRules.ACCOUNT_SCOPE, SyncKind.SETTINGS))
         return emptyList()
     }
+
+    /** Whether this device syncs settings. Off until the person turns it on in Pear.pair settings. */
+    private fun syncSettingsOn(): Boolean = prefs.bool(PrefKeys.PAIR_SYNC_SETTINGS, false)
 
     /** The profile a per-profile key belongs to: the bare key is the first profile, `base.<id>` the others. */
     private fun profileOf(key: String, base: String): String? = when {
@@ -262,6 +282,7 @@ class SyncEngine(
                 if (replaceLocal) {
                     wipeLocalSyncData()
                     store.lastServerTs = 0L
+                    rePullSettings = false
                     replacing = true
                     try {
                         changed = pullAll(bearer)
@@ -271,7 +292,9 @@ class SyncEngine(
                     outcome = pushScopes(bearer, allScopes())
                 } else if (full) {
                     outcome = pushScopes(bearer, allScopes())
+                    if (rePullSettings) store.lastServerTs = 0L
                     changed = pullAll(bearer)
+                    rePullSettings = false
                 } else {
                     outcome = pushScopes(bearer, taken)
                 }
@@ -339,14 +362,19 @@ class SyncEngine(
     /** Every scope this device has, or had (a snapshot record whose profile was deleted still needs its tombstone). */
     private fun allScopes(): Set<Scope> {
         val out = HashSet<Scope>()
+        val settingsOn = syncSettingsOn()
         out += Scope("", SyncKind.PROFILE)
         for (p in profileList().first) {
             out += Scope(p.id, SyncKind.HISTORY)
             out += Scope(p.id, SyncKind.PROGRESS)
             if (!usesSimkl(p.id)) out += Scope(p.id, SyncKind.LIBRARY)
+            if (settingsOn) out += Scope(p.id, SyncKind.SETTINGS)
         }
+        if (settingsOn) out += Scope(SyncRules.ACCOUNT_SCOPE, SyncKind.SETTINGS)
         for (k in store.readSynced().keys) {
             val parts = parseKey(k) ?: continue
+            // With the switch off, a settings record of the snapshot gets no scope: nothing is sent for it.
+            if (parts.kind == SyncKind.SETTINGS && !settingsOn) continue
             out += Scope(if (parts.kind == SyncKind.PROFILE) "" else parts.profileId, parts.kind)
         }
         return out
@@ -459,13 +487,20 @@ class SyncEngine(
         return changed
     }
 
-    /** Applies one page. Profiles go first, then history, library and progress, so a title exists before its progress. */
+    /**
+     * Applies one page. Profiles go first, then settings, then history, library and progress, so a title exists before
+     * its progress. Settings are applied only while this device syncs them.
+     */
     private fun applyPage(changes: List<RemoteChange>): Boolean {
         if (changes.isEmpty()) return false
         var changed = false
         val profileChanges = changes.filter { it.kind == SyncKind.PROFILE }
         if (profileChanges.isNotEmpty() && applyProfiles(profileChanges)) changed = true
-        val groups = changes.filter { it.kind != SyncKind.PROFILE }.groupBy { Scope(it.profileId, it.kind) }
+        val settingChanges = changes.filter { it.kind == SyncKind.SETTINGS }
+        if (settingChanges.isNotEmpty() && syncSettingsOn() && applySettings(settingChanges)) changed = true
+        val groups = changes
+            .filter { it.kind != SyncKind.PROFILE && it.kind != SyncKind.SETTINGS }
+            .groupBy { Scope(it.profileId, it.kind) }
         for (kind in listOf(SyncKind.HISTORY, SyncKind.LIBRARY, SyncKind.PROGRESS)) {
             for ((target, list) in groups) {
                 if (target.kind != kind) continue
@@ -516,6 +551,47 @@ class SyncEngine(
         prefs.setJsonText(PrefKeys.PROFILES_LIST, encodeList(Profile.serializer(), list))
         store.writeSynced(snapshot)
         return true
+    }
+
+    /**
+     * Applies pulled settings. Only the shared keys are written, whatever the record says. A key with a local change
+     * that has not gone out yet is left alone: that change is pushed and wins. The keys written or removed go to
+     * [onSettingsApplied] once, after the snapshot is saved. Returns true when a value changed.
+     */
+    private fun applySettings(changes: List<RemoteChange>): Boolean {
+        val snapshot = store.readSynced()
+        val pendingByProfile = HashMap<String, Set<String>>()
+        val writes = LinkedHashMap<String, PrefValue>()
+        val removed = LinkedHashSet<String>()
+        var touched = false
+        for (c in changes) {
+            val prefKey = SyncedSettings.prefKeyFor(c.profileId, c.key) ?: continue
+            val composite = compositeKey(c.profileId, SyncKind.SETTINGS, c.key)
+            val pending = pendingByProfile.getOrPut(c.profileId) {
+                if (replacing) emptySet() else pendingKeys(Scope(c.profileId, SyncKind.SETTINGS))
+            }
+            if (composite in pending) continue
+            touched = true
+            val data = c.data
+            if (c.deleted || data == null) {
+                writes.remove(prefKey)
+                if (prefKey in prefs) removed += prefKey
+                snapshot.remove(composite)
+                continue
+            }
+            val value = SyncedSettings.decode(data) ?: continue
+            val fingerprint = SyncedSettings.encode(value)?.toString() ?: continue
+            removed.remove(prefKey)
+            if (prefs[prefKey] != value) writes[prefKey] = value
+            snapshot[composite] = SyncedRecord(fingerprint, c.updatedAt)
+        }
+        if (!touched) return false
+        prefs.removeAll(removed)
+        prefs.putAll(writes)
+        store.writeSynced(snapshot)
+        val keys = removed + writes.keys
+        if (keys.isNotEmpty()) onSettingsApplied(keys)
+        return keys.isNotEmpty()
     }
 
     private fun applyHistory(profile: String, changes: List<RemoteChange>): Boolean {
@@ -673,6 +749,15 @@ class SyncEngine(
                 ok,
             )
         }
+        SyncKind.SETTINGS -> if (!syncSettingsOn()) {
+            // Off: this device holds nothing for the account. Incomplete, so no tombstone is sent either.
+            LocalSet(emptyMap(), false)
+        } else {
+            LocalSet(
+                SyncedSettings.localRecords(prefs, target.profileId) { k -> store.readSynced().containsKey(k) },
+                true,
+            )
+        }
     }
 
     private fun readHistory(profile: String): HistoryRead {
@@ -690,16 +775,24 @@ class SyncEngine(
         return Pair(list, true)
     }
 
-    /** Before a replace: this device's synced data goes, and the snapshot with it. The account's data comes in by the pull. */
+    /**
+     * Before a replace: this device's synced data goes, and the snapshot with it. The account's data comes in by the pull.
+     * With the settings switch on, the shared settings go too, so the account's settings are the only ones left.
+     */
     private fun wipeLocalSyncData() {
         val keys = ArrayList<String>()
-        for (p in profileList().first) {
-            keys.add(ProfileKeys.scoped(PrefKeys.WATCH_HISTORY, p.id))
-            keys.add(ProfileKeys.scoped(PrefKeys.WATCH_ARCHIVE, p.id))
-            keys.add(ProfileKeys.scoped(PrefKeys.LIBRARY_LOCAL, p.id))
+        val profileIds = profileList().first.map { it.id }
+        for (id in profileIds) {
+            keys.add(ProfileKeys.scoped(PrefKeys.WATCH_HISTORY, id))
+            keys.add(ProfileKeys.scoped(PrefKeys.WATCH_ARCHIVE, id))
+            keys.add(ProfileKeys.scoped(PrefKeys.LIBRARY_LOCAL, id))
         }
         keys.add(PrefKeys.PROFILES_LIST)
+        val settingKeys = if (syncSettingsOn()) SyncedSettings.allPrefKeys(profileIds).filter { it in prefs } else emptyList()
+        keys.addAll(settingKeys)
         prefs.removeAll(keys)
         store.writeSynced(emptyMap())
+        // The screens and the add-on list must not keep showing what was just removed.
+        if (settingKeys.isNotEmpty()) onSettingsApplied(settingKeys.toSet())
     }
 }

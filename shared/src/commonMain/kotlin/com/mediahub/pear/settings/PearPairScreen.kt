@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.cloud.CloudError
 import com.mediahub.pear.data.DesktopClipboard
+import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.epochMillis
 import com.mediahub.pear.glass.ContentCard
 import com.mediahub.pear.glass.GlassButton
@@ -46,7 +47,9 @@ import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.PearButtonStyle
 import com.mediahub.pear.shell.PearCapsuleButton
+import com.mediahub.pear.shell.PearSwitch
 import com.mediahub.pear.shell.TextInput
+import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
@@ -309,6 +312,28 @@ private fun SignedInView(
             label = if (state.syncing) "Syncing…" else "Sync now",
             onClick = { if (!state.syncing) engine.syncNow() },
             symbol = "arrow.triangle.2.circlepath",
+        )
+    }
+
+    // Settings: off until the person turns it on, on each device
+    val prefs = data.prefs
+    val syncSettings = rememberPref(prefs, PrefKeys.PAIR_SYNC_SETTINGS) { it.bool(PrefKeys.PAIR_SYNC_SETTINGS, false) }
+    ContentCard(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                PearText("Sync settings", style = PearTheme.type.headline)
+                PearText(
+                    "Add-ons, API keys, subtitles, playback and appearance.",
+                    style = PearTheme.type.footnote,
+                    color = c.textSecondary,
+                )
+            }
+            PearSwitch(checked = syncSettings, onCheckedChange = { prefs.setBool(PrefKeys.PAIR_SYNC_SETTINGS, it) })
+        }
+        PearText(
+            "Add-on addresses and API keys are stored on the Pear.pair server and are not end-to-end encrypted.",
+            style = PearTheme.type.footnote,
+            color = c.textSecondary,
         )
     }
 

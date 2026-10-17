@@ -64,8 +64,11 @@ Each record is identified by `(profileId, kind, key)`.
 | `history` | title id (`item.id`) | the app's `HistoryEntry` JSON, field names unchanged |
 | `library` | title id | the app's `LibraryEntry` JSON |
 | `progress` | title id | `{position, duration, season?, episode?}` |
+| `settings` | the pref key name, for example `ui.accent`. A per-profile key (`content.prefs`) uses its base name | `{"t": "<type>", "v": <value>}`. `t` is `s` (text), `b` (flag), `i` (whole number), `d` (number), `l` (list of text) or `j` (JSON text) |
 
 The server checks that `data` is a JSON object of at most 32 KB. It does not check the fields inside.
+
+For `settings`, `profileId` is `_account` for an account-wide key, and the profile's id for a per-profile key. Devices send and apply `settings` only when the person has turned on sync for settings on that device. A device that has it off sends none and ignores pulled ones.
 
 #### Push
 
@@ -88,7 +91,7 @@ Response:
 
 - A push holds at most 200 changes. More returns `400 too_many_changes`.
 - `accepted` lists the indexes of the changes the server took. A change older than the stored record is also accepted, but it is not applied. The rule is last write wins by `updatedAt`.
-- `rejected` lists refused changes with a reason: `bad_shape`, `bad_profile_id`, `unknown_kind`, `bad_key`, `bad_updated_at`, `future_timestamp` (more than one day ahead), `missing_data`, `too_large` (data over 32 KB), `profile_limit`, `history_limit`, `library_limit`.
+- `rejected` lists refused changes with a reason: `bad_shape`, `bad_profile_id`, `unknown_kind`, `bad_key`, `bad_updated_at`, `future_timestamp` (more than one day ahead), `missing_data`, `too_large` (data over 32 KB), `profile_limit`, `history_limit`, `library_limit`, `settings_limit`.
 - Limits: 20 profiles per account, and 5000 live history records and 5000 live library records per profile. Only new records count against a limit. Updates and tombstones always pass. Progress has no limit.
 - The accepted changes of one push are written in one batch, and every one is stamped with the push's `serverTs`.
 - Clients never move their pull cursor from a push response. Only pulls move it.

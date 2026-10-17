@@ -82,6 +82,9 @@ object PrefKeys {
     const val PAIR_LAST_SERVER_TS = "pair.lastServerTs"
     const val PAIR_LAST_SYNC = "pair.lastSyncAt"
     const val PAIR_SYNCED = "pair.synced"
+
+    /** Pear.pair: whether this device syncs the settings in `SyncedSettings` (the switch in Pear.pair). Off until the person turns it on. Not in backups. */
+    const val PAIR_SYNC_SETTINGS = "pair.syncSettings"
 }
 
 /** Secret names, kept outside [PrefStore] (iOS keeps them in the keychain). */

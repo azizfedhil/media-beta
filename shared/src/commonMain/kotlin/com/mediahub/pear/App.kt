@@ -50,6 +50,11 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
     val data = remember(storage, network) { AppData(storage ?: Storage.inMemory(), network ?: Network.offline()) }
     DisposableEffect(data) { onDispose { data.close() } }
     val theme = remember(data) { ThemeStore(prefs = data.prefs) }
+    // A setting that syncs from another device can change the accent: the theme re-reads it (see AppData.reloadAfterSettings).
+    DisposableEffect(data, theme) {
+        data.onThemeSettingsSynced = { theme.reload() }
+        onDispose { data.onThemeSettingsSynced = {} }
+    }
     val glass = remember(data) { GlassStore(prefs = data.prefs) }
     val shell = remember { ShellState() }
     // Decided once per storage: a fresh install sees the setup first, an existing one never does (see OnboardingState).

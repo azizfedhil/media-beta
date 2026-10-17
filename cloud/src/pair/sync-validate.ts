@@ -1,6 +1,6 @@
 // Checks each change in a Pear.pair push. Pure functions: no database access here.
 
-export const SYNC_KINDS = ["profile", "history", "library", "progress"] as const;
+export const SYNC_KINDS = ["profile", "history", "library", "progress", "settings"] as const;
 export type SyncKind = (typeof SYNC_KINDS)[number];
 
 export const MAX_CHANGES_PER_PUSH = 200;

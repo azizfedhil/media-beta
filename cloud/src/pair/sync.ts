@@ -22,6 +22,7 @@ const LIMIT_REASON: Record<SyncKind, string> = {
   history: "history_limit",
   library: "library_limit",
   progress: "progress_limit",
+  settings: "settings_limit",
 };
 
 interface Rejection {

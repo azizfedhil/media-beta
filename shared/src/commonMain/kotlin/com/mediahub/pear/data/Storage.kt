@@ -34,6 +34,7 @@ import com.mediahub.pear.epochMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class Storage(
     val prefs: PrefStore,
@@ -104,6 +105,15 @@ class AppData(
         minutesOf = { item -> meta.tmdb.cachedDetails(item.id, item.type)?.minutes },
     )
 
+    /** The UI thread's scope: the sync engine and the settings reloads run on it. */
+    private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /**
+     * Set by the app shell (App.kt): re-reads the theme after a synced setting changed it. The theme lives in the shell,
+     * not here, so the shell supplies this.
+     */
+    var onThemeSettingsSynced: () -> Unit = {}
+
     /** Pear.pair: the account on this device and the engine that keeps it in step. Idle until an account is signed in here. */
     val pairStore = PairStore(storage.prefs, storage.secrets)
     val pairClient = PairClient(CloudApi(network.http, CloudConfig.pairBaseUrl))
@@ -114,7 +124,8 @@ class AppData(
         activeProfile = { profiles.activeID },
         usesSimkl = { profile -> !syncsLibraryOverPair(storage.prefs, profile, simkl.isConnected) },
         onRemoteApplied = { reloadAfterSync() },
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+        onSettingsApplied = { keys -> reloadAfterSettings(keys) },
+        scope = uiScope,
     )
 
     init {
@@ -140,6 +151,19 @@ class AppData(
         history.reload(profile)
         library.reload(profile)
         libraryPrefs.reload(profile)
+    }
+
+    /**
+     * After synced settings changed here: re-read what they drive. Runs on the UI thread (the engine's scope). The add-on
+     * list reloads in the background, as it does after a settings import.
+     */
+    private fun reloadAfterSettings(keys: Set<String>) {
+        // Per-profile content settings: the active profile is the one loaded here.
+        if (keys.any { it == PrefKeys.CONTENT_PREFS || it.startsWith("${PrefKeys.CONTENT_PREFS}.") }) content.reload()
+        // Every add-on key starts with "addon.".
+        if (keys.any { it.startsWith("addon.") }) uiScope.launch { addons.reloadFromPrefs() }
+        // Appearance keys start with "ui.".
+        if (keys.any { it.startsWith("ui.") }) onThemeSettingsSynced()
     }
 
     fun switchProfile(profile: String) {

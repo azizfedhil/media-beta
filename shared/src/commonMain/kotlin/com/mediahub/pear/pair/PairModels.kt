@@ -3,12 +3,13 @@ package com.mediahub.pear.pair
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
-/** The four kinds of record Pear.pair keeps (cloud/CLOUD_API.md §2.2). [wire] is the name the server uses. */
+/** The kinds of record Pear.pair keeps (cloud/CLOUD_API.md §2.2). [wire] is the name the server uses. */
 enum class SyncKind(val wire: String) {
     PROFILE("profile"),
     HISTORY("history"),
     LIBRARY("library"),
-    PROGRESS("progress");
+    PROGRESS("progress"),
+    SETTINGS("settings");
 
     companion object {
         /** The kind for a wire name, or null for a kind this app does not know (such changes are skipped). */
@@ -69,6 +70,9 @@ class PullPage(val changes: List<RemoteChange>, val serverTs: Long, val more: Bo
 
 /** Pear.pair sync timings and limits (cloud/CLOUD_API.md §2.2 and §4). */
 object SyncRules {
+    /** The profile id a settings record carries when it is account-wide rather than per profile (cloud/CLOUD_API.md §2.2). */
+    const val ACCOUNT_SCOPE = "_account"
+
     const val PUSH_BATCH = 200
     const val PULL_LIMIT = 500
     const val PULL_OVERLAP_MILLIS = 5_000L
