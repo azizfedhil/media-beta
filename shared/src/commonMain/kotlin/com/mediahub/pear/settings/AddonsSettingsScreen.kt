@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
+import com.mediahub.pear.net.attempt
 import com.mediahub.pear.openUrl
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
@@ -37,7 +38,11 @@ import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
+import io.ktor.http.Url
 import kotlinx.coroutines.launch
+
+/** Only the host of an add-on address. The path, query and any user:password may hold an API key, so none of them are shown. */
+private fun unreachableHost(url: String): String = attempt { Url(url).host } ?: "?"
 
 @Composable
 fun AddonsSettingsScreen(
@@ -137,6 +142,23 @@ fun AddonsSettingsScreen(
                         }
                     }
                 }
+                }
+                // Saved add-ons that didn't load (offline, server asleep). They stay saved until Retry works or Delete removes them.
+                if (store.unreachable.isNotEmpty()) {
+                    PearText("Couldn't load (still saved)", style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
+                    store.unreachable.forEach { url -> key(url) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            PearText(unreachableHost(url), style = PearTheme.type.subheadline.weight(FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                GlassButton(onClick = { scope.launch { store.retryUnreachable() } }, label = "Retry", symbol = "arrow.clockwise", size = 32.dp)
+                                GlassButton(onClick = { scope.launch { store.removeUnreachable(url) } }, symbol = "trash", size = 32.dp)
+                            }
+                        }
+                    } }
                 }
             }
         }

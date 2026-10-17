@@ -223,3 +223,17 @@ fun usesSimklLibrary(prefs: PrefStore, profile: String, simklConnected: Boolean)
     val choice = text?.let { t -> attempt { PearJson.parseToJsonElement(t).jObject()?.get("choice").jStr() } }
     return choice == null || choice == "simkl"
 }
+
+/**
+ * Whether [profile]'s library is synced over Pear.pair, read from storage. Only a library the person kept on "This device"
+ * or put on Simkl is left out. Before any choice, a library that is not Simkl's is synced, as it always was.
+ */
+fun syncsLibraryOverPair(prefs: PrefStore, profile: String, simklConnected: Boolean): Boolean {
+    val text = prefs.jsonText(ProfileKeys.scoped(PrefKeys.LIBRARY_PREFS, profile))
+    val choice = text?.let { t -> attempt { PearJson.parseToJsonElement(t).jObject()?.get("choice").jStr() } }
+    return when (choice) {
+        "local" -> false
+        "pair" -> true
+        else -> !simklConnected
+    }
+}

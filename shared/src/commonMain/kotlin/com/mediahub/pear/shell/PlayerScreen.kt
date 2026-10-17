@@ -131,6 +131,17 @@ fun PlayerScreen(
     val controls: PlayerEngine = playback.controls
     // A guest whose player the room drives: no seeking, speed, next episode or skipping. The host decides those.
     val guestHere = partyRole == PartyRole.Guest && request.partyRoom
+    // The guest's reminder that the host drives playback: shown for a few seconds on arrival, then it goes away.
+    var guestHint by remember(request) { mutableStateOf(false) }
+    LaunchedEffect(guestHere, request) {
+        if (guestHere) {
+            guestHint = true
+            delay(4_000)
+            guestHint = false
+        } else {
+            guestHint = false
+        }
+    }
     DisposableEffect(playback) {
         playback.start()
         onDispose { playback.stop() }
@@ -789,7 +800,7 @@ fun PlayerScreen(
                 val cue by engine.subtitleText.collectAsState()
                 SubtitleLayer(cue, subStyle, shown)
             },
-            notice = notice ?: partyNote ?: roomNote ?: if (guestHere) PARTY_GUEST_NOTICE else null,
+            notice = notice ?: partyNote ?: roomNote ?: if (guestHere && guestHint) PARTY_GUEST_NOTICE else null,
             video = {
                 VideoSurface(
                     engine = engine,

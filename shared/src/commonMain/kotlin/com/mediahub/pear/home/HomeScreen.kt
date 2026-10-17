@@ -74,6 +74,11 @@ fun HomeScreen(
     ) {
         model.refresh(force = false)
     }
+    // Up Next follows the history: dismissing a card or finishing an episode resolves it again.
+    val finished = env.data.history.finishedEntries
+    LaunchedEffect(finished) {
+        model.refreshUpNext()
+    }
 
     if (isWide) {
         val fc = env.shell.feedCollapse
@@ -161,14 +166,14 @@ private fun FeedRows(
     val visibleAddonRows = model.rows.filter { !rules.isRowHidden(it.prefKey) }
     // iOS `themesHidden`: with the built-in themes row hidden, no theme appears anywhere in the feed.
     val themeCount = if (rules.isRowHidden(BuiltinRows.THEMES)) 0 else model.themes.size
-    val showContinue = env.data.history.continueEntries.isNotEmpty() || model.upNext.isNotEmpty()
+    val showContinue = env.data.history.continueEntries.isNotEmpty() || model.visibleUpNext.isNotEmpty()
 
     // The blocks of the feed, in iOS order (see feedOrder).
     feedOrder(showContinue, themeCount, visibleAddonRows.size).forEach { slot ->
         when (slot) {
             FeedSlot.Continue -> ContinueRow(
                 entries = env.data.history.continueEntries,
-                upNext = model.upNext,
+                upNext = model.visibleUpNext,
                 onSelectTitle = onSelectTitle,
             )
             is FeedSlot.Theme -> ThemeCarousel(model.themes[slot.index], { onSelectTitle(it, null, null) })

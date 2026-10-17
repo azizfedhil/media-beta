@@ -37,6 +37,7 @@ import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.data.SettingsBackup
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
+import com.mediahub.pear.glass.GlassMode
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.library.LibrarySourceControls
 import com.mediahub.pear.onboarding.OnboardingState
@@ -140,6 +141,18 @@ fun SettingsScreen(
             }
 
             SettingsSection.Appearance -> SettingsGroup(title = "Appearance") {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PearText("Interface style", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+                    val looks = listOf(GlassMode.Glass to "Liquid Glass", GlassMode.Frosted to "Frosted Blur", GlassMode.Flat to "Flat")
+                    val current = env.glass.mode
+                    SegmentedControl(
+                        labels = looks.map { it.second },
+                        selectedIndex = looks.indexOfFirst { it.first == current }.let { if (it < 0) 0 else it },
+                        onSelect = { env.glass.mode = looks[it].first },
+                    )
+                    PearText("Flat is solid everywhere except the player.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
+                }
+                SettingsDivider()
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     PearText("Accent colour", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
                     SwatchGrid(

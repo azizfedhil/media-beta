@@ -40,6 +40,12 @@ class HomeModel(private val data: AppData) {
         private set
     var upNext: List<UpNextItem> by mutableStateOf(emptyList())
         private set
+    /** [upNext] limited to shows that are still Up Next candidates, so a dismissed card leaves at once. */
+    val visibleUpNext: List<UpNextItem>
+        get() {
+            val ids = data.history.finishedEntries.map { it.id }.toSet()
+            return upNext.filter { it.item.id in ids }
+        }
     var themes: List<ThemeRow> by mutableStateOf(emptyList())
         private set
     var hero: List<MetaPreview> by mutableStateOf(emptyList())
@@ -291,6 +297,9 @@ class HomeModel(private val data: AppData) {
         }
         upNext = resolved
     }
+
+    /** Resolves Up Next again from the current history. Called when the history changes. */
+    suspend fun refreshUpNext() = loadUpNext()
 
     /** Returns once the rows have loaded; the add-on's enrichment carries on in [enrichScope]. */
     private suspend fun loadThemes(rules: ContentRules, enrichScope: CoroutineScope) {

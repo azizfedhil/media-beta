@@ -229,6 +229,17 @@ class AddonStore(
         prefs.setStringList(PrefKeys.ADDON_CATALOG_PICKER, pickerIds.sorted())
     }
 
+    /** Removes a saved add-on that never loaded (it is in [unreachable] but not in [addons]). */
+    suspend fun removeUnreachable(url: String) = withContext(dispatcher) {
+        restoreJob?.join()
+        known = known.filter { it != url }
+        disabledIds = disabledIds - url
+        pickerIds = pickerIds - url
+        persist()
+        persistDisabled()
+        prefs.setStringList(PrefKeys.ADDON_CATALOG_PICKER, pickerIds.sorted())
+    }
+
     /** Stops the background work. The saved settings are not touched. */
     fun close() {
         scope.cancel()

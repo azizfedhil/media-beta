@@ -300,6 +300,7 @@ fun PlayerOverlay(
 
     GlassScene(
         store = glass,
+        flatSeeThrough = true,
         modifier = modifier.fillMaxSize().background(Color.Black)
             .pointerHoverIcon(if (visible) PointerIcon.Default else hiddenCursor)
             .focusRequester(focus)

@@ -24,7 +24,7 @@ import com.mediahub.pear.cloud.CloudConfig
 import com.mediahub.pear.pair.PairClient
 import com.mediahub.pear.pair.PairStore
 import com.mediahub.pear.pair.SyncEngine
-import com.mediahub.pear.pair.usesSimklLibrary
+import com.mediahub.pear.pair.syncsLibraryOverPair
 import com.mediahub.pear.party.PartyService
 import kotlinx.coroutines.CoroutineDispatcher
 import com.mediahub.pear.downloads.DownloadManager
@@ -112,7 +112,7 @@ class AppData(
         client = pairClient,
         prefs = storage.prefs,
         activeProfile = { profiles.activeID },
-        usesSimkl = { profile -> usesSimklLibrary(storage.prefs, profile, simkl.isConnected) },
+        usesSimkl = { profile -> !syncsLibraryOverPair(storage.prefs, profile, simkl.isConnected) },
         onRemoteApplied = { reloadAfterSync() },
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     )

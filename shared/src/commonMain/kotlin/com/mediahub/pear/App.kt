@@ -1,11 +1,18 @@
 package com.mediahub.pear
 
 import com.mediahub.pear.shell.AppExit
+import com.mediahub.pear.shell.AppLifecycle
+import com.mediahub.pear.shell.PerformanceNotice
+import com.mediahub.pear.shell.PlatformCaps
+import com.mediahub.pear.shell.Route
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +22,10 @@ import com.mediahub.pear.addons.rowKey
 import com.mediahub.pear.brand.PearLaunchOverlay
 import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.Storage
+import com.mediahub.pear.glass.FramePacing
+import com.mediahub.pear.glass.GlassMode
 import com.mediahub.pear.glass.GlassStore
+import com.mediahub.pear.glass.PowerStatus
 import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.onboarding.OnboardingHost
 import com.mediahub.pear.p2p.blockingUntil
@@ -72,6 +82,39 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
     }
     // Leftovers of an earlier crash or kill go at launch, whether or not P2P is on: nothing of P2P stays on disk between runs.
     LaunchedEffect(data) { data.p2p.engine.removeLeftovers() }
+    // Android: when the app runs slowly (under 55 fps, or it hangs), the effects drop one tier and the person is told.
+    var perfNote by remember { mutableStateOf<String?>(null) }
+    if (PlatformCaps.hasPlayerGlassChoice) {
+        val playerOpen = shell.currentNav().top is Route.Player
+        LaunchedEffect(playerOpen, shell.onboardingVisible) {
+            FramePacing.enabled = !playerOpen && !shell.onboardingVisible
+            FramePacing.rest(8_000)
+        }
+        LaunchedEffect(glass) {
+            FramePacing.slow.collect {
+                if (PowerStatus.lowBattery) return@collect
+                val to = glass.stepDown() ?: return@collect
+                FramePacing.rest(20_000)
+                val name = when (to) {
+                    GlassMode.Frosted -> "Frosted Blur"
+                    GlassMode.Flat -> "Flat"
+                    else -> "Liquid Glass"
+                }
+                perfNote = "The app was running slowly, so the effects were changed to $name. You can change this in Settings > Appearance."
+            }
+        }
+        LaunchedEffect(perfNote) {
+            if (perfNote != null) {
+                delay(6_000)
+                perfNote = null
+            }
+        }
+    }
+    // Saved add-ons that missed the launch fetch (no connection yet) are asked for again at launch and every time the app comes back to the front.
+    LaunchedEffect(data) {
+        data.addons.retryUnreachable()
+        AppLifecycle.foregrounded.collect { data.addons.retryUnreachable() }
+    }
     PearTheme(theme) {
         CompositionLocalProvider(
             LocalAppEnv provides env,
@@ -94,6 +137,7 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
                 if (shell.onboardingVisible) OnboardingHost()
                 // Platform extras that sit over the app, such as the desktop's "new version" notice.
                 overlay()
+                PerformanceNotice(perfNote)
                 PearLaunchOverlay()
                 // The crash briefing, from the last run, sits above everything (it shows nothing when there is none).
                 CrashBriefingHost()

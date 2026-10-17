@@ -65,11 +65,9 @@ private val PLAYER_CARD_VEIL = Color.White.copy(alpha = GlassTuning.PLAYER_CARD_
 private val PLAYER_RIM_COLOR = Color.White.copy(alpha = 0.15f)
 
 // Frosted (PlayerLook.Frosted): where the picture cannot be blurred. A dark base, a white sheen from top to bottom, and a
-// specular rim. Starting values, to be tuned on a device. The base must not read as a dark plate.
-private const val FROSTED_CONTROL_BASE = 0.12f
-private const val FROSTED_CARD_BASE = 0.28f
-private val FROSTED_CONTROL_SHEEN = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.14f)))
-private val FROSTED_CARD_SHEEN = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f)))
+// specular rim. Controls and cards share one look.
+private const val FROSTED_BASE = 0.12f
+private val FROSTED_SHEEN = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.14f)))
 private val FROSTED_RIM = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.10f)))
 
 internal val LocalPlayerLook = compositionLocalOf { PlayerLook.Flat }
@@ -106,17 +104,15 @@ internal fun PlayerSurface(
             Box(modifier.clip(shape).background(fill), content = wrappedContent)
         }
         PlayerLook.Frosted -> {
-            // No sampling, so no blur and no tint over the moving picture. The sheen and the rim carry the glass look.
-            val isCard = kind == SurfaceKind.Card
-            val base = Color.Black.copy(alpha = if (isCard) FROSTED_CARD_BASE else FROSTED_CONTROL_BASE)
+            // No sampling, so no blur and no tint over the moving picture. The sheen and the rim carry the glass look, the same for controls and cards.
+            val base = Color.Black.copy(alpha = FROSTED_BASE)
             val fill = tint?.copy(alpha = 0.55f)?.compositeOver(base) ?: base
-            val sheen = if (isCard) FROSTED_CARD_SHEEN else FROSTED_CONTROL_SHEEN
             // Its own content wrapper: the flat rim of wrappedContent would hide the brushed rim.
             val frostedContent: @Composable BoxScope.() -> Unit = {
                 content()
                 Box(Modifier.matchParentSize().clip(shape).border(0.5.dp, FROSTED_RIM, shape))
             }
-            Box(modifier.clip(shape).background(fill).background(sheen), content = frostedContent)
+            Box(modifier.clip(shape).background(fill).background(FROSTED_SHEEN), content = frostedContent)
         }
         PlayerLook.Flat -> {
             val fill = when (kind) {

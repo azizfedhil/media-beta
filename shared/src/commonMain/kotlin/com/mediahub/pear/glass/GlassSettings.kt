@@ -54,6 +54,17 @@ class GlassStore(
             performanceState = value
             prefs?.setString(PrefKeys.DESKTOP_GLASS_PERFORMANCE, value.name)
         }
+
+    /** One tier down: Liquid Glass (Glass or Clear) -> Frosted Blur -> Flat. Returns the new mode, or null when it is already Flat. */
+    fun stepDown(): GlassMode? {
+        val next = when (mode) {
+            GlassMode.Glass, GlassMode.Clear -> GlassMode.Frosted
+            GlassMode.Frosted -> GlassMode.Flat
+            GlassMode.Flat -> null
+        }
+        if (next != null) mode = next
+        return next
+    }
 }
 
 /** Tuning numbers for the glass, in one place. Change them here, and say what they were measured against. */

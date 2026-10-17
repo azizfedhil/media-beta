@@ -67,7 +67,7 @@ class SyncEngine(
     private val prefs: PrefStore,
     /** The profile that playback is saved into. */
     private val activeProfile: () -> String,
-    /** True when the profile's library is Simkl. Such a library is not synced. */
+    /** True when the profile's library is NOT synced over Pear.pair: it is Simkl's, or the person kept it on This device. (The name is old.) */
     private val usesSimkl: (String) -> Boolean,
     /** Called after a pull changed local data, so the screens re-read their stores. */
     private val onRemoteApplied: () -> Unit,

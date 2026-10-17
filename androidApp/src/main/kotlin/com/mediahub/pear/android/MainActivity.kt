@@ -9,8 +9,12 @@ import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Rational
+import android.view.FrameMetrics
+import android.view.Window
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -32,6 +36,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.ContextCompat
 import com.mediahub.pear.App
 import com.mediahub.pear.AndroidHost
+import com.mediahub.pear.glass.FramePacing
 import com.mediahub.pear.glass.PowerStatus
 import com.mediahub.pear.net.androidNetwork
 import com.mediahub.pear.player.PipState
@@ -49,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private val network by lazy { androidNetwork() }
     private val control by lazy { AndroidWindowControl(this) }
     private var powerReceiver: BroadcastReceiver? = null
+    private var frameListener: Window.OnFrameMetricsAvailableListener? = null
 
     // systemBarsIgnoringVisibility is marked experimental in Compose; the CI compile reported it (MainActivity.kt:71).
     // Opted in for this function only, as the shared module does for its layout APIs (PearControls.kt).
@@ -94,6 +100,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        val listener = Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
+            // The first frame after the window appears is always slow: not counted.
+            if (metrics.getMetric(FrameMetrics.FIRST_DRAW_FRAME) == 0L) FramePacing.frame(metrics.getMetric(FrameMetrics.TOTAL_DURATION))
+        }
+        frameListener = listener
+        window.addOnFrameMetricsAvailableListener(listener, Handler(Looper.getMainLooper()))
         watchPowerSave()
         AppLifecycle.notifyForegrounded()
     }
@@ -103,6 +115,8 @@ class MainActivity : ComponentActivity() {
         // A Picture in Picture window keeps the film going, so only an app that is really hidden counts as left.
         if (!isInPictureInPictureMode) AppLifecycle.notifyBackgrounded()
         storage.flush()
+        frameListener?.let { window.removeOnFrameMetricsAvailableListener(it) }
+        frameListener = null
         super.onStop()
     }
 

@@ -36,6 +36,9 @@ internal val LocalGlassState = staticCompositionLocalOf<HazeState?> { null }
 /** True inside a glass surface. A surface drawn inside one is flat, so glass never sits in glass (`glass.md`). */
 internal val LocalInsideGlass = staticCompositionLocalOf { false }
 
+/** True inside the player: Flat stays see-through there. Everywhere else Flat is solid. */
+internal val LocalFlatSeeThrough = staticCompositionLocalOf { false }
+
 /**
  * The style a surface draws: flat when there is no glass scene, on low battery, or when it sits inside another glass surface
  * ([nested]); otherwise the style the store chose. Pure, so it is unit tested.
@@ -52,11 +55,12 @@ internal val LocalGlassStore = staticCompositionLocalOf { GlassStore() }
 fun GlassScene(
     store: GlassStore,
     modifier: Modifier = Modifier,
+    flatSeeThrough: Boolean = false,
     background: @Composable BoxScope.() -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val state = rememberHazeState()
-    CompositionLocalProvider(LocalGlassState provides state, LocalGlassStore provides store) {
+    CompositionLocalProvider(LocalGlassState provides state, LocalGlassStore provides store, LocalFlatSeeThrough provides flatSeeThrough) {
         Box(modifier) {
             Box(Modifier.fillMaxSize().hazeSource(state), content = background)
             content()
@@ -76,8 +80,8 @@ private fun frostedStyle(c: PearColors, wash: Color?): HazeBlurStyle {
     }
 }
 
-private fun flatColor(c: PearColors, wash: Color?): Color {
-    val base = c.surface.copy(alpha = 0.86f)
+private fun flatColor(c: PearColors, wash: Color?, seeThrough: Boolean): Color {
+    val base = c.surface.copy(alpha = if (seeThrough) 0.86f else 1f)
     return if (wash == null) base else wash.compositeOver(base)
 }
 
@@ -104,6 +108,7 @@ fun GlassSurface(
     val store = LocalGlassStore.current
     // Glass everywhere, except on low battery, where it falls back to flat (see PowerStatus).
     val nested = LocalInsideGlass.current
+    val seeThrough = LocalFlatSeeThrough.current
     if (nested && GlassTuning.NESTING_WARNINGS) println("Pear: a glass surface sits inside another glass surface, so it is drawn flat.")
     val mode = effectiveGlassMode(hasScene = state != null, lowBattery = PowerStatus.lowBattery, nested = nested, mode = store.mode)
     val perf = store.performance.haze
@@ -133,7 +138,7 @@ fun GlassSurface(
             Modifier.hazeGlass(input = HazeInput.Sources(state!!), style = style, performanceMode = perf).clip(shape)
         }
         // Inside another glass surface the flat fill is the plain card tint, so the nested item reads as a flat control.
-        GlassMode.Flat -> Modifier.clip(shape).background(if (nested) (tintColor?.compositeOver(c.fill) ?: c.fill) else flatColor(c, tintColor))
+        GlassMode.Flat -> Modifier.clip(shape).background(if (nested) (tintColor?.compositeOver(c.fill) ?: c.fill) else flatColor(c, tintColor, seeThrough))
     }
     Box(modifier.then(effect).drawBehind { if (lit > 0f) drawRect(hover.copy(alpha = hover.alpha * lit)) }) {
         CompositionLocalProvider(LocalInsideGlass provides true) { content() }

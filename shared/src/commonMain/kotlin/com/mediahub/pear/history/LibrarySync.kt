@@ -18,12 +18,13 @@ import kotlinx.serialization.Serializable
 
 /**
  * Where a profile's library lives (spec: `LibrarySource`).
- * `Local`: the library kept on this device; nothing is sent to Simkl. `Simkl`: Simkl's lists are the library and
- * playback is scrobbled to Simkl.
+ * `Local`: kept on this device only. `PearPair`: the same stored library, kept in step across the paired devices.
+ * `Simkl`: Simkl's lists are the library.
  */
 @Serializable
 enum class LibrarySource {
     @SerialName("local") Local,
+    @SerialName("pair") PearPair,
     @SerialName("simkl") Simkl,
 }
 
@@ -102,7 +103,11 @@ class LibraryPrefs(
      * The library in use right now. Simkl only counts while it is connected; before the first explicit choice, a
      * connected Simkl is the library and everyone else uses the local one.
      */
-    fun source(simklConnected: Boolean): LibrarySource = if (!simklConnected) LibrarySource.Local else stored.choice ?: LibrarySource.Simkl
+    fun source(simklConnected: Boolean): LibrarySource = when (stored.choice) {
+        LibrarySource.PearPair -> LibrarySource.PearPair
+        LibrarySource.Local -> LibrarySource.Local
+        LibrarySource.Simkl, null -> if (simklConnected) LibrarySource.Simkl else LibrarySource.Local
+    }
 
     fun usesSimkl(simklConnected: Boolean): Boolean = source(simklConnected) == LibrarySource.Simkl
     val autoSync: Boolean get() = stored.autoSync
@@ -177,6 +182,41 @@ class LibraryPrefs(
                 sent == 0 && plan.pulls.isEmpty() -> "Already in sync."
                 else -> "Received ${plan.pulls.size} · Sent $sent"
             }
+        } finally {
+            isSyncing = false
+        }
+    }
+
+    /**
+     * One-way import from Simkl for a profile whose library is on Pear.pair: titles missing here are added here.
+     * Nothing is sent to Simkl, and nothing here is changed or removed. Unless [force], it does nothing within 15 minutes
+     * of the last sync.
+     */
+    suspend fun importFromSimkl(simkl: SimklLibrary, library: LocalLibrary, history: WatchHistory, force: Boolean) {
+        if (!simkl.isConnected || isSyncing) return
+        val last = lastSync
+        if (!force && last != null && now() - last < 900_000) return
+        isSyncing = true
+        try {
+            report = null
+            while (simkl.isSyncing) delay(250)
+            simkl.sync(force = true)
+            simkl.syncError?.let { report = it; return }
+
+            val plan = LibrarySync.plan(simkl.library, library.entries, history.entries, stored.synced, lastSync)
+            // Only titles missing here: a title already in this library keeps its status.
+            val here = library.entries.flatMap { e -> listOf(e.item.id) + listOfNotNull(e.alias) }.toSet()
+            val missing = plan.pulls.filter { it.item.id !in here }
+            library.apply(missing.map { it.item to it.status })
+
+            // Nothing is sent, so the titles planned for Simkl are not marked as on both sides.
+            stored = copyOf(
+                synced = plan.synced - plan.pushedIDs,
+                lastSync = AppleDate.toApple(now()),
+            )
+            save()
+
+            report = if (missing.isEmpty()) "Nothing new to import from Simkl." else "Imported ${missing.size} from Simkl"
         } finally {
             isSyncing = false
         }

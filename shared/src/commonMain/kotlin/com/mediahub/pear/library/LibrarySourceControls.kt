@@ -30,21 +30,75 @@ fun LibrarySourceControls(modifier: Modifier = Modifier) {
     val source = prefs.source(connected)
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Where the library lives: this device, or Simkl (only when Simkl is connected).
+        // Where the library lives: on this device, kept in step over Pear.pair, or Simkl (only when Simkl is connected).
         SegmentedControl(
-            labels = listOf("This device", "Simkl"),
-            selectedIndex = if (source == LibrarySource.Local) 0 else 1,
+            labels = listOf("This device", "Pear.pair", "Simkl"),
+            selectedIndex = when (source) {
+                LibrarySource.Local -> 0
+                LibrarySource.PearPair -> 1
+                LibrarySource.Simkl -> 2
+            },
             onSelect = { i ->
-                if (i == 0) {
-                    prefs.choose(LibrarySource.Local)
-                } else if (connected) {
-                    prefs.choose(LibrarySource.Simkl)
-                    scope.launch { simkl.sync() }
+                when (i) {
+                    0 -> prefs.choose(LibrarySource.Local)
+                    1 -> prefs.choose(LibrarySource.PearPair)
+                    else -> if (connected) {
+                        prefs.choose(LibrarySource.Simkl)
+                        scope.launch { simkl.sync() }
+                    }
                 }
             },
         )
 
-        if (connected) {
+        if (source == LibrarySource.PearPair) {
+            // Kept in step across this account's devices over Pear.pair. Simkl is only imported from, one way.
+            PearText(
+                if (env.data.pairStore.isSignedIn) {
+                    "Your library is kept in step with your other devices over Pear.pair."
+                } else {
+                    "Sign in to Pear.pair to keep this library in step with your other devices."
+                },
+                style = PearTheme.type.footnote,
+                color = PearTheme.colors.textSecondary,
+            )
+
+            if (connected) {
+                PearText(
+                    "Import adds Simkl's titles that are missing here. It never sends anything to Simkl and never removes anything here.",
+                    style = PearTheme.type.footnote,
+                    color = PearTheme.colors.textSecondary,
+                )
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PearCapsuleButton(
+                        label = if (prefs.isSyncing) "Importing…" else "Import from Simkl",
+                        symbol = "square.and.arrow.down",
+                        onClick = {
+                            // An import already running is not started again.
+                            if (!prefs.isSyncing) {
+                                scope.launch {
+                                    prefs.importFromSimkl(simkl, env.data.library, env.data.history, force = true)
+                                }
+                            }
+                        },
+                    )
+
+                    prefs.report?.let { report ->
+                        PearText(report, style = PearTheme.type.caption, color = PearTheme.colors.textSecondary)
+                    }
+                }
+            } else {
+                PearText(
+                    "Connect Simkl in Integrations to import its lists.",
+                    style = PearTheme.type.footnote,
+                    color = PearTheme.colors.textSecondary,
+                )
+            }
+        } else if (connected) {
             val expl = if (source == LibrarySource.Local) {
                 "Your own library and watch tracking on this device. Nothing is sent to Simkl."
             } else {
@@ -89,7 +143,7 @@ fun LibrarySourceControls(modifier: Modifier = Modifier) {
             }
         } else {
             PearText(
-                "Using the library on this device. Connect Simkl in Integrations to use it as your library or to sync with it.",
+                "Your library stays on this device. It is not synced to other devices. Connect Simkl in Integrations to use it as your library or to sync with it.",
                 style = PearTheme.type.footnote,
                 color = PearTheme.colors.textSecondary,
             )
