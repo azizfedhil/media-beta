@@ -29,6 +29,6 @@ class AppEnv(
     val shell: ShellState,
     /** Settings, profiles, content rules and secrets (Phase 2). */
     val data: AppData,
-    /** Show the developer section and the dev catalogues. */
+    /** Build flag. No longer shows the Developer section: that is the About switch (PrefKeys.DEV_TOOLS). Nothing else reads it. */
     val devTools: Boolean,
 )

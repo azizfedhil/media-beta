@@ -45,6 +45,7 @@ import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LayoutOverride
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.theme.Accents
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
@@ -124,7 +125,12 @@ fun SettingsScreen(
     var backupStatus by remember { mutableStateOf<String?>(null) }
     var showP2PDialog by remember { mutableStateOf(false) }
     var section by remember { mutableStateOf(SettingsSection.Appearance) }
-    val shown = SettingsSection.entries.filter { it != SettingsSection.Developer || env.devTools }
+    // The Developer section follows the About switch (a device setting, read live), not the build.
+    val devToolsOn = rememberPref(prefs, PrefKeys.DEV_TOOLS) { it.bool(PrefKeys.DEV_TOOLS, false) }
+    val shown = SettingsSection.entries.filter { it != SettingsSection.Developer || devToolsOn }
+    // If the section on screen is hidden (Developer, switched off), show the first one that is shown. The choice is kept
+    // in [section], so switching the tools back on returns to it.
+    val active = if (section in shown) section else shown.first()
 
     // One section's groups. The wide pane shows one of these; the phone layout shows them all in turn.
     @Composable
@@ -406,11 +412,11 @@ fun SettingsScreen(
                         color = PearTheme.colors.textTertiary,
                         modifier = Modifier.padding(start = 12.dp, bottom = 4.dp),
                     )
-                    shown.forEach { s -> SettingsRailItem(s.title, selected = section == s, onClick = { section = s }) }
+                    shown.forEach { s -> SettingsRailItem(s.title, selected = active == s, onClick = { section = s }) }
                 }
                 Box(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
                     Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Body(section)
+                        Body(active)
                     }
                 }
             }

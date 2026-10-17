@@ -169,7 +169,7 @@ internal fun handleShellKey(event: KeyEvent, shell: ShellState): Boolean {
             else -> null
         }
         if (tab != null) {
-            shell.select(tab)
+            shell.tabClicked(tab)
             return true
         }
     }

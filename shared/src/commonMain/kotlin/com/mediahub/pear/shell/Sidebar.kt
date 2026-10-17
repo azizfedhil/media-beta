@@ -88,7 +88,7 @@ internal fun Sidebar(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AppTab.sidebarOrder.forEach { tab ->
                     NavRow(tab, isSelected = shell.catalogue == null && shell.tab == tab, iconsOnly = iconsOnly) {
-                        shell.select(tab)
+                        shell.tabClicked(tab)
                     }
                 }
             }

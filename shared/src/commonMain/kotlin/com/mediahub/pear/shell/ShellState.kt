@@ -159,6 +159,20 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
         if (tab !in visited) visited.add(tab)
     }
 
+    /**
+     * A tap on a tab (the sidebar, the phone tab bar, Ctrl+1 to Ctrl+4 and Ctrl+F). Tapping the tab already showing goes
+     * back to its first page; with a sidebar catalogue open, or on another tab, it is [select].
+     */
+    fun tabClicked(tab: AppTab) {
+        if (tab == this.tab && catalogue == null) {
+            navFor(tab).popToRoot()
+            sourcePicker = null
+            contextMenu = null
+            return
+        }
+        select(tab)
+    }
+
     fun selectCatalogue(item: CatalogueItem) {
         catalogue = item
         catalogueNav = NavController(Route.Catalogue(CatalogRow(item.id, item.title, emptyList(), source = item.source, prefKey = item.prefKey)))

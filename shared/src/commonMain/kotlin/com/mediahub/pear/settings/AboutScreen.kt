@@ -18,8 +18,12 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.glass.GlassCard
 import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.appVersion
+import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.openUrl
+import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.shell.PearSwitch
+import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
@@ -31,6 +35,8 @@ fun AboutScreen(
     modifier: Modifier = Modifier,
 ) {
     val bottomInset = LocalBottomInset.current
+    val prefs = LocalAppEnv.current.data.prefs
+    val devTools = rememberPref(prefs, PrefKeys.DEV_TOOLS) { it.bool(PrefKeys.DEV_TOOLS, false) }
 
     Box(modifier.fillMaxSize()) {
         Column(
@@ -69,6 +75,20 @@ fun AboutScreen(
                 ComponentRow("MDBList", "Aggregated IMDb, RT, and Metacritic ratings", "https://mdblist.com")
                 ComponentRow("Simkl", "Watch tracking, scrobbling, and library sync", "https://simkl.com")
                 ComponentRow("Jellyfin & Plex", "Home media server streaming", "")
+            }
+
+            GlassCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        PearText("Developer tools", style = PearTheme.type.headline)
+                        PearText(
+                            "Show diagnostic and preview screens in Settings.",
+                            style = PearTheme.type.caption,
+                            color = PearTheme.colors.textSecondary,
+                        )
+                    }
+                    PearSwitch(checked = devTools, onCheckedChange = { prefs.setBool(PrefKeys.DEV_TOOLS, it) })
+                }
             }
         }
 

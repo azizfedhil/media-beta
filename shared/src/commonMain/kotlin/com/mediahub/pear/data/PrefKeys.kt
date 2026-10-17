@@ -67,6 +67,9 @@ object PrefKeys {
     /** Desktop only: episode cards on two rows in the wide layout (the phone layout is always one row). */
     const val DESKTOP_EPISODES_TWO_ROWS = "desktop.episodesTwoRows"
 
+    /** Shows Developer tools in Settings. A device setting: not in BackupRules, not synced. */
+    const val DEV_TOOLS = "dev.tools"
+
     /**
      * Desktop only: the window as it was last left (Batch 4.6c). Mode is `WindowMode`'s name; the geometry is in dp and is
      * the floating window's, kept while the window is maximized or full screen. Not in a backup: the window belongs to the machine.

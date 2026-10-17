@@ -50,12 +50,12 @@ internal fun CompactTabBar(shell: ShellState, modifier: Modifier = Modifier) {
         GlassSurface(Modifier.weight(1f).height(TabBarHeight), RoundedCornerShape(PearRadii.pill)) {
             Row(Modifier.fillMaxSize().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 AppTab.tabBarOrder.forEach { tab ->
-                    TabBarItem(tab, isSelected = shell.catalogue == null && shell.tab == tab, modifier = Modifier.weight(1f)) { shell.select(tab) }
+                    TabBarItem(tab, isSelected = shell.catalogue == null && shell.tab == tab, modifier = Modifier.weight(1f)) { shell.tabClicked(tab) }
                 }
             }
         }
         GlassButton(
-            onClick = { shell.select(AppTab.Search) },
+            onClick = { shell.tabClicked(AppTab.Search) },
             symbol = AppTab.Search.symbol,
             size = TabBarHeight,
             tint = if (shell.catalogue == null && shell.tab == AppTab.Search) c.accent else null,
