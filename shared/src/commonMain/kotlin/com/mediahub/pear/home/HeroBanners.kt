@@ -16,6 +16,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -40,6 +43,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +72,7 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.min
 import androidx.compose.animation.animateContentSize
@@ -311,31 +316,48 @@ fun HeroCarousel(
 ) {
     if (items.isEmpty()) return
     var expandedId by remember { mutableStateOf<String?>(null) }
-    val index = rememberHeroIndex(items.size, intervalMillis = 7_000L, paused = expandedId != null)
-    LaunchedEffect(index.intValue) { expandedId = null }
-    val current = items.getOrElse(index.intValue) { items.first() }
+    val pagerState = rememberPagerState { items.size }
+    val scope = rememberCoroutineScope()
+    // True while a finger is on the carousel: the auto-advance waits for the swipe to finish.
+    val dragged by pagerState.interactionSource.collectIsDraggedAsState()
+    val paused = expandedId != null
+    LaunchedEffect(pagerState.currentPage) { expandedId = null }
+    // Auto-advance every seven seconds, from the settled page. It keys on the settled page, which only changes once a slide
+    // has finished, so the effect never restarts in the middle of one. The slide runs in [scope] for the same reason: a
+    // change of paused or dragged while it runs must not cancel it.
+    LaunchedEffect(pagerState.settledPage, paused, dragged) {
+        if (paused || dragged || items.size < 2) return@LaunchedEffect
+        delay(7_000L)
+        val next = (pagerState.settledPage + 1) % items.size
+        scope.launch {
+            if (next == 0) pagerState.scrollToPage(0) // rewind without streaking through every page
+            else pagerState.animateScrollToPage(next, animationSpec = tween(900))
+        }
+    }
+    val current = items.getOrElse(pagerState.currentPage) { items.first() }
     HeroAmbient(current.heroUrl(false) ?: current.backdropUrl ?: current.posterUrl)
     PrefetchHeroAmbient(items.map { it.heroUrl(false) ?: it.backdropUrl ?: it.posterUrl })
 
     Box(modifier.fillMaxWidth().height(PhoneHeroHeight)) {
-        AnimatedContent(
-            targetState = index.intValue,
-            transitionSpec = heroTransition,
-            modifier = Modifier.fillMaxSize(),
-            label = "hero-phone",
-        ) { i ->
-            val item = items.getOrElse(i) { items.first() }
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+            val item = items.getOrElse(page) { items.first() }
             Box(Modifier.fillMaxSize().clickable { onSelectTitle(item) }) {
                 HeroArt(
                     url = item.heroUrl(false) ?: item.backdropUrl ?: item.posterUrl,
-                    active = i == index.intValue,
+                    active = page == pagerState.currentPage,
                     scroll = scroll,
                     fadeSides = false,
                     scrimEnd = if (expandedId == item.id) 0.85f else 0.6f,
                     modifier = Modifier.fillMaxSize(),
                 )
                 HeroInfo(
-                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 20.dp, bottom = 34.dp),
+                    // While paging the text slides faster than the art and fades as it leaves (iOS HeroPage).
+                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 20.dp, bottom = 34.dp)
+                        .graphicsLayer {
+                            val phase = pagerState.getOffsetDistanceInPages(page).coerceIn(-1f, 1f)
+                            translationX = phase * 70.dp.toPx()
+                            alpha = 1f - minOf(abs(phase) * 1.6f, 1f)
+                        },
                     item = item,
                     ratings = rememberTitleRatings(item),
                     wide = false,
@@ -347,9 +369,9 @@ fun HeroCarousel(
         }
         HeroDots(
             count = items.size,
-            index = index.intValue,
+            index = pagerState.currentPage,
             wide = false,
-            onSelect = { index.intValue = it },
+            onSelect = { page -> scope.launch { pagerState.animateScrollToPage(page) } },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
         )
     }

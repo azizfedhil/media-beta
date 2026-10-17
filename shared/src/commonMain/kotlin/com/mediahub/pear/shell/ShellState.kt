@@ -81,6 +81,8 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
         private set
 
     var layoutOverride: LayoutOverride by mutableStateOf(LayoutOverride.Auto)
+    /** Phone layout: the tab bar is folded into one round button while the person scrolls down (see TabBarCollapse). */
+    var tabBarMinimized: Boolean by mutableStateOf(false)
     var savedWindowSize: DpSize? by mutableStateOf(null)
     val visited = mutableStateListOf(initialTab)
 
@@ -151,6 +153,7 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
     fun navFor(tab: AppTab): NavController<Route> = tabNavs.getOrPut(tab) { NavController(Route.Root(tab)) }
 
     fun select(tab: AppTab) {
+        tabBarMinimized = false
         sourcePicker = null
         contextMenu = null
         catalogue = null
@@ -164,6 +167,7 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
      * back to its first page; with a sidebar catalogue open, or on another tab, it is [select].
      */
     fun tabClicked(tab: AppTab) {
+        tabBarMinimized = false
         if (tab == this.tab && catalogue == null) {
             navFor(tab).popToRoot()
             sourcePicker = null

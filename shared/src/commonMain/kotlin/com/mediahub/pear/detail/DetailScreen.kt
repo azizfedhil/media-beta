@@ -94,6 +94,20 @@ import com.mediahub.pear.theme.weight
 import kotlin.math.max
 import kotlinx.coroutines.launch
 
+/** The phone hero's height: iOS's 500 pt, less the status bar, which the app pads at the root (MainActivity). */
+private val PhoneDetailHeroHeight = 440.dp
+
+/**
+ * The fade into the page at the bottom of the phone hero: eleven stops on a smoothstep curve, so the edge has no kink
+ * where the art meets the page (iOS `heroFadeStops`).
+ */
+private fun phoneDetailFade(background: Color): Brush = Brush.verticalGradient(
+    *Array(11) { i ->
+        val t = i / 10f
+        t to background.copy(alpha = t * t * (3 - 2 * t))
+    },
+)
+
 @Composable
 fun DetailScreen(
     item: MetaPreview,
@@ -338,102 +352,121 @@ fun DetailScreen(
             }
         } else {
             val bottomInset = LocalBottomInset.current
-            Column(
-                Modifier.fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = bottomInset + 32.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                Box(Modifier.fillMaxWidth().height(360.dp)) {
-                    RemoteImage(item.backdropUrl ?: item.posterUrl, Modifier.fillMaxSize())
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(
-                                0.3f to Color.Transparent,
-                                1f to PearTheme.colors.background,
-                            ),
-                        ),
-                    )
-
-                    GlassButton(
-                        onClick = onBack,
-                        symbol = "chevron.left",
-                        size = 38.dp,
-                        modifier = Modifier.padding(16.dp).align(Alignment.TopStart),
-                    )
+            val scroll = rememberScrollState()
+            val pageColour = PearTheme.colors.background
+            val fade = remember(pageColour) { phoneDetailFade(pageColour) }
+            Box(Modifier.fillMaxSize()) {
+                Column(
+                    Modifier.fillMaxSize()
+                        .verticalScroll(scroll)
+                        .padding(bottom = bottomInset + 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    // The hero, as iOS's ParallaxHero: the art moves at half the scroll speed and dims as it scrolls away,
+                    // the title block scrolls over it and fades before the top, and the bottom dissolves into the page.
+                    Box(Modifier.fillMaxWidth().height(PhoneDetailHeroHeight).clipToBounds()) {
+                        Box(
+                            Modifier.fillMaxSize().graphicsLayer {
+                                val s = scroll.value.toFloat()
+                                val h = PhoneDetailHeroHeight.toPx()
+                                translationY = s * 0.5f
+                                alpha = 1f - 0.6f * (s / (h * 0.8f)).coerceIn(0f, 1f)
+                            },
+                        ) {
+                            RemoteImage(item.backdropUrl ?: item.posterUrl, Modifier.fillMaxSize())
+                        }
+                        Box(
+                            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                .height(minOf(360.dp, PhoneDetailHeroHeight))
+                                .background(fade),
+                        )
+                        Column(
+                            Modifier.align(Alignment.BottomStart)
+                                .padding(start = 20.dp, end = 20.dp, bottom = 10.dp)
+                                .graphicsLayer {
+                                    val s = scroll.value.toFloat()
+                                    val h = PhoneDetailHeroHeight.toPx()
+                                    alpha = 1f - ((s - h * 0.3f) / (h * 0.25f)).coerceIn(0f, 1f)
+                                },
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            DetailHeaderInfo(item, details, ratings, logoUrl)
+                        }
+                    }
 
                     Column(
-                        Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        Modifier.padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        DetailHeaderInfo(item, details, ratings, logoUrl)
+                        DetailActionBar(
+                            item = item,
+                            isSeries = isSeries,
+                            season = selectedSeason,
+                            episode = selectedEpisode,
+                            isWatched = isWatched,
+                            isInLibrary = isInLibrary,
+                            onPlay = { openSourcePicker() },
+                            onToggleLibrary = { toggleLibrary() },
+                            onToggleWatched = {
+                                if (isWatched) env.data.history.unmarkWatched(item.id)
+                                else env.data.history.markWatched(item)
+                            },
+                        )
+
+                        details?.tagline?.takeIf { it.isNotEmpty() }?.let { tagline ->
+                            PearText(tagline, style = PearTheme.type.footnote, color = PearTheme.colors.textTertiary)
+                        }
+
+                        synopsis?.takeIf { it.isNotEmpty() }?.let { text ->
+                            ExpandableText(text)
+                        }
+                    }
+
+                    if (isSeries) {
+                        SeasonsAndEpisodesSection(
+                            item = item,
+                            imdbId = imdbId,
+                            details = details,
+                            selectedSeason = selectedSeason,
+                            selectedEpisode = selectedEpisode,
+                            episodes = episodes,
+                            episodeListState = episodeListState,
+                            onSelectSeason = { userChose = true; selectedSeason = it; selectedEpisode = 1 },
+                            onSelectEpisode = { ep ->
+                                userChose = true
+                                selectedEpisode = ep.id
+                                openSourcePicker()
+                            },
+                            isEpisodeWatched = { epId ->
+                                env.data.history.isWatched(selectedSeason, epId, item.id)
+                            },
+                        )
+                    }
+
+                    if (trailers.isNotEmpty()) {
+                        TrailersSection(trailers)
+                    }
+
+                    if (similar.isNotEmpty()) {
+                        CatalogRowView(
+                            row = CatalogRow("similar-${item.id}", "More like this", similar),
+                            onSelectTitle = onSelectTitle,
+                            onSeeAll = {},
+                        )
+                    }
+
+                    Box(Modifier.padding(horizontal = 20.dp)) {
+                        AboutDetailsSection(details, isSeries)
                     }
                 }
 
-                Column(
-                    Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    DetailActionBar(
-                        item = item,
-                        isSeries = isSeries,
-                        season = selectedSeason,
-                        episode = selectedEpisode,
-                        isWatched = isWatched,
-                        isInLibrary = isInLibrary,
-                        onPlay = { openSourcePicker() },
-                        onToggleLibrary = { toggleLibrary() },
-                        onToggleWatched = {
-                            if (isWatched) env.data.history.unmarkWatched(item.id)
-                            else env.data.history.markWatched(item)
-                        },
-                    )
-
-                    details?.tagline?.takeIf { it.isNotEmpty() }?.let { tagline ->
-                        PearText(tagline, style = PearTheme.type.footnote, color = PearTheme.colors.textTertiary)
-                    }
-
-                    synopsis?.takeIf { it.isNotEmpty() }?.let { text ->
-                        ExpandableText(text)
-                    }
-                }
-
-                if (isSeries) {
-                    SeasonsAndEpisodesSection(
-                        item = item,
-                        imdbId = imdbId,
-                        details = details,
-                        selectedSeason = selectedSeason,
-                        selectedEpisode = selectedEpisode,
-                        episodes = episodes,
-                        episodeListState = episodeListState,
-                        onSelectSeason = { userChose = true; selectedSeason = it; selectedEpisode = 1 },
-                        onSelectEpisode = { ep ->
-                            userChose = true
-                            selectedEpisode = ep.id
-                            openSourcePicker()
-                        },
-                        isEpisodeWatched = { epId ->
-                            env.data.history.isWatched(selectedSeason, epId, item.id)
-                        },
-                    )
-                }
-
-                if (trailers.isNotEmpty()) {
-                    TrailersSection(trailers)
-                }
-
-                if (similar.isNotEmpty()) {
-                    CatalogRowView(
-                        row = CatalogRow("similar-${item.id}", "More like this", similar),
-                        onSelectTitle = onSelectTitle,
-                        onSeeAll = {},
-                    )
-                }
-
-                Box(Modifier.padding(horizontal = 20.dp)) {
-                    AboutDetailsSection(details, isSeries)
-                }
+                // The back button stays put while the page scrolls, as iOS's navigation bar does.
+                GlassButton(
+                    onClick = onBack,
+                    symbol = "chevron.left",
+                    size = 38.dp,
+                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
+                )
             }
         }
     }

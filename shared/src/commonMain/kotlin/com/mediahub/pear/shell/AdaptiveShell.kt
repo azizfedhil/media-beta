@@ -44,6 +44,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
@@ -169,7 +170,7 @@ fun AdaptiveShell(
                         Modifier.fillMaxSize(),
                         background = {
                             AmbientWash(animatedAmbient, ambientStrength)
-                            ShellPages(shell, Modifier.fillMaxSize())
+                            ShellPages(shell, Modifier.fillMaxSize().nestedScroll(rememberTabBarCollapse(shell)))
                         },
                     ) {
                         if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
