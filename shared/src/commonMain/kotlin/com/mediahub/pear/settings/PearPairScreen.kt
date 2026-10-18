@@ -3,6 +3,7 @@ package com.mediahub.pear.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -616,7 +617,7 @@ private fun ConfirmDeleteDialog(
     }
 }
 
-/** A modal card over a dimmed scrim, as in MediaServersScreen. A null [onDismiss] keeps it open until its own button closes it. */
+/** A modal card over the page, as in MediaServersScreen. A null [onDismiss] keeps it open until its own button closes it. */
 @Composable
 private fun ModalFrame(
     title: String,
@@ -625,8 +626,11 @@ private fun ModalFrame(
 ) {
     Box(
         Modifier.fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.65f))
-            .clickable(enabled = onDismiss != null) { onDismiss?.invoke() },
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = onDismiss != null,
+            ) { onDismiss?.invoke() },
         contentAlignment = Alignment.Center,
     ) {
         ContentCard(Modifier.width(420.dp).clickable(enabled = false) {}) {

@@ -481,11 +481,14 @@ fun SettingsScreen(
             GlassTopBar(title = "Settings", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp))
         }
 
-        // P2P confirmation: a flat card over a scrim (not glass on glass). Taps on the card don't reach the scrim.
+        // P2P confirmation: a flat card on its own (not glass on glass). Taps on the card don't reach the layer behind it.
         if (showP2PDialog) {
             val swallow = remember { MutableInteractionSource() }
             Box(
-                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showP2PDialog = false },
+                Modifier.fillMaxSize().clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { showP2PDialog = false },
                 contentAlignment = Alignment.Center,
             ) {
                 FlatSheet(
@@ -514,11 +517,14 @@ fun SettingsScreen(
             }
         }
 
-        // Liquid Glass confirmation (Android): a flat card over a scrim, as the P2P one. "Keep Frosted" leaves the switch off.
+        // Liquid Glass confirmation (Android): a flat card, as the P2P one. "Keep Frosted" leaves the switch off.
         if (showLiquidDialog) {
             val swallow = remember { MutableInteractionSource() }
             Box(
-                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showLiquidDialog = false },
+                Modifier.fillMaxSize().clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { showLiquidDialog = false },
                 contentAlignment = Alignment.Center,
             ) {
                 FlatSheet(

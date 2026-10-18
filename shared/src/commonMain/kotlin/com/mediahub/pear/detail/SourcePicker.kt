@@ -99,7 +99,11 @@ fun AnimatedVisibilityScope.SourcePickerOverlay(request: SourcePickerRequest, on
         request.onSelect(picked)
     }
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(onClick = onClose),
+        Modifier.fillMaxSize().clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClose,
+        ),
         contentAlignment = if (wide) Alignment.Center else Alignment.BottomCenter,
     ) {
         // Taps on the panel itself don't reach the scrim, so they don't close the picker.

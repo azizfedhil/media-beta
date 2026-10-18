@@ -6,8 +6,8 @@ import com.mediahub.pear.shell.ContextMenuRequest
 import com.mediahub.pear.shell.MenuAnchor
 import com.mediahub.pear.shell.clickOrMenu
 import com.mediahub.pear.shell.menuAnchor
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -173,7 +172,14 @@ private fun AddJellyfinDialog(onDismiss: () -> Unit) {
     var isBusy by remember { mutableStateOf(false) }
     var quickConnect by remember { mutableStateOf<JellyfinQuickConnect?>(null) }
 
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.65f)).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+    Box(
+        Modifier.fillMaxSize().clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onDismiss,
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
         GlassCard(Modifier.width(420.dp).clickable(enabled = false) {}) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 PearText("Add Jellyfin server", style = PearTheme.type.title3.weight(FontWeight.Bold))
@@ -265,7 +271,14 @@ private fun AddPlexDialog(onDismiss: () -> Unit) {
     var status by remember { mutableStateOf<String?>(null) }
     var isBusy by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.65f)).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+    Box(
+        Modifier.fillMaxSize().clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onDismiss,
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
         GlassCard(Modifier.width(420.dp).clickable(enabled = false) {}) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 PearText("Add Plex account", style = PearTheme.type.title3.weight(FontWeight.Bold))
