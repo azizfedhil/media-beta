@@ -59,7 +59,7 @@ internal fun CompactTabBar(shell: ShellState, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         // The capsule runs from the full width, less the gap and the search button, down to one round button.
         val capsuleWidth = lerp(maxWidth - 12.dp - TabBarHeight, TabBarHeight, fraction)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             GlassSurface(Modifier.width(capsuleWidth).height(TabBarHeight), RoundedCornerShape(PearRadii.pill)) {
                 // The four tabs. They fade out as the bar folds, and take taps only while it is open.
                 Row(
