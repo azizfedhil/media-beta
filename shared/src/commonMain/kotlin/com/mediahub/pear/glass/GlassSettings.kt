@@ -26,9 +26,10 @@ enum class GlassPerformance(val label: String, internal val haze: HazePerformanc
 }
 
 /**
- * The sidebar's glass, apart from the app's style. [Match] follows the app's [GlassMode] (flat only when the app is flat,
- * frosted otherwise); [Liquid] is Haze Glass, a rounded card that floats; [Frosted] and [Flat] set the sidebar whatever
- * the app's style is. See [GlassStore.sidebarMode].
+ * The sidebar's glass, apart from the app's style. [Match] follows the app's [GlassMode]: Liquid Glass gives the
+ * floating Glass card, Frosted gives Frosted, Flat gives Flat. Clear gives the Glass card too, since the sidebar never
+ * uses Clear. [Liquid] is Haze Glass, a rounded card that floats; [Frosted] and [Flat] set the sidebar whatever the
+ * app's style is. See [GlassStore.sidebarMode].
  */
 enum class SidebarStyle(val label: String) { Match("Match app"), Liquid("Liquid Glass"), Frosted("Frosted"), Flat("Flat") }
 
@@ -99,12 +100,17 @@ class GlassStore(
         }
 
     /**
-     * The style the sidebar draws: Flat when the sidebar is Flat, or it matches the app and the app is Flat; Glass when
-     * the sidebar is Liquid; otherwise Frosted. Never Clear.
+     * The style the sidebar draws. Match follows the app: Flat when the app is Flat, Glass (the floating card) when the
+     * app is Liquid Glass or Clear, Frosted when the app is Frosted. Liquid is always Glass, Frosted always Frosted,
+     * Flat always Flat. Never Clear: the sidebar has no clear material.
      */
     val sidebarMode: GlassMode
         get() = when (sidebarStyle) {
-            SidebarStyle.Match -> if (mode == GlassMode.Flat) GlassMode.Flat else GlassMode.Frosted
+            SidebarStyle.Match -> when (mode) {
+                GlassMode.Flat -> GlassMode.Flat
+                GlassMode.Frosted -> GlassMode.Frosted
+                GlassMode.Glass, GlassMode.Clear -> GlassMode.Glass // the sidebar never uses Clear
+            }
             SidebarStyle.Liquid -> GlassMode.Glass
             SidebarStyle.Frosted -> GlassMode.Frosted
             SidebarStyle.Flat -> GlassMode.Flat
