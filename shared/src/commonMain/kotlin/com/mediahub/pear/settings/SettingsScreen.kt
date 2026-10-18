@@ -97,6 +97,7 @@ private enum class SettingsSection(val title: String) {
 
 @Composable
 fun SettingsScreen(
+    onNavigatePearPair: () -> Unit,
     onNavigateIntegrations: () -> Unit,
     onNavigateAddons: () -> Unit,
     onNavigateContent: () -> Unit,
@@ -444,6 +445,7 @@ fun SettingsScreen(
                         color = PearTheme.colors.textTertiary,
                         modifier = Modifier.padding(start = 12.dp, bottom = 4.dp),
                     )
+                    SettingsRailItem("Pear.pair", selected = false, onClick = onNavigatePearPair)
                     SettingsRailItem("Integrations", selected = false, onClick = onNavigateIntegrations)
                     SettingsRailItem("Add-ons", selected = false, onClick = onNavigateAddons)
                     SettingsRailItem("Content & catalogues", selected = false, onClick = onNavigateContent)
@@ -471,6 +473,8 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 SettingsGroup {
+                    SettingsRow(title = "Pear.pair", onClick = onNavigatePearPair, trailing = { SettingsChevron() })
+                    SettingsDivider()
                     SettingsRow(title = "Integrations", onClick = onNavigateIntegrations, trailing = { SettingsChevron() })
                     SettingsDivider()
                     SettingsRow(title = "Add-ons", onClick = onNavigateAddons, trailing = { SettingsChevron() })

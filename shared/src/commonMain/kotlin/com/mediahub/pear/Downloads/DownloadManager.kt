@@ -30,6 +30,9 @@ interface DownloadFiles {
 
     /** Closes [name] if it is held open between pieces. Called when a transfer stops, finishes or fails. */
     fun close(name: String) {}
+
+    /** Where [name] is on disk, when it is there: what the player opens to play a finished download. */
+    fun path(name: String): String? = null
 }
 
 /** Fetches a link into a file's bytes. */
@@ -98,8 +101,20 @@ class DownloadManager(
     private val running = HashMap<String, Job>()
     private val lastProgress = HashMap<String, Long>()
 
+    /** Bytes per second of each running download, from its last few progress reports. Memory only, never saved. */
+    private val speed = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val speeds: StateFlow<Map<String, Long>> = speed.asStateFlow()
+
+    /** When and how many bytes each running download last reported, for [measureSpeed]. */
+    private val speedMarks = HashMap<String, SpeedMark>()
+
+    private class SpeedMark(val at: Long, val bytes: Long)
+
     /** The download listed under [id] (see `downloadKey`), if any. */
     fun record(id: String): DownloadRecord? = list.value.firstOrNull { it.id == id }
+
+    /** The file of [r] on disk, or null when it is not there (a finished download's file can be removed by hand). */
+    fun localPath(r: DownloadRecord): String? = files.path(r.fileName)
 
     /**
      * Queues [record] and starts it. The same link that is already listed is not added twice. Another source of the same
@@ -125,6 +140,7 @@ class DownloadManager(
     fun pause(id: String) {
         scope.launch {
             running.remove(id)?.cancel()
+            clearSpeed(id)
             change(id) {
                 if (it.state == DownloadState.Queued || it.state == DownloadState.Downloading) it.copy(state = DownloadState.Paused) else it
             }
@@ -148,6 +164,7 @@ class DownloadManager(
     fun delete(id: String) {
         scope.launch {
             running.remove(id)?.cancel()
+            clearSpeed(id)
             val r = record(id) ?: return@launch
             files.delete(r.fileName)
             lastProgress.remove(id)
@@ -171,6 +188,8 @@ class DownloadManager(
         val me = currentCoroutineContext()[Job]
         val target = record(id) ?: return
         change(id) { it.copy(state = DownloadState.Downloading, error = null) }
+        // A new run is a new baseline: the speed is measured again from its first reports.
+        clearSpeed(id)
         var received = 0L
         var attempt = 0
         try {
@@ -213,9 +232,12 @@ class DownloadManager(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // A download stopped by a pause or a delete ends as that, never as a failure, whatever the transfer threw on the way out.
+            if (me?.isActive == false) throw CancellationException("The download was stopped.")
             change(id) { it.copy(state = DownloadState.Failed, error = e.message ?: "The download failed") }
         } finally {
             files.close(target.fileName)
+            clearSpeed(id)
             if (running[id] === me) running.remove(id)
         }
     }
@@ -230,6 +252,29 @@ class DownloadManager(
         if (at - (lastProgress[id] ?: Long.MIN_VALUE / 2) < 500) return
         lastProgress[id] = at
         change(id, save = false) { if (it.state == DownloadState.Downloading) it.copy(bytes = bytes) else it }
+        measureSpeed(id, bytes, at)
+    }
+
+    /**
+     * The speed of a running download from its last report: the bytes since then over the time since then, smoothed so the
+     * figure does not jump. Only a download that is downloading is measured. Must be called on [scope].
+     */
+    private fun measureSpeed(id: String, bytes: Long, at: Long) {
+        if (record(id)?.state != DownloadState.Downloading) return
+        // The first report only sets the mark: there is no earlier point to measure from.
+        val mark = speedMarks.put(id, SpeedMark(at, bytes)) ?: return
+        val dt = at - mark.at
+        if (dt <= 0) return
+        val instant = maxOf(0L, bytes - mark.bytes) * 1_000 / dt
+        val old = speed.value[id] ?: 0L
+        val smoothed = if (old > 0) (old * 0.6 + instant * 0.4).toLong() else instant
+        speed.value = speed.value + (id to smoothed)
+    }
+
+    /** Forgets the speed of [id]: a download that is paused, deleted or starting again is measured afresh. */
+    private fun clearSpeed(id: String) {
+        speedMarks.remove(id)
+        if (speed.value.containsKey(id)) speed.value = speed.value - id
     }
 
     /** Must be called on [scope]. */

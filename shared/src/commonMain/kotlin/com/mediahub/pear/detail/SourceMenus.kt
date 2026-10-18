@@ -29,6 +29,8 @@ import com.mediahub.pear.shell.ContextMenuItem
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.model.downloadUrl
+import com.mediahub.pear.model.etaText
+import com.mediahub.pear.model.speedText
 import com.mediahub.pear.model.forSource
 import com.mediahub.pear.model.fromOtherSource
 import com.mediahub.pear.model.blocksReplacement
@@ -100,11 +102,21 @@ fun sourceMenuItems(env: AppEnv, owner: SourceOwner, addon: Addon, stream: Strea
     return items
 }
 
-/** The actions a listed download offers, as its menu and the Downloads list show them. */
-fun downloadActions(downloads: DownloadManager, record: DownloadRecord): List<ContextMenuItem> {
+/**
+ * The actions a listed download offers, as its menu and the Downloads list show them. [onPlay] adds Play first to a finished
+ * download's menu; a download with no file on disk gets no [onPlay].
+ */
+fun downloadActions(
+    downloads: DownloadManager,
+    record: DownloadRecord,
+    onPlay: ((DownloadRecord) -> Unit)? = null,
+): List<ContextMenuItem> {
     val cancel = ContextMenuItem("Cancel Download", "xmark.circle", destructive = true) { downloads.delete(record.id) }
     return when (record.state) {
-        DownloadState.Done -> listOf(ContextMenuItem("Delete Download", "trash", destructive = true) { downloads.delete(record.id) })
+        DownloadState.Done -> listOfNotNull(
+            onPlay?.let { play -> ContextMenuItem("Play", "play.fill") { play(record) } },
+            ContextMenuItem("Delete Download", "trash", destructive = true) { downloads.delete(record.id) },
+        )
         DownloadState.Queued, DownloadState.Downloading -> listOf(
             ContextMenuItem("Pause Download", "pause.circle") { downloads.pause(record.id) },
             cancel,
@@ -195,10 +207,18 @@ fun SourceDownloadButton(env: AppEnv, owner: SourceOwner, addon: Addon, stream: 
     )
 }
 
-/** What a download's state reads as: under its source, and in the Downloads list. */
-fun downloadStatusText(r: DownloadRecord): String = when (r.state) {
+/**
+ * What a download's state reads as: under its source, and in the Downloads list. [speed] is bytes per second, 0 when it is
+ * not measured. While a download runs, the speed shows when there is one, and the time left when the size is known too.
+ */
+fun downloadStatusText(r: DownloadRecord, speed: Long = 0L): String = when (r.state) {
     DownloadState.Queued -> "Queued"
-    DownloadState.Downloading -> "Downloading · ${progressText(r)}"
+    DownloadState.Downloading -> {
+        val parts = mutableListOf("Downloading · ${progressText(r)}")
+        if (speed > 0) parts += speedText(speed)
+        if (r.expectedBytes > 0 && speed > 0) parts += etaText((r.expectedBytes - r.bytes).coerceAtLeast(0L) / speed)
+        parts.joinToString(" · ")
+    }
     DownloadState.Paused -> "Paused · ${progressText(r)}"
     DownloadState.Failed -> "Download failed" + (r.error?.let { " · $it" } ?: "")
     DownloadState.Done -> "Downloaded · ${StreamSize.format(r.bytes)}"
@@ -220,10 +240,11 @@ fun DownloadBar(fraction: Double) {
 @Composable
 fun SourceDownloadStatus(env: AppEnv, owner: SourceOwner, link: String?) {
     val records by env.data.downloads.records.collectAsState()
+    val speeds by env.data.downloads.speeds.collectAsState()
     val r = records.forSource(owner.key, link) ?: return
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         PearText(
-            downloadStatusText(r),
+            downloadStatusText(r, speeds[r.id] ?: 0L),
             style = PearTheme.type.caption,
             color = if (r.state == DownloadState.Failed) PearTheme.colors.red else PearTheme.colors.textSecondary,
             maxLines = 1,

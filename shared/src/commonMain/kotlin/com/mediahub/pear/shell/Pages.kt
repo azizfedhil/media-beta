@@ -99,6 +99,7 @@ private fun RouteBody(route: Route, nav: NavController<Route>) {
                 onOpenDownloads = { nav.push(Route.Downloads) },
             )
             AppTab.Settings -> SettingsScreen(
+                onNavigatePearPair = { nav.push(Route.PearPair) },
                 onNavigateIntegrations = { nav.push(Route.Integrations) },
                 onNavigateAddons = { nav.push(Route.AddonsSettings) },
                 onNavigateContent = { nav.push(Route.ContentSettings) },
@@ -159,11 +160,13 @@ private fun RouteBody(route: Route, nav: NavController<Route>) {
         )
         Route.Downloads -> DownloadsScreen(
             onBack = { nav.pop() },
+            onPlay = { request ->
+                env.shell.launchPlayer(request.forPartyRoom(env.data.party), nav)
+            },
         )
         Route.Integrations -> IntegrationsScreen(
             onBack = { nav.pop() },
             onNavigateMediaServers = { nav.push(Route.MediaServers) },
-            onNavigatePearPair = { nav.push(Route.PearPair) },
         )
         Route.MediaServers -> MediaServersScreen(
             onBack = { nav.pop() },

@@ -14,9 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -37,7 +35,6 @@ import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.epochMillis
 import com.mediahub.pear.glass.ContentCard
 import com.mediahub.pear.glass.GlassButton
-import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.pair.DeviceInfo
 import com.mediahub.pear.pair.FirstSignInChoice
 import com.mediahub.pear.pair.PairCode
@@ -45,7 +42,7 @@ import com.mediahub.pear.pair.PairSyncState
 import com.mediahub.pear.platformName
 import com.mediahub.pear.player.ui.PlayerSpinner
 import com.mediahub.pear.shell.LocalAppEnv
-import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.PearButtonStyle
 import com.mediahub.pear.shell.PearCapsuleButton
 import com.mediahub.pear.shell.PearSwitch
@@ -82,7 +79,6 @@ fun PearPairScreen(
     val store = data.pairStore
     val engine = data.pairSync
     val st by engine.state.collectAsState()
-    val bottomInset = LocalBottomInset.current
     val scope = rememberCoroutineScope()
 
     var signedIn by remember { mutableStateOf(store.isSignedIn) }
@@ -127,12 +123,10 @@ fun PearPairScreen(
     }
 
     Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(top = 92.dp, bottom = bottomInset + 32.dp)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        SettingsPage(
+            title = "Pear.pair",
+            onBack = onBack,
+            maxWidth = if (signedIn) 1000.dp else 640.dp,
         ) {
             if (signedIn) {
                 SignedInView(
@@ -155,8 +149,6 @@ fun PearPairScreen(
             note?.let { PearText(it, style = PearTheme.type.footnote, color = PearTheme.colors.accent) }
             st.error?.let { PearText(it, style = PearTheme.type.footnote, color = PearTheme.colors.orange) }
         }
-
-        GlassTopBar(title = "Pear.pair", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp), onBack = onBack)
 
         when (modal) {
             PairModal.JoinByCode -> JoinByCodeDialog(
@@ -232,7 +224,7 @@ private fun SignedOutView(
 // MARK: Signed in
 
 @Composable
-private fun SignedInView(
+private fun ColumnScope.SignedInView(
     state: PairSyncState,
     onNote: (String?) -> Unit,
     onSignedOut: (Boolean) -> Unit,
@@ -292,154 +284,174 @@ private fun SignedInView(
         }
     }
 
-    // This device
-    ContentCard(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            PearText("This device", style = PearTheme.type.headline)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                PearIcon("checkmark.circle.fill", size = 13.dp, tint = OkGreen)
-                PearText("Signed in", style = PearTheme.type.caption.weight(FontWeight.SemiBold), color = OkGreen)
+    // The cards are named so the wide layout can set them in two columns. The phone layout keeps the order below.
+    val thisDeviceCard: @Composable ColumnScope.() -> Unit = {
+        // This device
+        ContentCard(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                PearText("This device", style = PearTheme.type.headline)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PearIcon("checkmark.circle.fill", size = 13.dp, tint = OkGreen)
+                    PearText("Signed in", style = PearTheme.type.caption.weight(FontWeight.SemiBold), color = OkGreen)
+                }
             }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.syncing) PlayerSpinner(diameter = 14.dp)
-            PearText(
-                if (state.syncing) "Syncing…" else syncedText(state.lastSyncAt, epochMillis()),
-                style = PearTheme.type.footnote,
-                color = c.textSecondary,
-            )
-        }
-        PearCapsuleButton(
-            label = if (state.syncing) "Syncing…" else "Sync now",
-            onClick = { if (!state.syncing) engine.syncNow() },
-            symbol = "arrow.triangle.2.circlepath",
-        )
-    }
-
-    // Settings: off until the person turns it on, on each device
-    val prefs = data.prefs
-    val syncSettings = rememberPref(prefs, PrefKeys.PAIR_SYNC_SETTINGS) { it.bool(PrefKeys.PAIR_SYNC_SETTINGS, false) }
-    ContentCard(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                PearText("Sync settings", style = PearTheme.type.headline)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (state.syncing) PlayerSpinner(diameter = 14.dp)
                 PearText(
-                    "Add-ons, API keys, subtitles, playback and appearance.",
+                    if (state.syncing) "Syncing…" else syncedText(state.lastSyncAt, epochMillis()),
                     style = PearTheme.type.footnote,
                     color = c.textSecondary,
                 )
             }
-            PearSwitch(checked = syncSettings, onCheckedChange = { prefs.setBool(PrefKeys.PAIR_SYNC_SETTINGS, it) })
-        }
-        PearText(
-            "Add-on addresses and API keys are stored on the Pear.pair server and are not end-to-end encrypted.",
-            style = PearTheme.type.footnote,
-            color = c.textSecondary,
-        )
-    }
-
-    // Another device
-    ContentCard(Modifier.fillMaxWidth()) {
-        PearText("Pair another device", style = PearTheme.type.headline)
-        PearText(
-            "On the new device, choose Pair this device and type the code. A code works once and expires after five minutes.",
-            style = PearTheme.type.footnote,
-            color = c.textSecondary,
-        )
-        val code = pairCode
-        if (code == null) {
             PearCapsuleButton(
-                label = "Show pair code",
-                onClick = { showCode() },
-                symbol = "link",
-                style = PearButtonStyle.Accent,
+                label = if (state.syncing) "Syncing…" else "Sync now",
+                onClick = { if (!state.syncing) engine.syncNow() },
+                symbol = "arrow.triangle.2.circlepath",
             )
-        } else {
-            val left = (code.expiresAt - tick) / 1000L
-            if (left > 0L) {
-                PearText(
-                    codeGroups(code.code),
-                    style = PearTheme.type.largeTitle.weight(FontWeight.Bold).copy(fontSize = 36.sp, letterSpacing = 4.sp),
-                    color = c.textPrimary,
-                )
-                PearText("Expires in ${clockText(left)}", style = PearTheme.type.footnote, color = c.textSecondary)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    PearCapsuleButton(
-                        label = "Copy",
-                        onClick = { DesktopClipboard.copy(code.code) },
-                        symbol = "copy",
-                    )
-                    PearCapsuleButton(
-                        label = "Hide",
-                        onClick = { pairCode = null },
+        }
+    }
+    val syncSettingsCard: @Composable ColumnScope.() -> Unit = {
+        // Settings: off until the person turns it on, on each device
+        val prefs = data.prefs
+        val syncSettings = rememberPref(prefs, PrefKeys.PAIR_SYNC_SETTINGS) { it.bool(PrefKeys.PAIR_SYNC_SETTINGS, false) }
+        ContentCard(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    PearText("Sync settings", style = PearTheme.type.headline)
+                    PearText(
+                        "Add-ons, API keys, subtitles, playback and appearance.",
+                        style = PearTheme.type.footnote,
+                        color = c.textSecondary,
                     )
                 }
-            } else {
-                PearText("This code has expired.", style = PearTheme.type.footnote, color = c.textSecondary)
+                PearSwitch(checked = syncSettings, onCheckedChange = { prefs.setBool(PrefKeys.PAIR_SYNC_SETTINGS, it) })
+            }
+            PearText(
+                "Add-on addresses and API keys are stored on the Pear.pair server and are not end-to-end encrypted.",
+                style = PearTheme.type.footnote,
+                color = c.textSecondary,
+            )
+        }
+    }
+    val pairCard: @Composable ColumnScope.() -> Unit = {
+        // Another device
+        ContentCard(Modifier.fillMaxWidth()) {
+            PearText("Pair another device", style = PearTheme.type.headline)
+            PearText(
+                "On the new device, choose Pair this device and type the code. A code works once and expires after five minutes.",
+                style = PearTheme.type.footnote,
+                color = c.textSecondary,
+            )
+            val code = pairCode
+            if (code == null) {
                 PearCapsuleButton(
-                    label = "New code",
+                    label = "Show pair code",
                     onClick = { showCode() },
                     symbol = "link",
                     style = PearButtonStyle.Accent,
                 )
-            }
-        }
-    }
-
-    // Devices on the account
-    ContentCard(Modifier.fillMaxWidth()) {
-        PearText("Devices on this account", style = PearTheme.type.headline)
-        if (devices.isEmpty()) {
-            PearText("Loading devices…", style = PearTheme.type.footnote, color = c.textSecondary)
-        }
-        devices.forEach { d ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    PearText(d.name.ifBlank { d.platform.ifBlank { "Device" } }, style = PearTheme.type.body)
+            } else {
+                val left = (code.expiresAt - tick) / 1000L
+                if (left > 0L) {
                     PearText(
-                        deviceLine(d, epochMillis()),
-                        style = PearTheme.type.caption,
-                        color = c.textSecondary,
+                        codeGroups(code.code),
+                        style = PearTheme.type.largeTitle.weight(FontWeight.Bold).copy(fontSize = 36.sp, letterSpacing = 4.sp),
+                        color = c.textPrimary,
                     )
-                }
-                if (d.current) {
-                    PearText("This device", style = PearTheme.type.caption.weight(FontWeight.SemiBold), color = c.textSecondary)
+                    PearText("Expires in ${clockText(left)}", style = PearTheme.type.footnote, color = c.textSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        PearCapsuleButton(
+                            label = "Copy",
+                            onClick = { DesktopClipboard.copy(code.code) },
+                            symbol = "copy",
+                        )
+                        PearCapsuleButton(
+                            label = "Hide",
+                            onClick = { pairCode = null },
+                        )
+                    }
                 } else {
+                    PearText("This code has expired.", style = PearTheme.type.footnote, color = c.textSecondary)
                     PearCapsuleButton(
-                        label = "Remove",
-                        onClick = { revoke(d) },
-                        symbol = "trash",
-                        style = PearButtonStyle.Destructive,
+                        label = "New code",
+                        onClick = { showCode() },
+                        symbol = "link",
+                        style = PearButtonStyle.Accent,
                     )
                 }
             }
         }
     }
-
-    // Account actions
-    ContentCard(Modifier.fillMaxWidth()) {
-        PearText("Account", style = PearTheme.type.headline)
-        PearCapsuleButton(
-            label = "Sign out of this device",
-            onClick = {
-                scope.launch {
-                    val revoked = engine.signOut()
-                    onSignedOut(revoked)
+    val devicesCard: @Composable ColumnScope.() -> Unit = {
+        // Devices on the account
+        ContentCard(Modifier.fillMaxWidth()) {
+            PearText("Devices on this account", style = PearTheme.type.headline)
+            if (devices.isEmpty()) {
+                PearText("Loading devices…", style = PearTheme.type.footnote, color = c.textSecondary)
+            }
+            devices.forEach { d ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        PearText(d.name.ifBlank { d.platform.ifBlank { "Device" } }, style = PearTheme.type.body)
+                        PearText(
+                            deviceLine(d, epochMillis()),
+                            style = PearTheme.type.caption,
+                            color = c.textSecondary,
+                        )
+                    }
+                    if (d.current) {
+                        PearText("This device", style = PearTheme.type.caption.weight(FontWeight.SemiBold), color = c.textSecondary)
+                    } else {
+                        PearCapsuleButton(
+                            label = "Remove",
+                            onClick = { revoke(d) },
+                            symbol = "trash",
+                            style = PearButtonStyle.Destructive,
+                        )
+                    }
                 }
-            },
-            symbol = "xmark",
+            }
+        }
+    }
+    val accountCard: @Composable ColumnScope.() -> Unit = {
+        // Account actions
+        ContentCard(Modifier.fillMaxWidth()) {
+            PearText("Account", style = PearTheme.type.headline)
+            PearCapsuleButton(
+                label = "Sign out of this device",
+                onClick = {
+                    scope.launch {
+                        val revoked = engine.signOut()
+                        onSignedOut(revoked)
+                    }
+                },
+                symbol = "xmark",
+            )
+            PearCapsuleButton(
+                label = "Delete account",
+                onClick = onDeleteRequested,
+                symbol = "trash",
+                style = PearButtonStyle.Destructive,
+            )
+            PearText(
+                "Deleting removes the account and everything synced to it. Data on this device stays.",
+                style = PearTheme.type.footnote,
+                color = c.textSecondary,
+            )
+        }
+    }
+
+    if (LocalWideLayout.current) {
+        SettingsColumns(
+            left = { thisDeviceCard(); syncSettingsCard(); accountCard() },
+            right = { pairCard(); devicesCard() },
         )
-        PearCapsuleButton(
-            label = "Delete account",
-            onClick = onDeleteRequested,
-            symbol = "trash",
-            style = PearButtonStyle.Destructive,
-        )
-        PearText(
-            "Deleting removes the account and everything synced to it. Data on this device stays.",
-            style = PearTheme.type.footnote,
-            color = c.textSecondary,
-        )
+    } else {
+        thisDeviceCard()
+        syncSettingsCard()
+        pairCard()
+        devicesCard()
+        accountCard()
     }
 }
 

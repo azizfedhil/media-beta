@@ -5,15 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -32,11 +28,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.glass.GlassCard
-import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.player.ui.PillItem
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
-import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
@@ -56,7 +50,6 @@ fun PlayerControlsSettingsScreen(
 ) {
     val env = LocalAppEnv.current
     val prefs = env.data.prefs
-    val bottomInset = LocalBottomInset.current
 
     val pinnedRaw = rememberPref(prefs, PrefKeys.PLAYER_PILL_PINNED) {
         it.string(PrefKeys.PLAYER_PILL_PINNED, PillItem.encodePinned(PillItem.defaultPinned))
@@ -98,74 +91,64 @@ fun PlayerControlsSettingsScreen(
 
     val isDefault = pinned == PillItem.defaultPinned && order == PillItem.defaultOrder
 
-    Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(top = 92.dp, bottom = bottomInset + 32.dp)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            PillPreview(order.filter { it in pinned })
-
-            GlassCard(Modifier.fillMaxWidth()) {
-                PearText("Always visible · ${pinned.size} of ${PillItem.MAX_PINNED}", style = PearTheme.type.headline)
-                PillItem.entries.forEach { item ->
-                    val on = item in pinned
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ItemLabel(item)
-                        Box(Modifier.alpha(if (isLocked(item)) 0.4f else 1f)) {
-                            DevChip(if (on) "Visible" else "Folded", on) { togglePinned(item) }
+    SettingsPage(title = "Player controls", onBack = onBack, modifier = modifier) {
+        PillPreview(order.filter { it in pinned })
+        SettingsColumns(
+            left = {
+                GlassCard(Modifier.fillMaxWidth()) {
+                    PearText("Always visible · ${pinned.size} of ${PillItem.MAX_PINNED}", style = PearTheme.type.headline)
+                    PillItem.entries.forEach { item ->
+                        val on = item in pinned
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            ItemLabel(item)
+                            Box(Modifier.alpha(if (isLocked(item)) 0.4f else 1f)) {
+                                DevChip(if (on) "Visible" else "Folded", on) { togglePinned(item) }
+                            }
                         }
                     }
+                    PearText(
+                        "These stay in the pill while it is folded. Everything else slides out to the left when you tap the arrow, and folds back after 5 seconds. A button only shows when it applies: Episodes for shows, Next for series, Audio when there is more than one track.",
+                        style = PearTheme.type.footnote,
+                        color = PearTheme.colors.textSecondary,
+                    )
                 }
-                PearText(
-                    "These stay in the pill while it is folded. Everything else slides out to the left when you tap the arrow, and folds back after 5 seconds. A button only shows when it applies: Episodes for shows, Next for series, Audio when there is more than one track.",
-                    style = PearTheme.type.footnote,
-                    color = PearTheme.colors.textSecondary,
-                )
-            }
-
-            GlassCard(Modifier.fillMaxWidth()) {
-                PearText("Order", style = PearTheme.type.headline)
-                order.forEach { item ->
-                    key(item) {
-                        OrderRow(
-                            item = item,
-                            onStep = { moveBy(item, it) },
-                            onDragEnd = { saveOrder(order) },
-                        )
+            },
+            right = {
+                GlassCard(Modifier.fillMaxWidth()) {
+                    PearText("Order", style = PearTheme.type.headline)
+                    order.forEach { item ->
+                        key(item) {
+                            OrderRow(
+                                item = item,
+                                onStep = { moveBy(item, it) },
+                                onDragEnd = { saveOrder(order) },
+                            )
+                        }
                     }
+                    PearText(
+                        "Drag the handles to rearrange the buttons, left to right. When the pill is unfolded, the buttons that aren't always visible slide out to the left of the others; each group keeps this order.",
+                        style = PearTheme.type.footnote,
+                        color = PearTheme.colors.textSecondary,
+                    )
                 }
-                PearText(
-                    "Drag the handles to rearrange the buttons, left to right. When the pill is unfolded, the buttons that aren't always visible slide out to the left of the others; each group keeps this order.",
-                    style = PearTheme.type.footnote,
-                    color = PearTheme.colors.textSecondary,
-                )
-            }
 
-            GlassCard(Modifier.fillMaxWidth()) {
-                PearText(
-                    "Reset to default",
-                    style = PearTheme.type.subheadline.weight(FontWeight.SemiBold),
-                    color = PearTheme.colors.accent,
-                    modifier = Modifier.alpha(if (isDefault) 0.35f else 1f).clickable(enabled = !isDefault) {
-                        savePinned(PillItem.defaultPinned)
-                        order = PillItem.defaultOrder
-                        saveOrder(PillItem.defaultOrder)
-                    },
-                )
-            }
-        }
-
-        GlassTopBar(
-            title = "Player controls",
-            modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
-            onBack = onBack,
+                GlassCard(Modifier.fillMaxWidth()) {
+                    PearText(
+                        "Reset to default",
+                        style = PearTheme.type.subheadline.weight(FontWeight.SemiBold),
+                        color = PearTheme.colors.accent,
+                        modifier = Modifier.alpha(if (isDefault) 0.35f else 1f).clickable(enabled = !isDefault) {
+                            savePinned(PillItem.defaultPinned)
+                            order = PillItem.defaultOrder
+                            saveOrder(PillItem.defaultOrder)
+                        },
+                    )
+                }
+            },
         )
     }
 }

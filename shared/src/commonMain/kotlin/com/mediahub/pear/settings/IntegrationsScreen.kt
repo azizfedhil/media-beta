@@ -2,14 +2,11 @@ package com.mediahub.pear.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,10 +22,9 @@ import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.meta.MdbUserList
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
-import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.shell.LocalAppEnv
-import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.player.ui.PlayerSpinner
 import com.mediahub.pear.shell.TextInput
 import com.mediahub.pear.shell.rememberPref
@@ -43,12 +39,10 @@ import kotlinx.coroutines.delay
 fun IntegrationsScreen(
     onBack: () -> Unit,
     onNavigateMediaServers: () -> Unit,
-    onNavigatePearPair: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val env = LocalAppEnv.current
     val prefs = env.data.prefs
-    val bottomInset = LocalBottomInset.current
 
     var tmdbKey by remember { mutableStateOf(prefs.string(PrefKeys.TMDB_KEY, "")) }
     var tvdbKey by remember { mutableStateOf(prefs.string(PrefKeys.TVDB_KEY, "")) }
@@ -56,14 +50,8 @@ fun IntegrationsScreen(
     var mdbKey by remember { mutableStateOf(prefs.string(PrefKeys.MDBLIST_KEY, "")) }
     var skipEnabled by remember { mutableStateOf(prefs.bool(PrefKeys.SKIP_ENABLED, true)) }
 
-    Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(top = 92.dp, bottom = bottomInset + 32.dp)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+    SettingsPage(title = "Integrations", onBack = onBack, modifier = modifier) {
+        val tmdbCard: @Composable ColumnScope.() -> Unit = {
             // TMDB Section
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -77,7 +65,9 @@ fun IntegrationsScreen(
                 )
                 TextInput(tmdbKey, { tmdbKey = it; prefs.setString(PrefKeys.TMDB_KEY, it.trim()) }, "Optional custom TMDB key")
             }
+        }
 
+        val tvdbCard: @Composable ColumnScope.() -> Unit = {
             // TheTVDB Section
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -88,7 +78,9 @@ fun IntegrationsScreen(
                 TextInput(tvdbKey, { tvdbKey = it; prefs.setString(PrefKeys.TVDB_KEY, it.trim()) }, "TVDB API key")
                 TextInput(tvdbPin, { tvdbPin = it; prefs.setString(PrefKeys.TVDB_PIN, it.trim()) }, "PIN (subscriber keys only)")
             }
+        }
 
+        val mdbCard: @Composable ColumnScope.() -> Unit = {
             // MDBList Section
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -99,7 +91,9 @@ fun IntegrationsScreen(
                 TextInput(mdbKey, { mdbKey = it; prefs.setString(PrefKeys.MDBLIST_KEY, it.trim()) }, "MDBList API key")
                 if (mdbKey.isNotBlank()) MdbListPicker(mdbKey)
             }
+        }
 
+        val simklCard: @Composable ColumnScope.() -> Unit = {
             // Simkl Section
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -113,25 +107,9 @@ fun IntegrationsScreen(
                 )
                 SimklConnectControls()
             }
+        }
 
-            // Pear.pair Card: sync across devices (PearPairScreen)
-            GlassCard(Modifier.fillMaxWidth(), onClick = onNavigatePearPair) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PearIcon("arrow.triangle.2.circlepath", size = 18.dp, tint = PearTheme.colors.accent)
-                        Column {
-                            PearText("Pear.pair", style = PearTheme.type.headline)
-                            PearText(
-                                if (env.data.pairStore.isSignedIn) "Signed in on this device" else "Sync profiles and history across devices",
-                                style = PearTheme.type.footnote,
-                                color = PearTheme.colors.textSecondary,
-                            )
-                        }
-                    }
-                    PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
-                }
-            }
-
+        val mediaCard: @Composable ColumnScope.() -> Unit = {
             // Media Servers Card (Jellyfin & Plex)
             GlassCard(Modifier.fillMaxWidth(), onClick = onNavigateMediaServers) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -150,7 +128,9 @@ fun IntegrationsScreen(
                     PearIcon("chevron.right", size = 14.dp, tint = PearTheme.colors.textSecondary)
                 }
             }
+        }
 
+        val introCard: @Composable ColumnScope.() -> Unit = {
             // TheIntroDB Section
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -164,7 +144,14 @@ fun IntegrationsScreen(
             }
         }
 
-        GlassTopBar(title = "Integrations", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp), onBack = onBack)
+        if (LocalWideLayout.current) {
+            SettingsColumns(
+                left = { tmdbCard(); tvdbCard(); mdbCard(); introCard() },
+                right = { simklCard(); mediaCard() },
+            )
+        } else {
+            tmdbCard(); tvdbCard(); mdbCard(); simklCard(); mediaCard(); introCard()
+        }
     }
 }
 

@@ -17,9 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -35,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassCard
-import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.openUrl
 import com.mediahub.pear.preview.DevChip
 import com.mediahub.pear.servers.JellyfinAPI
@@ -44,7 +41,6 @@ import com.mediahub.pear.servers.PlexAPI
 import com.mediahub.pear.servers.PlexPin
 import com.mediahub.pear.servers.PlexServerInfo
 import com.mediahub.pear.shell.LocalAppEnv
-import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.TextInput
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearText
@@ -60,97 +56,93 @@ fun MediaServersScreen(
 ) {
     val env = LocalAppEnv.current
     val store = env.data.mediaServers
-    val bottomInset = LocalBottomInset.current
 
     var showAddJellyfin by remember { mutableStateOf(false) }
     var showAddPlex by remember { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(top = 92.dp, bottom = bottomInset + 32.dp)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            // Existing Server Accounts
-            if (store.accounts.isNotEmpty()) {
-                GlassCard(Modifier.fillMaxWidth()) {
-                    PearText("Connected servers", style = PearTheme.type.headline)
-                    store.accounts.forEach { account -> key(account.id) {
-                        val anchor = remember { MenuAnchor() }
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 6.dp).menuAnchor(anchor).clickOrMenu(null, onClick = {}, onMenu = {
-                                env.shell.openContextMenu(
-                                    ContextMenuRequest(
-                                        anchor.rect(),
-                                        listOf(
-                                            ContextMenuItem(
-                                                if (account.showOnHome) "Hide from Home" else "Show on Home",
-                                                if (account.showOnHome) "eye.slash" else "eye",
-                                            ) { store.setShowOnHome(account.id, !account.showOnHome) },
-                                            ContextMenuItem("Remove", "trash", destructive = true) { store.remove(account.id) },
-                                        ),
-                                    ),
-                                )
-                            }),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                PearIcon(account.kind.symbol, size = 20.dp, tint = PearTheme.colors.accent)
-                                Column {
-                                    PearText(account.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
-                                    PearText(
-                                        "${account.kind.title} · ${account.host}",
-                                        style = PearTheme.type.caption,
-                                        color = PearTheme.colors.textSecondary,
-                                    )
+        SettingsPage(title = "Media servers", onBack = onBack) {
+            SettingsColumns(
+                left = {
+                    // Existing Server Accounts
+                    if (store.accounts.isNotEmpty()) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            PearText("Connected servers", style = PearTheme.type.headline)
+                            store.accounts.forEach { account -> key(account.id) {
+                                val anchor = remember { MenuAnchor() }
+                                Row(
+                                    Modifier.fillMaxWidth().padding(vertical = 6.dp).menuAnchor(anchor).clickOrMenu(null, onClick = {}, onMenu = {
+                                        env.shell.openContextMenu(
+                                            ContextMenuRequest(
+                                                anchor.rect(),
+                                                listOf(
+                                                    ContextMenuItem(
+                                                        if (account.showOnHome) "Hide from Home" else "Show on Home",
+                                                        if (account.showOnHome) "eye.slash" else "eye",
+                                                    ) { store.setShowOnHome(account.id, !account.showOnHome) },
+                                                    ContextMenuItem("Remove", "trash", destructive = true) { store.remove(account.id) },
+                                                ),
+                                            ),
+                                        )
+                                    }),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        PearIcon(account.kind.symbol, size = 20.dp, tint = PearTheme.colors.accent)
+                                        Column {
+                                            PearText(account.name, style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+                                            PearText(
+                                                "${account.kind.title} · ${account.host}",
+                                                style = PearTheme.type.caption,
+                                                color = PearTheme.colors.textSecondary,
+                                            )
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        DevChip(if (account.showOnHome) "Home" else "Hidden", account.showOnHome) {
+                                            store.setShowOnHome(account.id, !account.showOnHome)
+                                        }
+                                        DevChip(if (account.enabled) "ON" else "OFF", account.enabled) {
+                                            store.setEnabled(account.id, !account.enabled)
+                                        }
+                                        GlassButton(
+                                            onClick = { store.remove(account.id) },
+                                            symbol = "trash",
+                                            size = 32.dp,
+                                        )
+                                    }
                                 }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                DevChip(if (account.showOnHome) "Home" else "Hidden", account.showOnHome) {
-                                    store.setShowOnHome(account.id, !account.showOnHome)
-                                }
-                                DevChip(if (account.enabled) "ON" else "OFF", account.enabled) {
-                                    store.setEnabled(account.id, !account.enabled)
-                                }
-                                GlassButton(
-                                    onClick = { store.remove(account.id) },
-                                    symbol = "trash",
-                                    size = 32.dp,
-                                )
                             }
                         }
                     }
+                },
+                right = {
+                    // Add server buttons
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GlassButton(
+                            onClick = { showAddJellyfin = true },
+                            symbol = "server.rack",
+                            label = "Add Jellyfin",
+                            modifier = Modifier.weight(1f),
+                        )
+                        GlassButton(
+                            onClick = { showAddPlex = true },
+                            symbol = "play.rectangle.fill",
+                            label = "Add Plex",
+                            modifier = Modifier.weight(1f),
+                        )
                     }
-                }
-            }
 
-            // Add server buttons
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GlassButton(
-                    onClick = { showAddJellyfin = true },
-                    symbol = "server.rack",
-                    label = "Add Jellyfin",
-                    modifier = Modifier.weight(1f),
-                )
-                GlassButton(
-                    onClick = { showAddPlex = true },
-                    symbol = "play.rectangle.fill",
-                    label = "Add Plex",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            PearText(
-                "Your media servers provide direct-play sources, appearing before third-party add-ons whenever you open a title in your library.",
-                style = PearTheme.type.footnote,
-                color = PearTheme.colors.textSecondary,
+                    PearText(
+                        "Your media servers provide direct-play sources, appearing before third-party add-ons whenever you open a title in your library.",
+                        style = PearTheme.type.footnote,
+                        color = PearTheme.colors.textSecondary,
+                    )
+                },
             )
         }
-
-        GlassTopBar(title = "Media servers", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp), onBack = onBack)
 
         if (showAddJellyfin) {
             AddJellyfinDialog(onDismiss = { showAddJellyfin = false })

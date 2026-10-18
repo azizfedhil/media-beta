@@ -1,14 +1,17 @@
 package com.mediahub.pear.downloads
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicReference
 
 
 
@@ -44,6 +47,8 @@ class FolderDownloadFiles(private val dir: File) : DownloadFiles {
         close(name)
         File(dir, name).delete()
     }
+
+    override fun path(name: String): String? = File(dir, name).takeIf { it.isFile }?.absolutePath
 }
 
 /** The statuses that send a download to another address. */
@@ -55,7 +60,7 @@ private const val MAX_REDIRECTS = 5
 /**
  * Streams a link with the JDK's HTTP client, so nothing is held in memory whole. A range request resumes a partial file.
  * Redirects are followed by hand, because HttpURLConnection will not follow one from http to https. Cancelling the download
- * is checked between reads (a read blocks for at most the read timeout).
+ * closes the open connection, so a read that is blocked stops at once instead of at the read timeout.
  */
 class HttpDownloadTransport(private val userAgent: String = DOWNLOAD_USER_AGENT) : DownloadTransport {
     @Suppress("DEPRECATION")
@@ -67,54 +72,70 @@ class HttpDownloadTransport(private val userAgent: String = DOWNLOAD_USER_AGENT)
         onChunk: (ByteArray, Int) -> Unit,
     ) {
         withContext(Dispatchers.IO) {
-            try {
-                val connection = open(url, headers, offset)
+            // A pause or a delete cancels this job while a read is blocked, and a blocked read cannot see that. The watcher
+            // closes whichever connection is open instead, which makes the read throw at once.
+            val live = AtomicReference<HttpURLConnection?>(null)
+            val watcher = launch {
                 try {
-                    val code = connection.responseCode
-                    if (code == 416 && offset > 0) {
-                        // The range starts past the end: the file is already whole.
-                        onTotal(offset)
-                        return@withContext
-                    }
-                    if (code !in 200..299) {
-                        // A server error or a busy source may pass in a moment; a refusal or a missing file will not.
-                        throw DownloadFailure(friendlyHttpError(code), transient = code >= 500 || code == 429)
-                    }
-                    // A web page or a playlist behind a "video" link would be saved as the file: refuse it before any byte is written.
-                    notAVideoMessage(connection.contentType)?.let { throw DownloadFailure(it) }
+                    delay(Long.MAX_VALUE)
+                } finally {
+                    live.get()?.let { runCatching { it.disconnect() } }
+                }
+            }
+            try {
+                try {
+                    val connection = open(url, headers, offset) { live.set(it) }
+                    try {
+                        val code = connection.responseCode
+                        if (code == 416 && offset > 0) {
+                            // The range starts past the end: the file is already whole.
+                            onTotal(offset)
+                            return@withContext
+                        }
+                        if (code !in 200..299) {
+                            // A server error or a busy source may pass in a moment; a refusal or a missing file will not.
+                            throw DownloadFailure(friendlyHttpError(code), transient = code >= 500 || code == 429)
+                        }
+                        // A web page or a playlist behind a "video" link would be saved as the file: refuse it before any byte is written.
+                        notAVideoMessage(connection.contentType)?.let { throw DownloadFailure(it) }
 
-                    val ranged = code == 206
-                    val total = if (ranged) totalFromRange(connection.getHeaderField("Content-Range")) else connection.contentLengthLong.takeIf { it >= 0 }
-                    onTotal(total ?: -1L)
+                        val ranged = code == 206
+                        val total = if (ranged) totalFromRange(connection.getHeaderField("Content-Range")) else connection.contentLengthLong.takeIf { it >= 0 }
+                        onTotal(total ?: -1L)
 
-                    // A server that ignores the range sends the whole file again: skip the part already on disk.
-                    var skip = if (ranged) 0L else offset
-                    connection.inputStream.use { input ->
-                        val buffer = ByteArray(64 * 1024)
-                        while (true) {
-                            currentCoroutineContext().ensureActive()
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            var start = 0
-                            if (skip > 0) {
-                                start = minOf(skip, read.toLong()).toInt()
-                                skip -= start
-                            }
-                            val count = read - start
-                            if (count > 0) {
-                                // A cancelled download (paused or deleted) must not write this piece: its file may be gone already.
+                        // A server that ignores the range sends the whole file again: skip the part already on disk.
+                        var skip = if (ranged) 0L else offset
+                        connection.inputStream.use { input ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
                                 currentCoroutineContext().ensureActive()
-                                if (start > 0) buffer.copyInto(buffer, 0, start, read)
-                                onChunk(buffer, count)
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                var start = 0
+                                if (skip > 0) {
+                                    start = minOf(skip, read.toLong()).toInt()
+                                    skip -= start
+                                }
+                                val count = read - start
+                                if (count > 0) {
+                                    // A cancelled download (paused or deleted) must not write this piece: its file may be gone already.
+                                    currentCoroutineContext().ensureActive()
+                                    if (start > 0) buffer.copyInto(buffer, 0, start, read)
+                                    onChunk(buffer, count)
+                                }
                             }
                         }
+                    } finally {
+                        connection.disconnect()
                     }
-                } finally {
-                    connection.disconnect()
+                } catch (e: IOException) {
+                    // A pause or a delete closes the connection on purpose: that is not a lost connection, so it is never retried.
+                    currentCoroutineContext().ensureActive()
+                    // A dropped or timed-out connection is worth another try from the bytes already on disk.
+                    throw DownloadFailure("The connection was lost (${e.message ?: "no detail"}).", transient = true)
                 }
-            } catch (e: IOException) {
-                // A dropped or timed-out connection is worth another try from the bytes already on disk.
-                throw DownloadFailure("The connection was lost (${e.message ?: "no detail"}).", transient = true)
+            } finally {
+                watcher.cancel()
             }
         }
     }
@@ -124,11 +145,17 @@ class HttpDownloadTransport(private val userAgent: String = DOWNLOAD_USER_AGENT)
      * headers and range.
      */
     @Suppress("DEPRECATION")
-    private fun open(start: String, headers: Map<String, String>, offset: Long): HttpURLConnection {
+    private fun open(
+        start: String,
+        headers: Map<String, String>,
+        offset: Long,
+        track: (HttpURLConnection) -> Unit,
+    ): HttpURLConnection {
         var current = start
         var hops = 0
         while (true) {
             val connection = URL(current).openConnection() as HttpURLConnection
+            track(connection)
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 15_000
             connection.readTimeout = 30_000

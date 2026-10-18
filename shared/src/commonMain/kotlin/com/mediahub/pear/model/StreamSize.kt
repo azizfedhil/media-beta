@@ -42,3 +42,16 @@ object StreamSize {
         return "${tenths / 10}.${tenths % 10}"
     }
 }
+
+/** A transfer speed as the Downloads list shows it: "3.2 MB/s". */
+fun speedText(bytesPerSecond: Long): String = StreamSize.format(bytesPerSecond) + "/s"
+
+/** Time left, in words: "42 s left", "6 min left", "1 h 5 min left". */
+fun etaText(seconds: Long): String {
+    val s = seconds.coerceAtLeast(0L)
+    return when {
+        s < 60 -> "$s s left"
+        s < 3_600 -> "${s / 60} min left"
+        else -> "${s / 3_600} h ${(s % 3_600) / 60} min left"
+    }
+}

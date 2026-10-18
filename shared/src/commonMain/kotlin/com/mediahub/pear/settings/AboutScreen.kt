@@ -2,26 +2,22 @@ package com.mediahub.pear.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.glass.GlassCard
-import com.mediahub.pear.glass.GlassTopBar
 import com.mediahub.pear.appVersion
 import com.mediahub.pear.data.PrefKeys
 import com.mediahub.pear.openUrl
 import com.mediahub.pear.shell.LocalAppEnv
-import com.mediahub.pear.shell.LocalBottomInset
+import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.PearSwitch
 import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.theme.PearIcon
@@ -34,18 +30,11 @@ fun AboutScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bottomInset = LocalBottomInset.current
     val prefs = LocalAppEnv.current.data.prefs
     val devTools = rememberPref(prefs, PrefKeys.DEV_TOOLS) { it.bool(PrefKeys.DEV_TOOLS, false) }
 
-    Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(top = 92.dp, bottom = bottomInset + 32.dp)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+    SettingsPage(title = "About", onBack = onBack, modifier = modifier) {
+        val pearCard: @Composable ColumnScope.() -> Unit = {
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PearText("Pear.", style = PearTheme.type.title.weight(FontWeight.Bold))
@@ -57,7 +46,9 @@ fun AboutScreen(
                     color = PearTheme.colors.textSecondary,
                 )
             }
+        }
 
+        val openSource: @Composable ColumnScope.() -> Unit = {
             GlassCard(Modifier.fillMaxWidth()) {
                 PearText("Open-source components", style = PearTheme.type.headline)
 
@@ -67,7 +58,9 @@ fun AboutScreen(
                 ComponentRow("librqbit", "Peer-to-peer torrent streaming engine (Apache-2.0)", "https://github.com/ikatson/rqbit")
                 ComponentRow("Lucide", "Icon set (ISC licence), a fork of Feather (MIT)", "https://lucide.dev")
             }
+        }
 
+        val services: @Composable ColumnScope.() -> Unit = {
             GlassCard(Modifier.fillMaxWidth()) {
                 PearText("Services", style = PearTheme.type.headline)
                 ComponentRow("TMDB", "Metadata, posters, trending, recommendations", "https://themoviedb.org")
@@ -76,7 +69,9 @@ fun AboutScreen(
                 ComponentRow("Simkl", "Watch tracking, scrobbling, and library sync", "https://simkl.com")
                 ComponentRow("Jellyfin & Plex", "Home media server streaming", "")
             }
+        }
 
+        val developerCard: @Composable ColumnScope.() -> Unit = {
             GlassCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -92,7 +87,17 @@ fun AboutScreen(
             }
         }
 
-        GlassTopBar(title = "About", modifier = Modifier.align(Alignment.TopCenter).padding(16.dp), onBack = onBack)
+        if (LocalWideLayout.current) {
+            SettingsColumns(
+                left = { pearCard(); developerCard() },
+                right = { openSource(); services() },
+            )
+        } else {
+            pearCard()
+            openSource()
+            services()
+            developerCard()
+        }
     }
 }
 
