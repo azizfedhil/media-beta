@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -153,7 +154,8 @@ fun EpisodeCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    val hoverScale by animateFloatAsState(if (isHovered) 1.02f else 1.0f, PearMotion.press<Float>())
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(if (isPressed) 0.96f else if (isHovered) 1.02f else 1f, PearMotion.press<Float>())
 
     val accent = PearTheme.colors.accent
 
@@ -161,7 +163,7 @@ fun EpisodeCard(
         modifier = modifier
             .width(cardWidth)
             .height(cardHeight)
-            .graphicsLayer { scaleX = hoverScale; scaleY = hoverScale }
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
             .hoverable(interactionSource)
             .pointerHoverIcon(PointerIcon.Hand)
             .clip(RoundedCornerShape(radius))

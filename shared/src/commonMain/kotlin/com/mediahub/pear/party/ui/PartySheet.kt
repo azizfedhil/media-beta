@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.cloud.CloudError
 import com.mediahub.pear.data.DesktopClipboard
+import androidx.compose.animation.AnimatedVisibilityScope
 import com.mediahub.pear.glass.ContentCard
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.log.PearLog
@@ -51,6 +52,7 @@ import com.mediahub.pear.shell.Route
 import com.mediahub.pear.shell.TextInput
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
+import com.mediahub.pear.theme.PearTransitions
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -65,7 +67,7 @@ private val OkGreen = Color(0xFF34C759)
  * buttons for a guest. The shell draws it over every page, the player included.
  */
 @Composable
-fun PartySheetOverlay(onDismiss: () -> Unit) {
+fun AnimatedVisibilityScope.PartySheetOverlay(onDismiss: () -> Unit) {
     val env = LocalAppEnv.current
     val party = env.data.party
     val role by party.role.collectAsState()
@@ -78,7 +80,9 @@ fun PartySheetOverlay(onDismiss: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         ContentCard(
-            Modifier.padding(16.dp).widthIn(max = 460.dp).heightIn(max = 620.dp).clickable(enabled = false) {},
+            Modifier.padding(16.dp).widthIn(max = 460.dp).heightIn(max = 620.dp)
+                .animateEnterExit(enter = PearTransitions.dialogIn, exit = PearTransitions.dialogOut)
+                .clickable(enabled = false) {},
         ) {
             Row(
                 Modifier.fillMaxWidth(),

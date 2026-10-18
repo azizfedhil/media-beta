@@ -17,8 +17,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -72,6 +70,7 @@ import com.mediahub.pear.net.attempt
 import com.mediahub.pear.net.rememberDominantColor
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.WideScale
+import com.mediahub.pear.shell.mouseDragScroll
 import com.mediahub.pear.shell.shiftWheelHorizontal
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
@@ -212,7 +211,6 @@ private fun HeroInfo(
     val moreSource = remember { MutableInteractionSource() }
     // The ratings also scroll by mouse drag and Shift + wheel, as the Home rows do.
     val ratingsScroll = rememberScrollState()
-    val ratingsScope = rememberCoroutineScope()
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (wide) 16.dp else 10.dp)) {
         HeroTypePill(item, wide)
         TitleArt(
@@ -224,10 +222,7 @@ private fun HeroInfo(
         if (ratings.isNotEmpty()) {
             Row(
                 Modifier.fillMaxWidth()
-                    .draggable(
-                        rememberDraggableState { d -> ratingsScope.launch { ratingsScroll.scrollBy(-d) } },
-                        Orientation.Horizontal,
-                    )
+                    .mouseDragScroll(ratingsScroll, Orientation.Horizontal)
                     .shiftWheelHorizontal { ratingsScroll.scrollBy(it) }
                     .horizontalScroll(ratingsScroll),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

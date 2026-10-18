@@ -2,6 +2,8 @@ package com.mediahub.pear.theme
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,25 +14,28 @@ import androidx.compose.animation.slideOutVertically
 
 /**
  * Enter and leave motion for everything that appears over the app, so the whole desktop app moves the same way. Built
- * from [PearMotion]: the standard curve for fades, the iOS push curve for sheets. Leaving is always a little quicker
- * than arriving.
+ * from [PearMotion]: fades use its durations, and the panels spring in. Leaving is always a little quicker than arriving.
  */
 object PearTransitions {
-    /** A floating panel or menu: fades in while it grows from 96%, and shrinks out the same way. */
-    val overlayIn: EnterTransition =
-        fadeIn(tween(PearMotion.BASE, easing = PearMotion.standard)) +
-            scaleIn(initialScale = 0.96f, animationSpec = tween(PearMotion.BASE, easing = PearMotion.standard))
-    val overlayOut: ExitTransition =
-        fadeOut(tween(PearMotion.FAST, easing = PearMotion.standard)) +
-            scaleOut(targetScale = 0.96f, animationSpec = tween(PearMotion.FAST, easing = PearMotion.standard))
+    /** The dim behind an overlay. It only fades, so the scrim never moves under the panel. */
+    val overlayScrimIn: EnterTransition = fadeIn(tween(PearMotion.BASE))
+    val overlayScrimOut: ExitTransition = fadeOut(tween(PearMotion.FAST))
 
-    /** A bottom sheet (phone layout): rises from below on the iOS push curve, and drops back the same way. */
+    /** A centred panel (dialog, menu-sized card): fades in while it springs up from 90%, and eases out to 96%. */
+    val dialogIn: EnterTransition =
+        fadeIn(tween(PearMotion.BASE)) +
+            scaleIn(spring(dampingRatio = 0.82f, stiffness = 420f), initialScale = 0.9f)
+    val dialogOut: ExitTransition =
+        fadeOut(tween(PearMotion.FAST)) +
+            scaleOut(tween(PearMotion.FAST, easing = FastOutLinearInEasing), targetScale = 0.96f)
+
+    /** A bottom sheet: springs up from below, and drops back on a short ease-in. */
     val sheetIn: EnterTransition =
-        fadeIn(tween(PearMotion.BASE, easing = PearMotion.standard)) +
-            slideInVertically(animationSpec = tween(PearMotion.PUSH, easing = PearMotion.push)) { it / 5 }
+        slideInVertically(spring(dampingRatio = 0.88f, stiffness = 380f)) { it } +
+            fadeIn(tween(PearMotion.FAST))
     val sheetOut: ExitTransition =
-        fadeOut(tween(PearMotion.FAST, easing = PearMotion.standard)) +
-            slideOutVertically(animationSpec = tween(PearMotion.FAST, easing = PearMotion.standard)) { it / 5 }
+        slideOutVertically(tween(240, easing = FastOutLinearInEasing)) { it } +
+            fadeOut(tween(240))
 
     /** A player panel: a short rise and a fade. */
     val panelIn: EnterTransition =

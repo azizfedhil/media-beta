@@ -95,6 +95,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.togetherWith
 import com.mediahub.pear.theme.PearTransitions
 
@@ -756,7 +758,7 @@ fun PlayerScreen(
                 AnimatedContent(
                     targetState = panel,
                     modifier = Modifier.fillMaxSize(),
-                    transitionSpec = { PearTransitions.panelIn togetherWith PearTransitions.panelOut },
+                    transitionSpec = { PearTransitions.panelIn togetherWith PearTransitions.panelOut using SizeTransform(clip = false) { _, _ -> snap() } },
                     label = "player-panel",
                 ) { openPanel ->
                     when (openPanel) {

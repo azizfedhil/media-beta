@@ -3,9 +3,6 @@ package com.mediahub.pear.home
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +44,7 @@ import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
 import com.mediahub.pear.shell.LocalSidebarInset
 import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.shell.mouseDragScroll
 import com.mediahub.pear.shell.rememberPref
 import kotlinx.coroutines.launch
 
@@ -116,10 +114,7 @@ fun HomeScreen(
                     Box(Modifier.weight(1f).fillMaxHeight()) {
                         Column(
                             Modifier.fillMaxSize()
-                                .draggable(
-                                    rememberDraggableState { delta -> scope.launch { scroll.scrollBy(-delta) } },
-                                    Orientation.Vertical,
-                                )
+                                .mouseDragScroll(scroll, Orientation.Vertical)
                                 .verticalScroll(scroll),
                         ) {
                             Column(

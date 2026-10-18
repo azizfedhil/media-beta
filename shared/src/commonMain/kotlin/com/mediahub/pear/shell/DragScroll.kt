@@ -4,6 +4,10 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.rememberSplineBasedDecay
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +34,8 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -43,8 +49,6 @@ fun DragLazyRow(
     state: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
     // Rows on the wide Home feed tell the shell how far they've been dragged (it folds the sidebar and hero away).
     val feed = LocalFeedCollapse.current
     if (feed != null) {
@@ -57,7 +61,7 @@ fun DragLazyRow(
         DisposableEffect(id) { onDispose { feed.forget(id) } }
     }
     LazyRow(
-        modifier = modifier.draggable(drag, Orientation.Horizontal).shiftWheelHorizontal { state.scrollBy(it) },
+        modifier = modifier.mouseDragScroll(state, Orientation.Horizontal).shiftWheelHorizontal { state.scrollBy(it) },
         state = state,
         contentPadding = contentPadding,
         horizontalArrangement = horizontalArrangement,
@@ -81,11 +85,9 @@ fun DragLazyGrid(
     state: LazyGridState = rememberLazyGridState(),
     content: LazyGridScope.() -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
     LazyHorizontalGrid(
         rows = GridCells.Fixed(rows),
-        modifier = modifier.draggable(drag, Orientation.Horizontal).shiftWheelHorizontal { state.scrollBy(it) },
+        modifier = modifier.mouseDragScroll(state, Orientation.Horizontal).shiftWheelHorizontal { state.scrollBy(it) },
         state = state,
         contentPadding = contentPadding,
         horizontalArrangement = horizontalArrangement,
@@ -131,7 +133,34 @@ fun Modifier.shiftWheelHorizontal(scrollBy: suspend (Float) -> Unit): Modifier =
  */
 @Composable
 fun Modifier.dragHorizontalScroll(state: ScrollState): Modifier {
+    return this.mouseDragScroll(state, Orientation.Horizontal).horizontalScroll(state).shiftWheelHorizontal { state.scrollBy(it) }
+}
+
+/**
+ * A mouse drag that keeps its speed: when the button is let go the row coasts on and slows, as a touch fling does. A new
+ * press stops the coast, and so does a drag the row cannot follow (it has reached its end).
+ */
+@Composable
+fun Modifier.mouseDragScroll(state: ScrollableState, orientation: Orientation): Modifier {
+    val decay = rememberSplineBasedDecay<Float>()
     val scope = rememberCoroutineScope()
-    val drag = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } }
-    return this.draggable(drag, Orientation.Horizontal).horizontalScroll(state).shiftWheelHorizontal { state.scrollBy(it) }
+    val fling = remember { arrayOfNulls<Job>(1) }
+    val drag = rememberDraggableState { delta -> state.dispatchRawDelta(-delta) }
+    return this.draggable(
+        state = drag,
+        orientation = orientation,
+        onDragStarted = { fling[0]?.cancel() },
+        onDragStopped = { v ->
+            fling[0] = scope.launch {
+                state.scroll {
+                    var last = 0f
+                    AnimationState(0f, -v).animateDecay(decay) {
+                        val d = value - last
+                        last = value
+                        if (abs(d - scrollBy(d)) > 0.5f) cancelAnimation()
+                    }
+                }
+            }
+        },
+    )
 }

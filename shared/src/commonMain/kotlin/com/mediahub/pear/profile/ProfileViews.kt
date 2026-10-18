@@ -1,5 +1,6 @@
 package com.mediahub.pear.profile
 
+import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -61,6 +62,7 @@ import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
+import com.mediahub.pear.theme.PearTransitions
 import com.mediahub.pear.theme.weight
 
 @Composable
@@ -142,7 +144,7 @@ private const val WIDE_PANEL_WIDTH_DP = 380
  * does.
  */
 @Composable
-fun ProfileSheetOverlay(
+fun AnimatedVisibilityScope.ProfileSheetOverlay(
     onDismiss: () -> Unit,
     onOpenProfileDetail: () -> Unit,
     onOpenDownloads: () -> Unit,
@@ -153,6 +155,8 @@ fun ProfileSheetOverlay(
 ) {
     val swallow = remember { MutableInteractionSource() }
     val outside = remember { MutableInteractionSource() }
+    val enter = if (sidebarWidth == null) PearTransitions.sheetIn else PearTransitions.dialogIn
+    val exit = if (sidebarWidth == null) PearTransitions.sheetOut else PearTransitions.dialogOut
     if (sidebarWidth == null) {
         val drag = rememberSheetDrag(expandable = false, onDismiss = onDismiss)
         Box(
@@ -168,6 +172,7 @@ fun ProfileSheetOverlay(
                 onOpenWatchParty = onOpenWatchParty,
                 drag = drag,
                 modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
+                    .animateEnterExit(enter = enter, exit = exit)
                     .clickable(interactionSource = swallow, indication = null) {},
             )
         }
@@ -185,6 +190,7 @@ fun ProfileSheetOverlay(
                     onOpenWatchParty = onOpenWatchParty,
                     floating = true,
                     modifier = Modifier.width(WIDE_PANEL_WIDTH_DP.dp)
+                        .animateEnterExit(enter = enter, exit = exit)
                         .clickable(interactionSource = swallow, indication = null) {},
                 )
             }

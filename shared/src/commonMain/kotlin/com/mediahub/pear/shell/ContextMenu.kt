@@ -1,5 +1,12 @@
 package com.mediahub.pear.shell
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -17,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -33,6 +42,7 @@ import com.mediahub.pear.history.isInActiveLibrary
 import com.mediahub.pear.history.removeFromActiveLibrary
 import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.party.PartyRole
+import com.mediahub.pear.theme.PearMotion
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -73,7 +83,7 @@ fun Modifier.menuAnchor(anchor: MenuAnchor): Modifier = onGloballyPositioned { a
  * on an item runs it and then closes.
  */
 @Composable
-fun ContextMenuOverlay(request: ContextMenuRequest, onClose: () -> Unit) {
+fun AnimatedVisibilityScope.ContextMenuOverlay(request: ContextMenuRequest, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val swallow = remember { MutableInteractionSource() }
@@ -89,15 +99,26 @@ fun ContextMenuOverlay(request: ContextMenuRequest, onClose: () -> Unit) {
         val menuW = menuSize.width.toFloat()
         val menuH = menuSize.height.toFloat()
         val a = request.anchor
-        val x = if (a.right + gap + menuW <= containerW - edge) a.right + gap else a.left - gap - menuW
+        // The menu opens on the side of the anchor that has room, and grows out of the edge it is attached to.
+        val opensRight = a.right + gap + menuW <= containerW - edge
+        val x = if (opensRight) a.right + gap else a.left - gap - menuW
         val xs = x.coerceIn(edge, max(edge, containerW - menuW - edge))
         val ys = a.top.coerceIn(edge, max(edge, containerH - menuH - edge))
+        val origin = TransformOrigin(if (opensRight) 0f else 1f, 0f)
 
         Box(
             Modifier
                 .offset { IntOffset(xs.roundToInt(), ys.roundToInt()) }
                 .width(MENU_WIDTH_DP.dp)
                 .onSizeChanged { menuSize = it }
+                // Hidden until its size is known, so it never shows at the wrong place on the first frame.
+                .graphicsLayer { alpha = if (menuSize == IntSize.Zero) 0f else 1f }
+                .animateEnterExit(
+                    enter = scaleIn(spring(dampingRatio = 0.8f, stiffness = 500f), initialScale = 0.85f, transformOrigin = origin) +
+                        fadeIn(tween(PearMotion.FAST)),
+                    exit = scaleOut(tween(PearMotion.FAST), targetScale = 0.92f, transformOrigin = origin) +
+                        fadeOut(tween(PearMotion.FAST)),
+                )
                 .clickable(interactionSource = swallow, indication = null) {},
         ) {
             GlassMenu {

@@ -282,13 +282,10 @@ private fun ShellOverlays(
     sidebarWidth: Dp? = null,
     onProfiles: (Boolean) -> Unit,
 ) {
-    val wide = LocalWideLayout.current
-    val panelIn = if (wide) PearTransitions.overlayIn else PearTransitions.sheetIn
-    val panelOut = if (wide) PearTransitions.overlayOut else PearTransitions.sheetOut
     val picker = retainedWhilePresent(shell.sourcePicker)
     val menu = retainedWhilePresent(shell.contextMenu)
 
-    AnimatedVisibility(visible = showProfiles, enter = panelIn, exit = panelOut) {
+    AnimatedVisibility(visible = showProfiles, enter = PearTransitions.overlayScrimIn, exit = PearTransitions.overlayScrimOut) {
         ProfileSheetOverlay(
             sidebarWidth = sidebarWidth,
             onDismiss = { onProfiles(false) },
@@ -316,16 +313,16 @@ private fun ShellOverlays(
     }
     // A guest's player opens by itself when the room has a source (batch K6).
     PartyGuestOpener(shell)
-    AnimatedVisibility(visible = shell.partySheetOpen, enter = panelIn, exit = panelOut) {
+    AnimatedVisibility(visible = shell.partySheetOpen, enter = PearTransitions.overlayScrimIn, exit = PearTransitions.overlayScrimOut) {
         PartySheetOverlay(onDismiss = { shell.closeParty() })
     }
-    AnimatedVisibility(visible = shell.sourcePicker != null, enter = panelIn, exit = panelOut) {
+    AnimatedVisibility(visible = shell.sourcePicker != null, enter = PearTransitions.overlayScrimIn, exit = PearTransitions.overlayScrimOut) {
         picker?.let { SourcePickerOverlay(it, onClose = { shell.closeSourcePicker() }) }
     }
     AnimatedVisibility(
         visible = shell.contextMenu != null,
-        enter = PearTransitions.overlayIn,
-        exit = PearTransitions.overlayOut,
+        enter = PearTransitions.overlayScrimIn,
+        exit = PearTransitions.overlayScrimOut,
     ) {
         menu?.let { ContextMenuOverlay(it, onClose = { shell.closeContextMenu() }) }
     }

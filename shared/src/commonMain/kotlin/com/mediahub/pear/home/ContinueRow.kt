@@ -21,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -194,7 +195,8 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
-    val lift by animateFloatAsState(if (hovered) 1.02f else 1f, PearMotion.press<Float>())
+    val pressed by source.collectIsPressedAsState()
+    val lift by animateFloatAsState(if (pressed) 0.96f else if (hovered) 1.02f else 1f, PearMotion.press<Float>())
     // The text follows the layout, not the hover lift: 20% larger in the wide layout.
     val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
     val left = Fmt.remaining(entry.duration - entry.position)
@@ -261,7 +263,8 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, onMenu: (Rect) -> 
     val source = remember { MutableInteractionSource() }
     val anchor = remember { MenuAnchor() }
     val hovered by source.collectIsHoveredAsState()
-    val lift by animateFloatAsState(if (hovered) 1.02f else 1f, PearMotion.press<Float>())
+    val pressed by source.collectIsPressedAsState()
+    val lift by animateFloatAsState(if (pressed) 0.96f else if (hovered) 1.02f else 1f, PearMotion.press<Float>())
     val text = if (LocalWideLayout.current) WideScale.CONTINUE_TEXT else 1f
 
     Column(

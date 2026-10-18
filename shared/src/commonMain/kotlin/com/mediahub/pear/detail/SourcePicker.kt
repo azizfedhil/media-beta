@@ -1,5 +1,6 @@
 package com.mediahub.pear.detail
 
+import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +70,7 @@ import com.mediahub.pear.shell.ContextMenuRequest
 import com.mediahub.pear.party.forPartyRoom
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalWideLayout
+import com.mediahub.pear.theme.PearTransitions
 import com.mediahub.pear.shell.MenuAnchor
 import com.mediahub.pear.shell.Route
 import com.mediahub.pear.shell.SourcePickerRequest
@@ -87,8 +89,10 @@ import kotlinx.coroutines.launch
  * middle of the window, with the sources as a grid of cards, so a widescreen has room for them.
  */
 @Composable
-fun SourcePickerOverlay(request: SourcePickerRequest, onClose: () -> Unit) {
+fun AnimatedVisibilityScope.SourcePickerOverlay(request: SourcePickerRequest, onClose: () -> Unit) {
     val wide = LocalWideLayout.current
+    val enter = if (wide) PearTransitions.dialogIn else PearTransitions.sheetIn
+    val exit = if (wide) PearTransitions.dialogOut else PearTransitions.sheetOut
     val swallow = remember { MutableInteractionSource() }
     val select: (PlayRequest) -> Unit = { picked ->
         onClose()
@@ -99,7 +103,8 @@ fun SourcePickerOverlay(request: SourcePickerRequest, onClose: () -> Unit) {
         contentAlignment = if (wide) Alignment.Center else Alignment.BottomCenter,
     ) {
         // Taps on the panel itself don't reach the scrim, so they don't close the picker.
-        val panel = Modifier.clickable(interactionSource = swallow, indication = null) {}
+        val panel = Modifier.animateEnterExit(enter = enter, exit = exit)
+            .clickable(interactionSource = swallow, indication = null) {}
         if (wide) {
             WideSourcePicker(request, onSelect = select, onClose = onClose, modifier = panel)
         } else {
