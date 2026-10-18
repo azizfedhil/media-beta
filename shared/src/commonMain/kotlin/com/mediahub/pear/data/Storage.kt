@@ -136,6 +136,8 @@ class AppData(
         pairSync.startIfSignedIn()
         // The desktop waits for this, briefly, before it exits, so the position saved on leaving reaches the account.
         AppExit.registerFinisher { pairSync.flushForExit() }
+        // Choosing a library starts or stops its Pear.pair sync at once (iOS: LibraryPrefs.choose calls PairSync.localChanged).
+        libraryPrefs.onChanged = { pairSync.syncNow() }
     }
 
     /** Watch party: the room this device is in and its socket. Idle until a room is started or joined. */

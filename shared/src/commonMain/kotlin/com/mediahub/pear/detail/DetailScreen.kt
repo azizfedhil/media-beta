@@ -61,6 +61,7 @@ import com.mediahub.pear.history.isInActiveLibrary
 import com.mediahub.pear.history.removeFromActiveLibrary
 import com.mediahub.pear.home.CatalogRowView
 import com.mediahub.pear.home.heroAmbientFor
+import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.meta.MdbRating
 import com.mediahub.pear.model.CatalogRow
 import com.mediahub.pear.model.MetaPreview
@@ -95,6 +96,7 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlin.math.max
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /** The phone hero's height: iOS's 500 pt, less the status bar, which the app pads at the root (MainActivity). */
@@ -102,6 +104,9 @@ private val PhoneDetailHeroHeight = 440.dp
 
 /** Seasons with fewer episodes than this fit on screen, so they get no First / Last buttons. */
 private const val EPISODE_JUMP_MIN = 4
+
+/** The log tag for the bookmark button (the same tag the library code logs under). */
+private const val LIBRARY_LOG_TAG = "Library"
 
 /**
  * The fade into the page at the bottom of the phone hero: eleven stops on a smoothstep curve, so the edge has no kink
@@ -146,16 +151,51 @@ fun DetailScreen(
     val isWatched = env.data.history.entry(item.id)?.isTitleWatched == true
     // Read from whichever library the profile uses: Simkl's lists, or this device's.
     val isInLibrary = env.data.isInActiveLibrary(item.id, imdbId.ifEmpty { null })
+    // The bookmark flips at once on a tap, before the write lands. Cleared when the write has gone through or failed.
+    var optimisticInLibrary by remember { mutableStateOf<Boolean?>(null) }
+    val inLibraryNow = optimisticInLibrary ?: isInLibrary
+    // Set when a save or a removal did not go through. A save that worked says nothing: the bookmark already shows it.
+    var libraryNote by remember { mutableStateOf<String?>(null) }
     // The synopsis is the same text on both layouts.
     val synopsis = details?.overview ?: item.description
     val scope = rememberCoroutineScope()
 
-    // Saves or drops the title in the active library, for both layouts.
+    fun noteLibraryChange(ok: Boolean) {
+        libraryNote = if (ok) null else "Couldn't update the library."
+    }
+
+    // Saves or drops the title in the active library, for both layouts. A failure is noted on the page and logged; an
+    // exception is caught here, so it cannot end the tap.
     fun toggleLibrary() {
+        val adding = !inLibraryNow
+        optimisticInLibrary = adding
         scope.launch {
-            if (isInLibrary) env.data.removeFromActiveLibrary(item, imdbId.ifEmpty { null })
-            else env.data.addToActiveLibrary(item, imdbId.ifEmpty { null })
+            val source = env.data.libraryPrefs.source(env.data.simkl.isConnected)
+            val ok = try {
+                if (adding) env.data.addToActiveLibrary(item, imdbId.ifEmpty { null })
+                else env.data.removeFromActiveLibrary(item, imdbId.ifEmpty { null })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PearLog.e(LIBRARY_LOG_TAG, "bookmark: the library write threw for id=${item.id}", e)
+                false
+            }
+            val line = "bookmark: source=$source, id=${item.id}, adding=$adding, result=$ok"
+            if (ok) PearLog.i(LIBRARY_LOG_TAG, line) else PearLog.w(LIBRARY_LOG_TAG, line)
+            optimisticInLibrary = null
+            noteLibraryChange(ok)
         }
+    }
+
+    // A title saved before its IMDb id was known takes that id as its alias once the page has it (iOS's saveLocal resolves it
+    // in the background). A save made with the id already known gets it from addToActiveLibrary.
+    val savedHere = env.data.library.entry(item.id) != null
+    LaunchedEffect(imdbId, savedHere) {
+        if (imdbId.isEmpty() || !savedHere || env.data.libraryPrefs.usesSimkl(env.data.simkl.isConnected)) {
+            return@LaunchedEffect
+        }
+        val entry = env.data.library.entry(item.id) ?: return@LaunchedEffect
+        if (entry.alias == null && imdbId != entry.id) env.data.library.setAlias(imdbId, entry.id)
     }
 
     // Ambient tone for both layouts
@@ -281,7 +321,7 @@ fun DetailScreen(
                                     season = selectedSeason,
                                     episode = selectedEpisode,
                                     isWatched = isWatched,
-                                    isInLibrary = isInLibrary,
+                                    isInLibrary = inLibraryNow,
                                     onPlay = { openSourcePicker() },
                                     onToggleLibrary = { toggleLibrary() },
                                     onToggleWatched = {
@@ -289,6 +329,9 @@ fun DetailScreen(
                                         else env.data.history.markWatched(item)
                                     },
                                 )
+                                libraryNote?.let { note ->
+                                    PearText(note, style = PearTheme.type.footnote, color = Color.White.copy(alpha = 0.85f))
+                                }
                             }
 
                             GlassButton(
@@ -411,7 +454,7 @@ fun DetailScreen(
                             season = selectedSeason,
                             episode = selectedEpisode,
                             isWatched = isWatched,
-                            isInLibrary = isInLibrary,
+                            isInLibrary = inLibraryNow,
                             onPlay = { openSourcePicker() },
                             onToggleLibrary = { toggleLibrary() },
                             onToggleWatched = {
@@ -419,6 +462,9 @@ fun DetailScreen(
                                 else env.data.history.markWatched(item)
                             },
                         )
+                        libraryNote?.let { note ->
+                            PearText(note, style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
+                        }
 
                         details?.tagline?.takeIf { it.isNotEmpty() }?.let { tagline ->
                             PearText(tagline, style = PearTheme.type.footnote, color = PearTheme.colors.textTertiary)

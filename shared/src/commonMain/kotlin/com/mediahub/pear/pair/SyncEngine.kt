@@ -710,22 +710,47 @@ class SyncEngine(
         val pending = pendingKeys(Scope(profile, SyncKind.LIBRARY))
         val snapshot = store.readSynced()
         var changed = false
+        var applied = 0
+        var deleted = 0
+        var skippedPending = 0
+        var skippedUnreadable = 0
+        var skippedWrongID = 0
         for (c in changes) {
             val k = compositeKey(profile, SyncKind.LIBRARY, c.key)
-            if (k in pending) continue
+            if (k in pending) {
+                skippedPending += 1
+                continue
+            }
             val data = c.data
             if (c.deleted || data == null) {
                 list.removeAll { it.item.id == c.key }
                 snapshot.remove(k)
+                deleted += 1
                 changed = true
                 continue
             }
-            val remote = decodeLibrary(data) ?: continue
-            if (remote.item.id != c.key) continue
+            // Read here rather than through decodeLibrary, so a record that cannot be read says why.
+            val remote = try {
+                PearJson.decodeFromJsonElement(LibraryEntry.serializer(), data)
+            } catch (e: Exception) {
+                PearLog.w(TAG, "Library record ${c.key} could not be read: ${(e.message ?: e.toString()).take(120)}")
+                skippedUnreadable += 1
+                continue
+            }
+            if (remote.item.id != c.key) {
+                skippedWrongID += 1
+                continue
+            }
             libraryUpsert(list, remote)
             snapshot[k] = SyncedRecord(libraryFingerprint(remote), c.updatedAt)
+            applied += 1
             changed = true
         }
+        PearLog.i(
+            TAG,
+            "Library of $profile: ${changes.size} pulled, applied $applied, deleted $deleted, skipped " +
+                "(pending $skippedPending, unreadable $skippedUnreadable, wrong id $skippedWrongID).",
+        )
         if (!changed) return false
         list.sortByDescending { it.added }
         prefs.setJsonText(key, encodeList(LibraryEntry.serializer(), list))

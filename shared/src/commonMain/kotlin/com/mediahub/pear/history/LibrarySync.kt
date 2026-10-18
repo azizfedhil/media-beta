@@ -78,6 +78,12 @@ class LibraryPrefs(
     var report: String? by mutableStateOf(null)
         private set
 
+    /**
+     * Called after the library choice changes. AppData points it at a Pear.pair sync, so choosing Pear.pair starts that
+     * library's sync at once and choosing another source stops it (iOS: LibraryPrefs.choose calls PairSync.localChanged).
+     */
+    var onChanged: () -> Unit = {}
+
     private fun key(profile: String) = ProfileKeys.scoped(PrefKeys.LIBRARY_PREFS, profile)
 
     private fun read(profile: String): StoredLibraryPrefs =
@@ -119,6 +125,7 @@ class LibraryPrefs(
         if (stored.choice == source) return
         stored = copyOf(choice = source)
         save()
+        onChanged()
     }
 
     fun setAutoSync(on: Boolean) {
