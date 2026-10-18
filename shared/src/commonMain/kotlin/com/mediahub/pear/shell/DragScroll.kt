@@ -7,7 +7,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.animateDecay
-import androidx.compose.animation.core.rememberSplineBasedDecay
+import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
