@@ -57,6 +57,7 @@ object PrefKeys {
     // Desktop-only. Not in the iOS app and not in backups.
     const val DESKTOP_GLASS_MODE = "desktop.glassMode"
     const val DESKTOP_GLASS_PERFORMANCE = "desktop.glassPerformance"
+    const val DESKTOP_SIDEBAR_STYLE = "desktop.sidebarStyle"
 
     /** Desktop only: keep the blur on the player controls while video plays (off = tint only, blur when paused). */
     const val DESKTOP_PLAYER_BLUR_PLAYING = "desktop.playerBlurWhilePlaying"

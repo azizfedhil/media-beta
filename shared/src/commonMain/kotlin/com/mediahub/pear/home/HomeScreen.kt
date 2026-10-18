@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,6 +45,7 @@ import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
+import com.mediahub.pear.shell.LocalSidebarInset
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.rememberPref
 import kotlinx.coroutines.launch
@@ -82,6 +84,7 @@ fun HomeScreen(
     }
 
     if (isWide) {
+        val inset = LocalSidebarInset.current
         val fc = env.shell.feedCollapse
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
@@ -104,7 +107,11 @@ fun HomeScreen(
                             collapse = fold,
                             onSelectTitle = { onSelectTitle(it, null, null) },
                             scroll = scroll,
+                            inset = inset,
                         )
+                    } else {
+                        // With no hero the feed still starts beside the sidebar, as it does with one.
+                        Spacer(Modifier.width(inset))
                     }
                     Box(Modifier.weight(1f).fillMaxHeight()) {
                         Column(
@@ -134,7 +141,7 @@ fun HomeScreen(
                         },
                         symbol = "chevron.right",
                         size = 38.dp,
-                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp + inset),
                     )
                 }
             }

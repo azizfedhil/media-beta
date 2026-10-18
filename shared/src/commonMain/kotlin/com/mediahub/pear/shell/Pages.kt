@@ -6,6 +6,7 @@ import com.mediahub.pear.log.PearLog
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -18,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,8 +61,24 @@ import com.mediahub.pear.theme.weight
 
 private val PageMaxWidth = 900.dp
 
+/**
+ * One route on the shell's pages. Under a glass sidebar the Home hero and a title's poster may draw behind the sidebar
+ * (`bleed`): those pages start at the window's left edge, and are told how far the sidebar covers them through
+ * [LocalSidebarInset]. Every other page starts beside the sidebar, as it always did.
+ */
 @Composable
 internal fun RouteContent(route: Route, nav: NavController<Route>) {
+    val side = LocalSidebarWidth.current
+    val bleed = LocalSidebarGlass.current && (route is Route.Detail || (route is Route.Root && route.tab == AppTab.Home))
+    Box(Modifier.fillMaxSize().padding(start = if (bleed) 0.dp else side)) {
+        CompositionLocalProvider(LocalSidebarInset provides (if (bleed) side else 0.dp)) {
+            RouteBody(route, nav)
+        }
+    }
+}
+
+@Composable
+private fun RouteBody(route: Route, nav: NavController<Route>) {
     PearLog.context("route", route::class.simpleName)
     val env = LocalAppEnv.current
     when (route) {

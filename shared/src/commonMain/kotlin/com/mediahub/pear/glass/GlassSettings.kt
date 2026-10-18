@@ -26,8 +26,14 @@ enum class GlassPerformance(val label: String, internal val haze: HazePerformanc
 }
 
 /**
- * The user's glass choice. Saved under the desktop-only keys `desktop.glassMode` and `desktop.glassPerformance`
- * when [prefs] is given. (The iOS `player.glass` key is the player's own on/off switch, connected in Batch 4.3.)
+ * The sidebar's glass, apart from the app's style. [Match] follows the app's [GlassMode] (flat only when the app is flat,
+ * frosted otherwise); [Frosted] and [Flat] set the sidebar whatever the app's style is. See [GlassStore.sidebarMode].
+ */
+enum class SidebarStyle(val label: String) { Match("Match app"), Frosted("Frosted"), Flat("Flat") }
+
+/**
+ * The user's glass choice. Saved under the desktop-only keys `desktop.glassMode`, `desktop.glassPerformance` and
+ * `desktop.sidebarStyle` when [prefs] is given. (The iOS `player.glass` key is the player's own on/off switch, connected in Batch 4.3.)
  */
 class GlassStore(
     initialMode: GlassMode = GlassMode.Glass,
@@ -39,6 +45,9 @@ class GlassStore(
     )
     private var performanceState by mutableStateOf(
         prefs?.string(PrefKeys.DESKTOP_GLASS_PERFORMANCE)?.let { n -> GlassPerformance.entries.firstOrNull { it.name == n } } ?: initialPerformance,
+    )
+    private var sidebarStyleState by mutableStateOf(
+        prefs?.string(PrefKeys.DESKTOP_SIDEBAR_STYLE)?.let { n -> SidebarStyle.entries.firstOrNull { it.name == n } } ?: SidebarStyle.Match,
     )
 
     /** Android only: may the app lower the glass by itself when it runs slowly. Turned off by a choice the person makes. */
@@ -78,6 +87,25 @@ class GlassStore(
         set(value) {
             performanceState = value
             prefs?.setString(PrefKeys.DESKTOP_GLASS_PERFORMANCE, value.name)
+        }
+
+    /** The sidebar's own choice, apart from the app's [mode]: see [SidebarStyle]. */
+    var sidebarStyle: SidebarStyle
+        get() = sidebarStyleState
+        set(value) {
+            sidebarStyleState = value
+            prefs?.setString(PrefKeys.DESKTOP_SIDEBAR_STYLE, value.name)
+        }
+
+    /**
+     * The style the sidebar draws: Flat when the sidebar is Flat, or it matches the app and the app is Flat; otherwise
+     * Frosted. Never Glass or Clear, so the sidebar's glass is always the frosted blur.
+     */
+    val sidebarMode: GlassMode
+        get() = when (sidebarStyle) {
+            SidebarStyle.Match -> if (mode == GlassMode.Flat) GlassMode.Flat else GlassMode.Frosted
+            SidebarStyle.Frosted -> GlassMode.Frosted
+            SidebarStyle.Flat -> GlassMode.Flat
         }
 
     /**

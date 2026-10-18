@@ -17,6 +17,15 @@ val LocalHttp = staticCompositionLocalOf<Http> { OfflineHttp }
 /** True inside the expanded (sidebar) layout. Views use it to pick bigger posters, skip the avatar button, etc. */
 val LocalWideLayout = compositionLocalOf { false }
 
+/** The sidebar's width in the expanded layout, 0 elsewhere (and while a film is on top, where the sidebar is hidden). */
+val LocalSidebarWidth = compositionLocalOf { 0.dp }
+
+/** True when the sidebar is drawn as glass, so a page may draw behind it (see `RouteContent` in Pages.kt). */
+val LocalSidebarGlass = compositionLocalOf { false }
+
+/** Above 0 only on a page drawn under a glass sidebar: how far that sidebar covers the page's left edge. */
+val LocalSidebarInset = compositionLocalOf { 0.dp }
+
 /** Space the shell covers at the bottom of the page (the phone tab bar). Scroll content pads by this much. */
 val LocalBottomInset = compositionLocalOf { 0.dp }
 

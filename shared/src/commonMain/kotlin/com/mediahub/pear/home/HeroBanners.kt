@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.detail.RatingBadge
@@ -404,6 +405,8 @@ fun WideHeroPanel(
     modifier: Modifier = Modifier,
     collapse: Float = 0f,
     scroll: ScrollState? = null,
+    /** How far the sidebar covers the panel's left edge. The panel starts under it; its text and dots keep their places. */
+    inset: Dp = 0.dp,
 ) {
     if (items.isEmpty()) return
     var expandedId by remember { mutableStateOf<String?>(null) }
@@ -414,9 +417,9 @@ fun WideHeroPanel(
     PrefetchHeroAmbient(items.map { it.largePosterUrl() ?: it.backdropUrl })
 
     val panelWidth = WideHeroWidth * (1f - collapse).coerceIn(0f, 1f)
-    Box(modifier.fillMaxHeight().width(panelWidth).clipToBounds()) {
+    Box(modifier.fillMaxHeight().width(inset + panelWidth).clipToBounds()) {
         Box(
-            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(WideHeroWidth).fillMaxHeight()
+            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(WideHeroWidth + inset).fillMaxHeight()
                 .graphicsLayer { alpha = (1f - collapse * 1.3f).coerceIn(0f, 1f) },
         ) {
             AnimatedContent(
@@ -438,7 +441,7 @@ fun WideHeroPanel(
                         modifier = Modifier.fillMaxSize(),
                     )
                     HeroInfo(
-                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 40.dp, bottom = 74.dp),
+                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 30.dp + inset, end = 40.dp, bottom = 74.dp),
                         item = item,
                         ratings = rememberTitleRatings(item),
                         wide = true,
@@ -453,7 +456,7 @@ fun WideHeroPanel(
                 index = index.intValue,
                 wide = true,
                 onSelect = { index.intValue = it },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp).padding(start = inset),
             )
         }
     }

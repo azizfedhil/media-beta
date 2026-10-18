@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,8 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -44,6 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.currentTimeLabel
 import com.mediahub.pear.brand.PearWordmark
+import com.mediahub.pear.glass.GlassMode
+import com.mediahub.pear.glass.GlassSurface
+import com.mediahub.pear.glass.rememberSidebarGlass
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
@@ -58,6 +66,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import com.mediahub.pear.detail.openSourceChooser
 import com.mediahub.pear.history.HistoryEntry
 import com.mediahub.pear.home.rememberEpisodeStill
@@ -78,11 +87,12 @@ internal fun Sidebar(
     forceIcons: Boolean = false,
 ) {
     val iconsOnly = forceIcons || isIconOnlySidebar(width)
-
-    // Solid, as the iPad sidebar is (Color(white: 0.07)). Not glass, so the ambient glow of Home never tints it.
-    Box(
-        modifier = modifier.width(width).fillMaxHeight().background(PearTheme.colors.sidebar),
-    ) {
+    // Flat is the solid panel the iPad sidebar uses (Color(white: 0.07)). Frosted draws the same contents on glass: the
+    // blur takes in what is behind the sidebar, with the sidebar colour laid over it as a veil. [rememberSidebarGlass]
+    // decides which, and the pages that draw under the sidebar ask the same question.
+    val glass = rememberSidebarGlass()
+    // The contents, drawn into whichever panel the style picks below.
+    val contents: @Composable BoxScope.() -> Unit = {
         Column(
             Modifier.fillMaxHeight()
                 .padding(horizontal = if (iconsOnly) 8.dp else 16.dp)
@@ -113,6 +123,19 @@ internal fun Sidebar(
         }
         // The hairline on the trailing edge, as the iPad sidebar has it (0.5 pt, white at 7%).
         Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(0.5f.dp).background(Color.White.copy(alpha = SIDEBAR_HAIRLINE_ALPHA)))
+    }
+    if (glass) {
+        // Blank areas of the glass must take the pointer. Without this, a click there falls through to the hero beneath,
+        // which opens a title.
+        GlassSurface(
+            modifier = modifier.width(width).fillMaxHeight().pointerInput(Unit) {},
+            shape = RoundedCornerShape(0.dp),
+            veil = PearTheme.colors.sidebar.copy(alpha = 0.5f),
+            modeOverride = GlassMode.Frosted,
+            content = contents,
+        )
+    } else {
+        Box(modifier = modifier.width(width).fillMaxHeight().background(PearTheme.colors.sidebar), content = contents)
     }
 }
 
@@ -204,15 +227,27 @@ private fun CatalogueList(items: List<CatalogueItem>, selectedId: String?, onPic
                 CatalogueRow(item, item.id == selectedId) { onPick(item) }
             }
             if (overflow && !open) {
-                // The next row, cut off at SIDEBAR_PEEK_HEIGHT and faded into the sidebar colour. Not clickable as a
-                // row: pressing the faded area opens the list instead.
+                // The next row, cut off at SIDEBAR_PEEK_HEIGHT and faded out over that strip. The fade is drawn on the row
+                // itself, not as a colour laid over it, so it stays clear on glass. Not clickable as a row: pressing the
+                // faded area opens the list instead.
                 Box(Modifier.fillMaxWidth().height(SIDEBAR_PEEK_HEIGHT).clipToBounds()) {
-                    Column(Modifier.fillMaxWidth().wrapContentHeight(Alignment.Top, unbounded = true)) {
+                    // The gradient ends at the cut. The row is taller than the strip, and the part below the cut is hidden.
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .wrapContentHeight(Alignment.Top, unbounded = true)
+                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = 0f, endY = SIDEBAR_PEEK_HEIGHT.toPx()),
+                                    blendMode = BlendMode.DstIn,
+                                )
+                            },
+                    ) {
                         CatalogueRow(items[SIDEBAR_CATALOGUE_ROWS], false) {}
                     }
                     Box(
                         Modifier.matchParentSize()
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, PearTheme.colors.sidebar)))
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { expanded = true },
                     )
                 }

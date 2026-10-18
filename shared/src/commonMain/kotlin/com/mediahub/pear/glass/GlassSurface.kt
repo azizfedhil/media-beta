@@ -48,6 +48,19 @@ internal fun effectiveGlassMode(hasScene: Boolean, lowBattery: Boolean, nested: 
 internal val LocalGlassStore = staticCompositionLocalOf { GlassStore() }
 
 /**
+ * Whether the sidebar is drawn as glass here, by the same rule [Sidebar] uses. A page only draws behind the sidebar when
+ * this is true, so the page and the sidebar never disagree.
+ */
+@Composable
+internal fun rememberSidebarGlass(): Boolean =
+    effectiveGlassMode(
+        hasScene = LocalGlassState.current != null,
+        lowBattery = PowerStatus.lowBattery,
+        nested = false,
+        mode = LocalGlassStore.current.sidebarMode,
+    ) != GlassMode.Flat
+
+/**
  * A scene with glass: [background] is captured as the blur source, [content] is drawn above it and its
  * glass surfaces blur whatever is behind them. For video, put the video surface in [background].
  */
@@ -87,8 +100,8 @@ private fun flatColor(c: PearColors, wash: Color?, seeThrough: Boolean): Color {
 
 /**
  * The base of every glass component, and the only place glass is drawn, so every glass item has the same clarity. It
- * draws the style [GlassStore.mode] picks (blur, glass, or a flat tint), clipped to [shape]. Outside a [GlassScene] it
- * falls back to flat.
+ * draws the style [modeOverride] picks, or else [GlassStore.mode] (blur, glass, or a flat tint), clipped to [shape].
+ * Outside a [GlassScene] it falls back to flat.
  *
  * There is no wash and no outline, as on iOS Liquid Glass. The one exception is [wash]: the accent at 55% on a selected
  * or active control. [highlight] is the hover fill, which fades in and out rather than snapping.
@@ -101,6 +114,8 @@ fun GlassSurface(
     /** A neutral lift under the glass (a white veil), used when there is no [wash]. Glass without a veil is clearer. */
     veil: Color? = null,
     highlight: Boolean = false,
+    /** Draws this surface in the given style instead of the store's [GlassStore.mode]. Null: the store's mode. */
+    modeOverride: GlassMode? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = PearTheme.colors
@@ -110,7 +125,7 @@ fun GlassSurface(
     val nested = LocalInsideGlass.current
     val seeThrough = LocalFlatSeeThrough.current
     if (nested && GlassTuning.NESTING_WARNINGS) println("Pear: a glass surface sits inside another glass surface, so it is drawn flat.")
-    val mode = effectiveGlassMode(hasScene = state != null, lowBattery = PowerStatus.lowBattery, nested = nested, mode = store.mode)
+    val mode = effectiveGlassMode(hasScene = state != null, lowBattery = PowerStatus.lowBattery, nested = nested, mode = modeOverride ?: store.mode)
     val perf = store.performance.haze
     // The hover fill fades in and out. It is read in the draw phase, so the glass itself does not recompose as it moves.
     val lit by animateFloatAsState(if (highlight) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))

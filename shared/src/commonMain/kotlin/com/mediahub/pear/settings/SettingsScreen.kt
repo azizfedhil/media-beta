@@ -68,6 +68,7 @@ import com.mediahub.pear.shell.ChipFlow
 import com.mediahub.pear.shell.PearCapsuleButton
 import com.mediahub.pear.shell.PearButtonStyle
 import com.mediahub.pear.glass.FlatSheet
+import com.mediahub.pear.glass.SidebarStyle
 import com.mediahub.pear.shell.LocalWideLayout
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -162,6 +163,23 @@ fun SettingsScreen(
                         onSelect = { env.glass.mode = looks[it].first },
                     )
                     PearText("Flat is solid everywhere except the player.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
+                }
+                if (PlatformCaps.supportsWideLayout) {
+                    SettingsDivider()
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PearText("Sidebar style", style = PearTheme.type.subheadline.weight(FontWeight.SemiBold))
+                        val styles = SidebarStyle.entries
+                        SegmentedControl(
+                            labels = styles.map { it.label },
+                            selectedIndex = styles.indexOf(env.glass.sidebarStyle),
+                            onSelect = { env.glass.sidebarStyle = styles[it] },
+                        )
+                        PearText(
+                            "Match app follows Interface style. Frosted blurs what's behind the sidebar.",
+                            style = PearTheme.type.footnote,
+                            color = PearTheme.colors.textSecondary,
+                        )
+                    }
                 }
                 if (PlatformCaps.hasPlayerGlassChoice) {
                     SettingsDivider()

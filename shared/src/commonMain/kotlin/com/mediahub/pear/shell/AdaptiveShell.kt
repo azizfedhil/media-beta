@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.lerp
 import com.mediahub.pear.detail.SourcePickerOverlay
 import com.mediahub.pear.glass.GlassScene
 import com.mediahub.pear.glass.GlassStore
+import com.mediahub.pear.glass.rememberSidebarGlass
 import com.mediahub.pear.nav.LocalPageActive
 import com.mediahub.pear.nav.NavHost
 import com.mediahub.pear.profile.ProfileAvatarButton
@@ -149,7 +150,11 @@ fun AdaptiveShell(
                     modifier = Modifier.fillMaxSize(),
                     background = {
                         AmbientWash(animatedAmbient, ambientStrength)
-                        ShellPages(shell, Modifier.fillMaxSize().padding(start = if (playerOnTop) 0.dp else sidebarW))
+                        val glassSidebar = rememberSidebarGlass()
+                        CompositionLocalProvider(
+                            LocalSidebarWidth provides (if (playerOnTop) 0.dp else sidebarW),
+                            LocalSidebarGlass provides glassSidebar,
+                        ) { ShellPages(shell, Modifier.fillMaxSize()) }
                     },
                 ) {
                     if (!playerOnTop) Sidebar(

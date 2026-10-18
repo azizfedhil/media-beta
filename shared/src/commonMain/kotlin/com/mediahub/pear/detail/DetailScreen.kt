@@ -82,6 +82,7 @@ import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalBottomInset
 import com.mediahub.pear.shell.LocalFeedCollapse
 import com.mediahub.pear.shell.LocalHttp
+import com.mediahub.pear.shell.LocalSidebarInset
 import com.mediahub.pear.shell.LocalWideLayout
 import com.mediahub.pear.shell.MenuAnchor
 import com.mediahub.pear.shell.SourcePickerRequest
@@ -256,17 +257,18 @@ fun DetailScreen(
 
     Box(modifier.fillMaxSize()) {
         if (isWide) {
+            val inset = LocalSidebarInset.current
             CompositionLocalProvider(LocalFeedCollapse provides feed) {
                 Row(Modifier.fillMaxSize()) {
-                    Box(Modifier.width(posterWidth).fillMaxHeight().clipToBounds()) {
+                    Box(Modifier.width(inset + posterWidth).fillMaxHeight().clipToBounds()) {
                         Box(
-                            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(440.dp).fillMaxHeight()
+                            Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(440.dp + inset).fillMaxHeight()
                                 .graphicsLayer { alpha = (1f - fold * 1.3f).coerceIn(0f, 1f) },
                         ) {
                             FadedPoster(item.largePosterUrl() ?: item.backdropUrl, Modifier.fillMaxSize())
 
                             Column(
-                                Modifier.align(Alignment.BottomStart).padding(start = 30.dp, end = 60.dp, bottom = 40.dp),
+                                Modifier.align(Alignment.BottomStart).padding(start = 30.dp + inset, end = 60.dp, bottom = 40.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 DetailHeaderInfo(item, details, ratings, logoUrl)
@@ -293,7 +295,7 @@ fun DetailScreen(
                                 onClick = onBack,
                                 symbol = "chevron.left",
                                 size = 38.dp,
-                                modifier = Modifier.padding(16.dp).align(Alignment.TopStart),
+                                modifier = Modifier.padding(PaddingValues(start = 16.dp + inset, top = 16.dp, end = 16.dp, bottom = 16.dp)).align(Alignment.TopStart),
                             )
                         }
                     }
