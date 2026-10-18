@@ -27,9 +27,10 @@ enum class GlassPerformance(val label: String, internal val haze: HazePerformanc
 
 /**
  * The sidebar's glass, apart from the app's style. [Match] follows the app's [GlassMode] (flat only when the app is flat,
- * frosted otherwise); [Frosted] and [Flat] set the sidebar whatever the app's style is. See [GlassStore.sidebarMode].
+ * frosted otherwise); [Liquid] is Haze Glass, a rounded card that floats; [Frosted] and [Flat] set the sidebar whatever
+ * the app's style is. See [GlassStore.sidebarMode].
  */
-enum class SidebarStyle(val label: String) { Match("Match app"), Frosted("Frosted"), Flat("Flat") }
+enum class SidebarStyle(val label: String) { Match("Match app"), Liquid("Liquid Glass"), Frosted("Frosted"), Flat("Flat") }
 
 /**
  * The user's glass choice. Saved under the desktop-only keys `desktop.glassMode`, `desktop.glassPerformance` and
@@ -98,12 +99,13 @@ class GlassStore(
         }
 
     /**
-     * The style the sidebar draws: Flat when the sidebar is Flat, or it matches the app and the app is Flat; otherwise
-     * Frosted. Never Glass or Clear, so the sidebar's glass is always the frosted blur.
+     * The style the sidebar draws: Flat when the sidebar is Flat, or it matches the app and the app is Flat; Glass when
+     * the sidebar is Liquid; otherwise Frosted. Never Clear.
      */
     val sidebarMode: GlassMode
         get() = when (sidebarStyle) {
             SidebarStyle.Match -> if (mode == GlassMode.Flat) GlassMode.Flat else GlassMode.Frosted
+            SidebarStyle.Liquid -> GlassMode.Glass
             SidebarStyle.Frosted -> GlassMode.Frosted
             SidebarStyle.Flat -> GlassMode.Flat
         }

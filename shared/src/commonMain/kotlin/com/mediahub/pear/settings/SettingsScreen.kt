@@ -175,7 +175,7 @@ fun SettingsScreen(
                             onSelect = { env.glass.sidebarStyle = styles[it] },
                         )
                         PearText(
-                            "Match app follows Interface style. Frosted blurs what's behind the sidebar.",
+                            "Match app follows Interface style. Liquid Glass floats as a rounded card.",
                             style = PearTheme.type.footnote,
                             color = PearTheme.colors.textSecondary,
                         )

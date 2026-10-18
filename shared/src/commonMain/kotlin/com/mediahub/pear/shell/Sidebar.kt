@@ -51,6 +51,7 @@ import com.mediahub.pear.currentTimeLabel
 import com.mediahub.pear.brand.PearWordmark
 import com.mediahub.pear.glass.GlassMode
 import com.mediahub.pear.glass.GlassSurface
+import com.mediahub.pear.glass.LocalGlassStore
 import com.mediahub.pear.glass.rememberSidebarGlass
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
@@ -87,15 +88,17 @@ internal fun Sidebar(
     forceIcons: Boolean = false,
 ) {
     val iconsOnly = forceIcons || isIconOnlySidebar(width)
-    // Flat is the solid panel the iPad sidebar uses (Color(white: 0.07)). Frosted draws the same contents on glass: the
-    // blur takes in what is behind the sidebar, with the sidebar colour laid over it as a veil. [rememberSidebarGlass]
-    // decides which, and the pages that draw under the sidebar ask the same question.
-    val glass = rememberSidebarGlass()
+    // Flat is the solid panel the iPad sidebar uses (Color(white: 0.07)). Frosted and Liquid Glass draw the same contents
+    // on glass: the blur takes in what is behind the sidebar. [rememberSidebarGlass] decides whether it is glass at all,
+    // and the pages that draw under the sidebar ask the same question. The resolved mode is Flat unless it is glass.
+    val mode = if (rememberSidebarGlass()) LocalGlassStore.current.sidebarMode else GlassMode.Flat
+    // A floating card is narrower: the icon-only card leaves 56 dp for a 52 dp nav row.
+    val horizontal = if (mode == GlassMode.Glass) (if (iconsOnly) 4.dp else 12.dp) else (if (iconsOnly) 8.dp else 16.dp)
     // The contents, drawn into whichever panel the style picks below.
     val contents: @Composable BoxScope.() -> Unit = {
         Column(
             Modifier.fillMaxHeight()
-                .padding(horizontal = if (iconsOnly) 8.dp else 16.dp)
+                .padding(horizontal = horizontal)
                 .padding(top = 18.dp, bottom = 14.dp),
         ) {
             SidebarHeader(profile, onProfileClick, iconsOnly)
@@ -121,21 +124,28 @@ internal fun Sidebar(
                 Spacer(Modifier.weight(1f))
             }
         }
-        // The hairline on the trailing edge, as the iPad sidebar has it (0.5 pt, white at 7%).
-        Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(0.5f.dp).background(Color.White.copy(alpha = SIDEBAR_HAIRLINE_ALPHA)))
+        // The hairline on the trailing edge, as the iPad sidebar has it (0.5 pt, white at 7%). The floating card has none.
+        if (mode != GlassMode.Glass) {
+            Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(0.5f.dp).background(Color.White.copy(alpha = SIDEBAR_HAIRLINE_ALPHA)))
+        }
     }
-    if (glass) {
-        // Blank areas of the glass must take the pointer. Without this, a click there falls through to the hero beneath,
-        // which opens a title.
-        GlassSurface(
-            modifier = modifier.width(width).fillMaxHeight().pointerInput(Unit) {},
-            shape = RoundedCornerShape(0.dp),
-            veil = PearTheme.colors.sidebar.copy(alpha = 0.5f),
-            modeOverride = GlassMode.Frosted,
-            content = contents,
-        )
-    } else {
+    if (mode == GlassMode.Flat) {
         Box(modifier = modifier.width(width).fillMaxHeight().background(PearTheme.colors.sidebar), content = contents)
+    } else {
+        // Frosted is a full-height panel. Liquid Glass is a rounded card in the column, so the gap around it is layout.
+        val liquid = mode == GlassMode.Glass
+        Box(modifier = modifier.width(width).fillMaxHeight()) {
+            GlassSurface(
+                // The pointer modifier sits inside the padding. Blank glass takes clicks, so they do not fall through to the
+                // hero beneath; the gap around a floating card does not take them.
+                modifier = (if (liquid) Modifier.fillMaxSize().padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)
+                    else Modifier.fillMaxSize()).pointerInput(Unit) {},
+                shape = if (liquid) RoundedCornerShape(PearRadii.card) else RoundedCornerShape(0.dp),
+                veil = PearTheme.colors.sidebar.copy(alpha = if (liquid) 0.25f else 0.5f),
+                modeOverride = mode,
+                content = contents,
+            )
+        }
     }
 }
 
