@@ -26,6 +26,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -151,9 +152,12 @@ fun AdaptiveShell(
                     background = {
                         AmbientWash(animatedAmbient, ambientStrength)
                         val glassSidebar = rememberSidebarGlass()
+                        // The page takes the sidebar glass one frame late, so the sidebar and the page never change in the same frame.
+                        var pageGlass by remember { mutableStateOf(glassSidebar) }
+                        LaunchedEffect(glassSidebar) { withFrameNanos { }; pageGlass = glassSidebar }
                         CompositionLocalProvider(
                             LocalSidebarWidth provides (if (playerOnTop) 0.dp else sidebarW),
-                            LocalSidebarGlass provides glassSidebar,
+                            LocalSidebarGlass provides pageGlass,
                         ) { ShellPages(shell, Modifier.fillMaxSize()) }
                     },
                 ) {

@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -160,7 +161,7 @@ fun SettingsScreen(
                     SegmentedControl(
                         labels = looks.map { it.second },
                         selectedIndex = looks.indexOfFirst { it.first == current }.let { if (it < 0) 0 else it },
-                        onSelect = { env.glass.mode = looks[it].first },
+                        onSelect = { scope.launch { withFrameNanos { }; env.glass.mode = looks[it].first } },
                     )
                     PearText("Flat is solid everywhere except the player.", style = PearTheme.type.footnote, color = PearTheme.colors.textSecondary)
                 }
@@ -172,7 +173,7 @@ fun SettingsScreen(
                         SegmentedControl(
                             labels = styles.map { it.label },
                             selectedIndex = styles.indexOf(env.glass.sidebarStyle),
-                            onSelect = { env.glass.sidebarStyle = styles[it] },
+                            onSelect = { scope.launch { withFrameNanos { }; env.glass.sidebarStyle = styles[it] } },
                         )
                         PearText(
                             "Match app follows Interface style. Liquid Glass floats as a rounded card.",

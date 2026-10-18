@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -137,25 +138,27 @@ fun GlassSurface(
         else -> wash ?: veil
     }
 
-    val effect: Modifier = when (mode) {
-        GlassMode.Frosted -> {
-            val style = remember(c.isDark, c.surface, tintColor) { frostedStyle(c, tintColor) }
-            Modifier.clip(shape).hazeBlur(input = HazeInput.Sources(state!!), style = style, performanceMode = perf)
-        }
-        GlassMode.Glass, GlassMode.Clear -> {
-            val style = remember(mode, shape, tintColor) {
-                val base = if (mode == GlassMode.Clear) GlassStyle.clear else GlassStyle.regular
-                base.then {
-                    shape(shape)
-                    if (tintColor != null) tint(tintColor)
-                }
+    key(mode) {
+        val effect: Modifier = when (mode) {
+            GlassMode.Frosted -> {
+                val style = remember(c.isDark, c.surface, tintColor) { frostedStyle(c, tintColor) }
+                Modifier.clip(shape).hazeBlur(input = HazeInput.Sources(state!!), style = style, performanceMode = perf)
             }
-            Modifier.hazeGlass(input = HazeInput.Sources(state!!), style = style, performanceMode = perf).clip(shape)
+            GlassMode.Glass, GlassMode.Clear -> {
+                val style = remember(mode, shape, tintColor) {
+                    val base = if (mode == GlassMode.Clear) GlassStyle.clear else GlassStyle.regular
+                    base.then {
+                        shape(shape)
+                        if (tintColor != null) tint(tintColor)
+                    }
+                }
+                Modifier.hazeGlass(input = HazeInput.Sources(state!!), style = style, performanceMode = perf).clip(shape)
+            }
+            // Inside another glass surface the flat fill is the plain card tint, so the nested item reads as a flat control.
+            GlassMode.Flat -> Modifier.clip(shape).background(if (nested) (tintColor?.compositeOver(c.fill) ?: c.fill) else flatColor(c, tintColor, seeThrough))
         }
-        // Inside another glass surface the flat fill is the plain card tint, so the nested item reads as a flat control.
-        GlassMode.Flat -> Modifier.clip(shape).background(if (nested) (tintColor?.compositeOver(c.fill) ?: c.fill) else flatColor(c, tintColor, seeThrough))
-    }
-    Box(modifier.then(effect).drawBehind { if (lit > 0f) drawRect(hover.copy(alpha = hover.alpha * lit)) }) {
-        CompositionLocalProvider(LocalInsideGlass provides true) { content() }
+        Box(modifier.then(effect).drawBehind { if (lit > 0f) drawRect(hover.copy(alpha = hover.alpha * lit)) }) {
+            CompositionLocalProvider(LocalInsideGlass provides true) { content() }
+        }
     }
 }

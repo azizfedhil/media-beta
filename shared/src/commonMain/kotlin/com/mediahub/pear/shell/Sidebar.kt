@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -129,22 +130,24 @@ internal fun Sidebar(
             Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(0.5f.dp).background(Color.White.copy(alpha = SIDEBAR_HAIRLINE_ALPHA)))
         }
     }
-    if (mode == GlassMode.Flat) {
-        Box(modifier = modifier.width(width).fillMaxHeight().background(PearTheme.colors.sidebar), content = contents)
-    } else {
-        // Frosted is a full-height panel. Liquid Glass is a rounded card in the column, so the gap around it is layout.
-        val liquid = mode == GlassMode.Glass
-        Box(modifier = modifier.width(width).fillMaxHeight()) {
-            GlassSurface(
-                // The pointer modifier sits inside the padding. Blank glass takes clicks, so they do not fall through to the
-                // hero beneath; the gap around a floating card does not take them.
-                modifier = (if (liquid) Modifier.fillMaxSize().padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)
-                    else Modifier.fillMaxSize()).pointerInput(Unit) {},
-                shape = if (liquid) RoundedCornerShape(PearRadii.card) else RoundedCornerShape(0.dp),
-                veil = PearTheme.colors.sidebar.copy(alpha = if (liquid) 0.25f else 0.5f),
-                modeOverride = mode,
-                content = contents,
-            )
+    key(mode) {
+        if (mode == GlassMode.Flat) {
+            Box(modifier = modifier.width(width).fillMaxHeight().background(PearTheme.colors.sidebar), content = contents)
+        } else {
+            // Frosted is a full-height panel. Liquid Glass is a rounded card in the column, so the gap around it is layout.
+            val liquid = mode == GlassMode.Glass
+            Box(modifier = modifier.width(width).fillMaxHeight()) {
+                GlassSurface(
+                    // The pointer modifier sits inside the padding. Blank glass takes clicks, so they do not fall through to the
+                    // hero beneath; the gap around a floating card does not take them.
+                    modifier = (if (liquid) Modifier.fillMaxSize().padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)
+                        else Modifier.fillMaxSize()).pointerInput(Unit) {},
+                    shape = if (liquid) RoundedCornerShape(PearRadii.card) else RoundedCornerShape(0.dp),
+                    veil = PearTheme.colors.sidebar.copy(alpha = if (liquid) 0.25f else 0.5f),
+                    modeOverride = mode,
+                    content = contents,
+                )
+            }
         }
     }
 }
