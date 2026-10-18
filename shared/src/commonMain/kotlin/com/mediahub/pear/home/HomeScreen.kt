@@ -1,5 +1,6 @@
 package com.mediahub.pear.home
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.Orientation
@@ -57,6 +58,12 @@ fun HomeScreen(
     val env = LocalAppEnv.current
     val isWide = LocalWideLayout.current
     val model = remember(env.data) { HomeModel(env.data) }
+    // Shimmer while the first titles load, the hero once they are in, and nothing when there is no hero to show.
+    val heroPhase = when {
+        model.hero.isNotEmpty() -> HeroPhase.Ready
+        model.isLoading -> HeroPhase.Loading
+        else -> HeroPhase.None
+    }
     val bottomInset = LocalBottomInset.current
     // The MDBList key and the lists chosen in Settings decide the MDBList rows (iOS `listsTaskID`).
     val mdbKey = rememberPref(env.data.prefs, PrefKeys.MDBLIST_KEY) { it.string(PrefKeys.MDBLIST_KEY, "") }
@@ -99,17 +106,19 @@ fun HomeScreen(
             // faded right edge met a plain black page at a hard vertical line.
             Box(Modifier.fillMaxSize()) {
                 Row(modifier.fillMaxSize().attachedAmbient(AmbientTuning.WIDE_REACH_DP)) {
-                    if (model.hero.isNotEmpty()) {
-                        WideHeroPanel(
-                            items = model.hero,
-                            collapse = fold,
-                            onSelectTitle = { onSelectTitle(it, null, null) },
-                            scroll = scroll,
-                            inset = inset,
-                        )
-                    } else {
-                        // With no hero the feed still starts beside the sidebar, as it does with one.
-                        Spacer(Modifier.width(inset))
+                    Crossfade(targetState = heroPhase, animationSpec = tween(600), modifier = Modifier.fillMaxHeight(), label = "hero-phase") { phase ->
+                        when (phase) {
+                            HeroPhase.Ready -> WideHeroPanel(
+                                items = model.hero,
+                                collapse = fold,
+                                onSelectTitle = { onSelectTitle(it, null, null) },
+                                scroll = scroll,
+                                inset = inset,
+                            )
+                            HeroPhase.Loading -> HeroSkeleton(wide = true, inset = inset, collapse = fold)
+                            // With no hero the feed still starts beside the sidebar, as it does with one.
+                            HeroPhase.None -> Spacer(Modifier.width(inset))
+                        }
                     }
                     Box(Modifier.weight(1f).fillMaxHeight()) {
                         Column(
@@ -153,14 +162,16 @@ fun HomeScreen(
                     Modifier.fillMaxWidth().attachedAmbient(),
                     verticalArrangement = Arrangement.spacedBy(26.dp),
                 ) {
-                    if (model.hero.isNotEmpty()) {
-                        HeroCarousel(
-                            items = model.hero,
-                            onSelectTitle = { onSelectTitle(it, null, null) },
-                            scroll = scroll,
-                        )
-                    } else {
-                        Spacer(Modifier.height(40.dp))
+                    Crossfade(targetState = heroPhase, animationSpec = tween(600), label = "hero-phase") { phase ->
+                        when (phase) {
+                            HeroPhase.Ready -> HeroCarousel(
+                                items = model.hero,
+                                onSelectTitle = { onSelectTitle(it, null, null) },
+                                scroll = scroll,
+                            )
+                            HeroPhase.Loading -> HeroSkeleton(wide = false)
+                            HeroPhase.None -> Spacer(Modifier.height(40.dp))
+                        }
                     }
                     FeedRows(model, onSelectTitle, onSeeAll)
                 }
@@ -271,3 +282,6 @@ internal fun loadingText(names: List<String>): String = when (names.size) {
     2 -> "Loading ${names[0]} and ${names[1]}…"
     else -> "Loading ${names[0]} and ${names.size - 1} more add-ons…"
 }
+
+/** Which hero the Home screen shows: shimmer while the first titles load, the hero, or nothing. */
+private enum class HeroPhase { Loading, Ready, None }

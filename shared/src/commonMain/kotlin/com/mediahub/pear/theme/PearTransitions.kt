@@ -11,6 +11,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.graphics.TransformOrigin
 
 /**
  * Enter and leave motion for everything that appears over the app, so the whole desktop app moves the same way. Built
@@ -48,4 +49,10 @@ object PearTransitions {
     val panelOut: ExitTransition =
         scaleOut(tween(PearMotion.FAST, easing = FastOutLinearInEasing), targetScale = 0.97f) +
             slideOutVertically(tween(PearMotion.FAST, easing = FastOutLinearInEasing)) { it / 24 }
+
+    /** The player's info card: it grows from the bottom edge on a soft spring while it fades in. Its exit is [panelOut]. */
+    val infoIn: EnterTransition =
+        fadeIn(tween(PearMotion.BASE, easing = PearMotion.standard)) +
+            scaleIn(spring(dampingRatio = 0.86f, stiffness = 380f), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)) +
+            slideInVertically(spring(dampingRatio = 0.86f, stiffness = 380f)) { it / 10 }
 }

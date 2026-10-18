@@ -23,6 +23,7 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -77,6 +78,7 @@ import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
+import com.mediahub.pear.theme.pearShimmer
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -192,7 +194,12 @@ private fun HeroArt(
                 translationY = min((scroll?.value ?: 0) * 0.5f, overscan.toPx())
             },
         ) {
-            RemoteImage(url, Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value })
+            RemoteImage(
+                url,
+                Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value },
+                shimmer = true,
+                fadeInMillis = 500,
+            )
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(scrimStart to Color.Transparent, 1f to Color.Black.copy(alpha = scrimEnd)),
@@ -465,11 +472,71 @@ fun WideHeroPanel(
     }
 }
 
+/** The hero while the first titles are still loading: a shimmer where the picture goes, bars where the text goes. */
+@Composable
+internal fun HeroSkeleton(
+    wide: Boolean,
+    modifier: Modifier = Modifier,
+    inset: Dp = 0.dp,
+    collapse: Float = 0f,
+) {
+    val bottomFade = remember { easedFade(start = 0.42f) }
+    val sideFade = remember {
+        Brush.horizontalGradient(0f to Color.Black, 0.50f to Color.Black, 1f to Color.Transparent)
+    }
+    val body: @Composable BoxScope.() -> Unit = {
+        Box(
+            Modifier.fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    if (wide) drawRect(sideFade, blendMode = BlendMode.DstIn)
+                    drawRect(bottomFade, blendMode = BlendMode.DstIn)
+                }
+                .pearShimmer(),
+        )
+        Column(
+            Modifier.align(Alignment.BottomStart)
+                .padding(
+                    start = if (wide) 30.dp + inset else 20.dp,
+                    end = if (wide) 40.dp else 20.dp,
+                    bottom = if (wide) 74.dp else 34.dp,
+                )
+                .fillMaxWidth(if (wide) 0.8f else 1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SkeletonBar(0.22f, 20.dp, 10.dp)
+            SkeletonBar(0.62f, 34.dp)
+            SkeletonBar(0.40f, 14.dp)
+            SkeletonBar(0.85f, 12.dp)
+            SkeletonBar(0.70f, 12.dp)
+            SkeletonBar(0.28f, 40.dp, 20.dp)
+        }
+    }
+    if (wide) {
+        val panelWidth = WideHeroWidth * (1f - collapse).coerceIn(0f, 1f)
+        Box(modifier.fillMaxHeight().width(inset + panelWidth).clipToBounds()) {
+            Box(
+                Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(WideHeroWidth + inset).fillMaxHeight()
+                    .graphicsLayer { alpha = (1f - collapse * 1.3f).coerceIn(0f, 1f) },
+                content = body,
+            )
+        }
+    } else {
+        Box(modifier.fillMaxWidth().height(PhoneHeroHeight), content = body)
+    }
+}
+
+@Composable
+private fun SkeletonBar(share: Float, height: Dp, radius: Dp = 6.dp) {
+    Box(Modifier.fillMaxWidth(share).height(height).clip(RoundedCornerShape(radius)).pearShimmer())
+}
+
 /** How many hero pictures are read for their colour at launch. */
 private const val PREFETCH_LIMIT = 4
 
-/** The launch intro runs about five seconds, then a 700 ms fade. The colours are read after it, so the intro stays smooth. */
-private const val PREFETCH_AFTER_INTRO_MILLIS = 6_000L
+/** The launch intro runs about three seconds, then a 700 ms beat and fade. The colours are read after it, so the intro stays smooth. */
+private const val PREFETCH_AFTER_INTRO_MILLIS = 4_000L
 
 /** A short pause between two reads, so one read never follows another straight away. */
 private const val PREFETCH_GAP_MILLIS = 150L

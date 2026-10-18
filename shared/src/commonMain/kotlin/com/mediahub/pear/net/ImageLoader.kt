@@ -1,5 +1,7 @@
 package com.mediahub.pear.net
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -12,11 +14,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.shell.LocalHttp
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearTheme
+import com.mediahub.pear.theme.pearShimmer
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -82,6 +86,8 @@ object ImageMemoryCache {
 /**
  * Loads an image from [url] with caching, shimmer placeholder, and fallback icon. [maxEdge] is the longest edge the
  * picture is decoded to: pass the size it is drawn at, so a small thumb is not decoded at its original size.
+ * [shimmer] draws the moving placeholder instead of the flat one; [fadeInMillis] fades a picture in when it was not
+ * already in memory (0 = no fade).
  */
 @Composable
 fun RemoteImage(
@@ -91,10 +97,17 @@ fun RemoteImage(
     fallbackUrl: String? = null,
     contentScale: ContentScale = ContentScale.Crop,
     maxEdge: Int = DEFAULT_MAX_EDGE,
+    shimmer: Boolean = false,
+    fadeInMillis: Int = 0,
 ) {
     val http = LocalHttp.current
     var bitmap by remember(url, maxEdge) { mutableStateOf(url?.let { ImageMemoryCache.get(it, maxEdge) }) }
     var failed by remember(url, maxEdge) { mutableStateOf(false) }
+    // A picture that was already in memory shows at once; one that had to be fetched fades in.
+    val reveal = remember(url, maxEdge) { Animatable(if (bitmap != null || fadeInMillis <= 0) 1f else 0f) }
+    LaunchedEffect(bitmap) {
+        if (bitmap != null && reveal.value < 1f) reveal.animateTo(1f, tween(fadeInMillis))
+    }
 
     LaunchedEffect(url, maxEdge) {
         if (url.isNullOrBlank()) {
@@ -125,23 +138,23 @@ fun RemoteImage(
 
     Box(modifier) {
         val currentBitmap = bitmap
-        when {
-            currentBitmap != null -> {
-                Image(
-                    bitmap = currentBitmap,
-                    contentDescription = contentDescription,
-                    contentScale = contentScale,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-            failed -> {
-                Box(Modifier.fillMaxSize().background(PearTheme.colors.fill), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        if (currentBitmap == null || reveal.value < 1f) {
+            // The placeholder stays underneath until the fade-in has finished.
+            when {
+                failed -> Box(Modifier.fillMaxSize().background(PearTheme.colors.fill), contentAlignment = androidx.compose.ui.Alignment.Center) {
                     PearIcon("film", size = 24.dp, tint = PearTheme.colors.textTertiary)
                 }
+                shimmer -> Box(Modifier.fillMaxSize().pearShimmer())
+                else -> ImagePlaceholder(Modifier.fillMaxSize())
             }
-            else -> {
-                ImagePlaceholder(Modifier.fillMaxSize())
-            }
+        }
+        if (currentBitmap != null) {
+            Image(
+                bitmap = currentBitmap,
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = reveal.value },
+            )
         }
     }
 }

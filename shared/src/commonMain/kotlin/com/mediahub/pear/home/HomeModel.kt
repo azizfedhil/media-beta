@@ -100,11 +100,14 @@ class HomeModel(private val data: AppData) {
             val themesJob = async { loadThemes(rules, this@coroutineScope) }
 
             suggestionsJob.await()
+            // The hero needs only the suggestions: it shows as soon as they are in, not after every row has loaded.
+            updateHero()
             rowsJob.await()
             upNextJob.await()
             listsJob.await()
             themesJob.await()
-            updateHero()
+            // With no suggestions (no TMDB key) the first add-on row is the hero's pool, so it is chosen again now.
+            if (hero.isEmpty() || suggested.isEmpty()) updateHero()
             isLoading = false
         }
     }

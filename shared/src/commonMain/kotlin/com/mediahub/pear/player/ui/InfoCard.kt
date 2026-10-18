@@ -1,5 +1,13 @@
 package com.mediahub.pear.player.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -36,9 +44,11 @@ import com.mediahub.pear.detail.RatingLogo
 import com.mediahub.pear.meta.MdbRating
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.theme.PearIcon
+import com.mediahub.pear.theme.PearMotion
 import com.mediahub.pear.theme.PearRadii
 import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
+import com.mediahub.pear.theme.pearShimmer
 import com.mediahub.pear.theme.weight
 
 /**
@@ -155,42 +165,64 @@ private fun InfoDetails(info: PlayerInfo, onClose: () -> Unit, modifier: Modifie
     }
 }
 
-/** The synopsis, scrolling when it is longer than 124 dp, or the placeholder lines while it loads. */
+private enum class SynopsisState { Loading, Text, Empty }
+
+/** What the synopsis area shows. Two bodies that are equal do not animate; different ones crossfade. */
+private data class SynopsisBody(val state: SynopsisState, val text: String?)
+
+/** The synopsis: a shimmering placeholder while it loads, then the text fades in. It scrolls when longer than 124 dp. */
 @Composable
 private fun Synopsis(info: PlayerInfo) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        PearText(
-            (info.overviewNote ?: "Synopsis").uppercase(),
-            style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(letterSpacing = 0.9.sp),
-            color = Color.White.copy(alpha = 0.5f),
-            maxLines = 1,
-        )
-        val overview = info.overview
-        when {
-            overview != null && overview.isNotBlank() -> Box(
-                Modifier.heightIn(max = 124.dp).verticalScroll(rememberScrollState()),
-            ) {
-                PearText(
-                    overview,
-                    style = PearTheme.type.subheadline.copy(fontSize = 15.sp, lineHeight = 18.sp),
-                    color = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            info.isLoading -> Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                listOf(1f, 1f, 0.6f).forEach { share ->
-                    Box(
-                        Modifier.fillMaxWidth(share).height(10.dp)
-                            .clip(RoundedCornerShape(PearRadii.pill))
-                            .background(Color.White.copy(alpha = 0.1f)),
+    val overview = info.overview?.takeIf { it.isNotBlank() }
+    val body = when {
+        overview != null -> SynopsisBody(SynopsisState.Text, overview)
+        info.isLoading -> SynopsisBody(SynopsisState.Loading, null)
+        else -> SynopsisBody(SynopsisState.Empty, null)
+    }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Crossfade(targetState = (info.overviewNote ?: "Synopsis").uppercase(), animationSpec = tween(PearMotion.BASE), label = "synopsis-label") { label ->
+            PearText(
+                label,
+                style = PearTheme.type.caption2.weight(FontWeight.Bold).copy(letterSpacing = 0.9.sp),
+                color = Color.White.copy(alpha = 0.5f),
+                maxLines = 1,
+            )
+        }
+        AnimatedContent(
+            targetState = body,
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.TopStart,
+            transitionSpec = {
+                fadeIn(tween(PearMotion.BASE, delayMillis = 60, easing = PearMotion.standard)) togetherWith
+                    fadeOut(tween(PearMotion.FAST)) using SizeTransform(clip = false) { _, _ -> snap() }
+            },
+            label = "synopsis-body",
+        ) { shown ->
+            // Read from [shown], not from the outer values: the old body must keep its own text while it fades out.
+            when (shown.state) {
+                SynopsisState.Text -> Box(Modifier.heightIn(max = 124.dp).verticalScroll(rememberScrollState())) {
+                    PearText(
+                        shown.text.orEmpty(),
+                        style = PearTheme.type.subheadline.copy(fontSize = 15.sp, lineHeight = 18.sp),
+                        color = Color.White.copy(alpha = 0.9f),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                SynopsisState.Loading -> Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    listOf(1f, 1f, 0.6f).forEach { share ->
+                        Box(
+                            Modifier.fillMaxWidth(share).height(10.dp)
+                                .clip(RoundedCornerShape(PearRadii.pill))
+                                .pearShimmer(base = Color.White.copy(alpha = 0.08f), highlight = Color.White.copy(alpha = 0.20f)),
+                        )
+                    }
+                }
+                SynopsisState.Empty -> PearText(
+                    "No synopsis available yet.",
+                    style = PearTheme.type.subheadline.copy(fontStyle = FontStyle.Italic),
+                    color = Color.White.copy(alpha = 0.5f),
+                )
             }
-            else -> PearText(
-                "No synopsis available yet.",
-                style = PearTheme.type.subheadline.copy(fontStyle = FontStyle.Italic),
-                color = Color.White.copy(alpha = 0.5f),
-            )
         }
     }
 }

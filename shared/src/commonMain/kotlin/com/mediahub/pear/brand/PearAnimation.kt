@@ -114,10 +114,13 @@ fun PearWordmark(
     }
 }
 
+/** How long the intro animation runs on desktop, in milliseconds. */
+private const val DESKTOP_INTRO_MILLIS = 3_000.0
+
 /**
  * The launch screen: the intro on the splash colour, on top of the app while it loads. The intro runs at 2x on touch
- * devices (about 2 s) and is slowed to 5 s on desktop, so the app has longer to load there. Then a 350 ms beat and a
- * 350 ms fade (`PearLaunchScreen` in the Swift app uses the same beat and fade).
+ * devices (about 2 s) and is slowed to 3 s on desktop. Then a 350 ms beat and a 350 ms fade (`PearLaunchScreen` in the
+ * Swift app uses the same beat and fade).
  */
 @Composable
 fun PearLaunchOverlay() {
@@ -134,8 +137,8 @@ fun PearLaunchOverlay() {
         }
     }
     AnimatedVisibility(visible = showing, exit = fadeOut(tween(350))) {
-        // Touch devices keep the normal 2x speed (~2 s). Desktop slows the intro to 5 s so the app has longer to load.
-        val introSpeed = if (PlatformCaps.isTouchFirst) 2.0 else (PearGeometry.duration(PearMode.Intro) ?: 3940.0) / 5000.0
+        // Touch devices keep the normal 2x speed (~2 s). Desktop plays the intro in 3 s.
+        val introSpeed = if (PlatformCaps.isTouchFirst) 2.0 else (PearGeometry.duration(PearMode.Intro) ?: 3940.0) / DESKTOP_INTRO_MILLIS
         Box(
             Modifier.fillMaxSize().background(PearBrand.splash)
                 // Swallows clicks, so the app underneath can't be used while the intro plays.

@@ -144,8 +144,7 @@ private fun RouteBody(route: Route, nav: NavController<Route>) {
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
             onPlay = { request ->
-                PearTrace.event("UI") { "player route pushed" }
-                nav.push(Route.Player(request.forPartyRoom(env.data.party)), animate = false)
+                env.shell.launchPlayer(request.forPartyRoom(env.data.party), nav)
             },
         )
         is Route.Player -> PlayerScreen(request = route.request, onBack = { nav.pop() })

@@ -43,7 +43,11 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.unit.IntSize
 import com.mediahub.pear.theme.PearMotion
+import com.mediahub.pear.theme.PearTransitions
 
 // The three panels the player shows over the video (Batch 4.3c). Each one is drawn where its Swift counterpart is:
 // speed floats above the pill, sources sits on the right edge, the info card rises from the bottom.
@@ -281,13 +285,32 @@ private fun SourceRow(stream: StreamItem, current: Boolean, onClick: () -> Unit)
     }
 }
 
-/** The info card, rising from the bottom of the video (`infoPanel` in PlayerView.swift). */
+/**
+ * The info card (`infoPanel` in PlayerView.swift). It is always in the tree, so it animates when [visible] changes. It draws
+ * nothing until [info] exists, and keeps the last card while it leaves. Size changes (the synopsis arriving) animate here.
+ */
 @Composable
-internal fun InfoPanel(info: PlayerInfo, logo: String?, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
-        PlayerSurface(Modifier.widthIn(max = 720.dp).fillMaxWidth(), SurfaceKind.Card) {
-            Box(Modifier.padding(20.dp)) {
-                PlayerInfoCard(info, logo, onClose)
+internal fun InfoPanel(
+    visible: Boolean,
+    info: PlayerInfo?,
+    logo: String?,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = visible && info != null,
+        modifier = modifier.fillMaxSize(),
+        enter = PearTransitions.infoIn,
+        exit = PearTransitions.panelOut,
+        label = "player-info",
+    ) {
+        info?.let { card ->
+            Box(Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
+                PlayerSurface(Modifier.widthIn(max = 720.dp).fillMaxWidth(), SurfaceKind.Card) {
+                    Box(Modifier.padding(20.dp).animateContentSize(PearMotion.snappy<IntSize>(PearMotion.BASE))) {
+                        PlayerInfoCard(card, logo, onClose)
+                    }
+                }
             }
         }
     }

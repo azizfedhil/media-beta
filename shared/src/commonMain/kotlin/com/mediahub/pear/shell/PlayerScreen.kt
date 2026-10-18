@@ -457,9 +457,18 @@ fun PlayerScreen(
     var sourceGroups by remember(request) { mutableStateOf<List<Pair<Addon, List<StreamItem>>>>(emptyList()) }
     var sourcesLoading by remember(request) { mutableStateOf(false) }
     var info by remember(request) { mutableStateOf<PlayerInfo?>(null) }
+    // A card that has been loaded is kept, so opening it again shows it at once and does not ask TMDB again.
+    val infoCache = remember { HashMap<String, PlayerInfo>() }
+    fun infoKey(r: PlayRequest) = "${r.item.id}|${r.key}"
 
     fun togglePanel(target: PlayerPanel) {
         panel = if (panel == target) null else target
+    }
+
+    // The card exists before the panel opens, so it animates in with content.
+    fun openInfo() {
+        info = infoCache[infoKey(current)] ?: PlayerInfoRules.basic(current)
+        panel = PlayerPanel.Info
     }
 
     // Same query the detail page runs: every add-on that serves this title or episode.
@@ -489,12 +498,19 @@ fun PlayerScreen(
     LaunchedEffect(panel, current.key) {
         if (panel != PlayerPanel.Info) return@LaunchedEffect
         val r = current
+        val cacheKey = infoKey(r)
+        infoCache[cacheKey]?.let {
+            info = it
+            return@LaunchedEffect
+        }
+        info = PlayerInfoRules.basic(r)
         val season = r.season
         val episode = r.episode
-        info = PlayerInfoRules.basic(r)
         if (season != null && episode != null) {
             val ep = data.meta.tmdb.episodes(r.item.id, r.item.type, season).firstOrNull { it.episodeNumber == episode }
-            info = PlayerInfoRules.episodeCard(r, ep)
+            val card = PlayerInfoRules.episodeCard(r, ep)
+            info = card
+            if (ep != null) infoCache[cacheKey] = card
         } else {
             val (details, mdb) = coroutineScope {
                 val d = async { data.meta.tmdb.cachedDetails(r.item.id, r.item.type) }
@@ -503,7 +519,9 @@ fun PlayerScreen(
                 }
                 d.await() to m.await()
             }
-            info = PlayerInfoRules.movieCard(r, details, mdb)
+            val card = PlayerInfoRules.movieCard(r, details, mdb)
+            info = card
+            if (details != null) infoCache[cacheKey] = card
         }
     }
 
@@ -712,7 +730,7 @@ fun PlayerScreen(
             },
             panel = panel,
             onDismissPanel = { panel = null },
-            onTitleClick = { panel = PlayerPanel.Info },
+            onTitleClick = { openInfo() },
             pill = { onActive ->
                 OptionPill(
                     engine = controls,
@@ -756,7 +774,7 @@ fun PlayerScreen(
                             onSelect = { addon, stream -> switchSource(addon, stream) },
                             onClose = { panel = null },
                         )
-                        PlayerPanel.Info -> info?.let { InfoPanel(it, current.logo, onClose = { panel = null }) }
+                        PlayerPanel.Info -> Unit
                         PlayerPanel.Display -> DisplayPanel(
                             aspect = aspect,
                             onAspect = { aspect = it },
@@ -798,6 +816,13 @@ fun PlayerScreen(
                         null -> Unit
                     }
                 }
+                // Outside the AnimatedContent on purpose: it has its own enter and exit, and must be in the tree before it is shown.
+                InfoPanel(
+                    visible = panel == PlayerPanel.Info,
+                    info = info,
+                    logo = current.logo,
+                    onClose = { panel = null },
+                )
             },
             skip = { shown ->
                 // A guest's skip would move the picture alone, so a guest is not offered it: the room's host decides.

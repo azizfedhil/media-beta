@@ -169,9 +169,8 @@ suspend fun openSourceChooser(
             onSelect = { request ->
                 PearTrace.event("UI") { "picker select" }
                 env.shell.closeSourcePicker()
-                // No slide: the player appears at once (see NavController.push).
-                PearTrace.event("UI") { "player route pushed" }
-                env.shell.currentNav().push(Route.Player(request.forPartyRoom(env.data.party)), animate = false)
+                // Behind a curtain, so opening the player is smooth (see PlayerLaunchCurtain).
+                env.shell.launchPlayer(request.forPartyRoom(env.data.party))
             },
         ),
     )

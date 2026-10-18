@@ -4,6 +4,7 @@ import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.AppLifecycle
 import com.mediahub.pear.shell.PerformanceNotice
 import com.mediahub.pear.shell.PlatformCaps
+import com.mediahub.pear.shell.PlayerLaunchCurtain
 import com.mediahub.pear.shell.Route
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -159,7 +160,7 @@ fun App(
     // The player's native library and classes are loaded after the launch intro, off the UI thread, so its first open does not
     // stall (see PlayerWarmup on desktop).
     LaunchedEffect(Unit) {
-        delay(6_000L)
+        delay(4_500L)
         withContext(Dispatchers.Default) { warmPlayer() }
     }
     PearTheme(theme) {
@@ -186,6 +187,8 @@ fun App(
                 // Platform extras that sit over the app, such as the desktop's "new version" notice.
                 overlay()
                 PerformanceNotice(perfNote)
+                // The curtain that covers the app while a player opens. Above the shell and its pickers, under the launch intro.
+                PlayerLaunchCurtain(shell)
                 PearLaunchOverlay()
                 // The crash briefing, from the last run, sits above everything (it shows nothing when there is none).
                 CrashBriefingHost()

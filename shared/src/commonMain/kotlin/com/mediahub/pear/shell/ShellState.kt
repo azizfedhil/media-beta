@@ -133,6 +133,23 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
         sourcePicker = null
     }
 
+    /** The curtain that covers the app while a player opens, if one is pending (see PlayerLaunchCurtain). */
+    var playerLaunch: PlayerLaunch? by mutableStateOf(null)
+        private set
+
+    /**
+     * Opens the player behind a curtain: the curtain covers the app, the player is pushed onto [nav] under it, and the curtain
+     * lifts. Use this instead of pushing [Route.Player] when the person picked a source. A second call while one is pending is ignored.
+     */
+    fun launchPlayer(request: PlayRequest, nav: NavController<Route> = currentNav()) {
+        if (playerLaunch != null) return
+        playerLaunch = PlayerLaunch(request, nav)
+    }
+
+    internal fun finishPlayerLaunch() {
+        playerLaunch = null
+    }
+
     /** The long-press style menu of a poster, season or episode, if one is open. */
     var contextMenu: ContextMenuRequest? by mutableStateOf(null)
         private set
