@@ -27,11 +27,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonObject
 import kotlin.math.abs
 
 private const val TAG = "Pear.pair"
+
+/** How long [SyncEngine.freshen] waits for a sync before a title opens. Past it the title opens with what is on the device. */
+private const val FRESHEN_WAIT_MILLIS = 2_500L
+
+/** A full sync that finished this recently counts as fresh: none is started again for a window focus or a title opening. */
+private const val FRESH_ENOUGH_MILLIS = 20_000L
 
 /** A watch-log record's key: the month, `yyyy-MM` (cloud/CLOUD_API.md §2.2). */
 private val WATCHLOG_MONTH = Regex("\\d{4}-\\d{2}")
@@ -107,6 +114,9 @@ class SyncEngine(
     private var running = false
     private var scheduled = false
     private var lastPushAt = 0L
+
+    /** When the last full sync (push, then pull) finished without error. 0 before the first. */
+    private var lastFullSyncAt = 0L
     private var retryGen = 0
     private var retryMillis = SyncRules.RETRY_MIN_MILLIS
 
@@ -139,6 +149,27 @@ class SyncEngine(
     /** Sync now: push what changed here, then pull what changed elsewhere. */
     fun syncNow() {
         scope.launch { cycle(full = true) }
+    }
+
+    /**
+     * Brings this device up to date before a title opens, so its resume point is the account's and not an older one from
+     * here. Waits at most [timeoutMillis]; offline or slow, it gives up and the title opens with what is on the device.
+     * The sync itself carries on in the background. Does nothing without an account, or right after a full sync.
+     */
+    suspend fun freshen(timeoutMillis: Long = FRESHEN_WAIT_MILLIS) {
+        if (!store.isSignedIn) return
+        if (clock() - lastFullSyncAt < FRESH_ENOUGH_MILLIS) return
+        val job = scope.launch { cycle(full = true) }
+        withTimeoutOrNull(timeoutMillis) { job.join() }
+    }
+
+    /**
+     * The desktop window is closing: pushes what is waiting (the position saved on leaving the player is already marked to
+     * go out at once) and returns when it has gone. The caller bounds the wait, because the process ends right after.
+     */
+    suspend fun flushForExit() {
+        if (!store.isSignedIn) return
+        cycle(full = false)
     }
 
     /** Signs this device out. Its token is revoked on the server when that works. Local data stays on the device. */
@@ -198,7 +229,8 @@ class SyncEngine(
         running = true
         prefs.listen { keys -> markDirty(keys) }
         scope.launch {
-            AppLifecycle.foregrounded.collect { syncNow() }
+            // The desktop sends this on every window focus, so a sync that just finished is not repeated.
+            AppLifecycle.foregrounded.collect { if (clock() - lastFullSyncAt >= FRESH_ENOUGH_MILLIS) syncNow() }
         }
         scope.launch {
             while (true) {
@@ -301,19 +333,22 @@ class SyncEngine(
                     } finally {
                         replacing = false
                     }
-                    outcome = pushScopes(bearer, allScopes())
+                    // The lists were just rebuilt from the account, so progress keeps its cadence here.
+                    outcome = pushScopes(bearer, allScopes(), allProgress = false)
                 } else if (full) {
-                    outcome = pushScopes(bearer, allScopes())
+                    // A full sync sends every progress that differs from the account, whatever the cadence marks say.
+                    outcome = pushScopes(bearer, allScopes(), allProgress = true)
                     if (rePullSettings) store.lastServerTs = 0L
                     changed = pullAll(bearer)
                     rePullSettings = false
                 } else {
-                    outcome = pushScopes(bearer, taken)
+                    outcome = pushScopes(bearer, taken, allProgress = false)
                 }
                 // A replace wipes local data even when the account sends nothing back, so the screens must re-read.
                 if (changed || replaceLocal) onRemoteApplied()
                 retryMillis = SyncRules.RETRY_MIN_MILLIS
                 if (full || outcome.sent > 0) store.lastSyncAt = clock()
+                if (full) lastFullSyncAt = clock()
                 mutableState.value = mutableState.value.copy(
                     syncing = false,
                     pausedUntil = null,
@@ -394,8 +429,11 @@ class SyncEngine(
         return out
     }
 
-    /** Pushes what differs from the snapshot in [targets], in batches of [SyncRules.PUSH_BATCH]. */
-    private suspend fun pushScopes(bearer: String, targets: Set<Scope>): PushOutcome {
+    /**
+     * Pushes what differs from the snapshot in [targets], in batches of [SyncRules.PUSH_BATCH]. [allProgress] lifts the
+     * cadence for progress records (see [progressMayPush]).
+     */
+    private suspend fun pushScopes(bearer: String, targets: Set<Scope>, allProgress: Boolean): PushOutcome {
         val now = clock()
         val snapshot = store.readSynced()
         val pending = ArrayList<Pending>()
@@ -408,7 +446,7 @@ class SyncEngine(
             for ((k, rec) in local.records) {
                 val old = snapshot[k]
                 if (old != null && old.fingerprint == rec.fingerprint) continue
-                if (rec.kind == SyncKind.PROGRESS && !progressMayPush(rec, old, now)) continue
+                if (rec.kind == SyncKind.PROGRESS && !progressMayPush(rec, old, now, allProgress)) continue
                 if (rec.kind == SyncKind.WATCHLOG) {
                     if (!dueNow) continue
                     queuedWatchLog = true
@@ -459,10 +497,14 @@ class SyncEngine(
         return maxOf(now, old.updatedAt + 1)
     }
 
-    /** A progress record goes out only when it is forced (pause, background, exit) or due and the position moved. */
-    private fun progressMayPush(rec: LocalRecord, old: SyncedRecord?, now: Long): Boolean {
+    /**
+     * A progress record goes out when it is forced (pause, background, exit), or due and the position moved. A full sync
+     * ([allProgress]) sends every one that differs from the account: the forced and due marks live in memory only and are
+     * cleared before the request is made, so a push that failed or never ran (the app closed, a restart) is picked up here.
+     */
+    private fun progressMayPush(rec: LocalRecord, old: SyncedRecord?, now: Long, allProgress: Boolean): Boolean {
         val token = progressToken(rec.profileId, rec.key)
-        if (token in forced) {
+        if (allProgress || token in forced) {
             lastProgressPush[token] = now
             return true
         }

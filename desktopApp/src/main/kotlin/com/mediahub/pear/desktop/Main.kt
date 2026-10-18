@@ -3,7 +3,11 @@ package com.mediahub.pear.desktop
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.loadImageBitmap
@@ -28,6 +32,7 @@ import com.mediahub.pear.log.PearTrace
 import com.mediahub.pear.log.TraceDesktop
 import com.mediahub.pear.log.TraceWindow
 import com.mediahub.pear.shell.AppExit
+import com.mediahub.pear.shell.AppLifecycle
 import com.mediahub.pear.shell.CrashReports
 import com.mediahub.pear.update.PearBuild
 import com.mediahub.pear.update.UpdateNotice
@@ -38,6 +43,7 @@ import com.mediahub.pear.shell.restoredWindow
 import com.mediahub.pear.shell.WindowControl
 import com.mediahub.pear.shell.WindowMode
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.Toolkit
@@ -177,9 +183,26 @@ fun main(args: Array<String>) = application {
         }
     }
 
+    val closeScope = rememberCoroutineScope()
+    var closing by remember { mutableStateOf(false) }
     val appIcon = remember { loadAppIcon() }
     Window(
-        onCloseRequest = { AppExit.runAll(); PearLogFile.markCleanExit(); storage.flush(); exitApplication() },
+        onCloseRequest = {
+            if (!closing) {
+                closing = true
+                AppExit.runAll()
+                PearLogFile.markCleanExit()
+                storage.flush()
+                // The window goes away at once. The process stays up for a moment so the last position reaches Pear.pair,
+                // then the storage is flushed again, because that push updates its snapshot.
+                closeScope.launch {
+                    AppExit.runFinishers(3_000L)
+                    storage.flush()
+                    exitApplication()
+                }
+            }
+        },
+        visible = !closing,
         title = "Pear.",
         state = windowState,
         icon = appIcon,
@@ -200,6 +223,15 @@ fun main(args: Array<String>) = application {
             }
             window.addWindowListener(listener)
             onDispose { window.removeWindowListener(listener) }
+        }
+        // Coming back to the window pulls what other devices saved (Pear.pair). The engine skips it right after a sync.
+        DisposableEffect(window) {
+            val focus = object : java.awt.event.WindowFocusListener {
+                override fun windowGainedFocus(e: WindowEvent) { AppLifecycle.notifyForegrounded() }
+                override fun windowLostFocus(e: WindowEvent) {}
+            }
+            window.addWindowFocusListener(focus)
+            onDispose { window.removeWindowFocusListener(focus) }
         }
         LaunchedEffect(windowState.placement, windowState.isMinimized) {
             PearLog.i("Window", "placement=${windowState.placement} minimized=${windowState.isMinimized} size=${windowState.size}")

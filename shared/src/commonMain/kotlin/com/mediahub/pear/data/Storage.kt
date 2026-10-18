@@ -16,6 +16,7 @@ import com.mediahub.pear.meta.MetaServices
 import com.mediahub.pear.meta.TitleClassifier
 import com.mediahub.pear.net.Network
 import com.mediahub.pear.servers.MediaServerStore
+import com.mediahub.pear.shell.AppExit
 import com.mediahub.pear.shell.SidebarPins
 import com.mediahub.pear.simkl.SimklHistorySync
 import com.mediahub.pear.simkl.SimklStore
@@ -133,6 +134,8 @@ class AppData(
     init {
         // Starts the sync timers when an account is signed in here. Otherwise it reads no secret and does nothing.
         pairSync.startIfSignedIn()
+        // The desktop waits for this, briefly, before it exits, so the position saved on leaving reaches the account.
+        AppExit.registerFinisher { pairSync.flushForExit() }
     }
 
     /** Watch party: the room this device is in and its socket. Idle until a room is started or joined. */

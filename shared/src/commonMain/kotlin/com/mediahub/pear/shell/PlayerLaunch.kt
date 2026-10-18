@@ -55,6 +55,7 @@ private val CURTAIN_BASE = Color(0xFF09090B)
 @Composable
 fun PlayerLaunchCurtain(shell: ShellState) {
     val pending = shell.playerLaunch ?: return
+    val env = LocalAppEnv.current
     val cover = remember(pending) { Animatable(0f) }
     val pop = remember(pending) { Animatable(0f) }
     val ripple = remember(pending) { Animatable(0f) }
@@ -65,6 +66,8 @@ fun PlayerLaunchCurtain(shell: ShellState) {
         launch { pop.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 300f)) }
         launch { ripple.animateTo(1f, tween(800, easing = LinearOutSlowInEasing)) }
         cover.animateTo(1f, tween(COVER_MS, easing = PearMotion.standard))
+        // Pear.pair: brings the resume point up to date while the curtain covers the app. Waits a couple of seconds at most.
+        if (!pending.request.partyRoom) env.data.pairSync.freshen()
         // Fully covered: the player is built now, out of sight. No slide (see NavController.push).
         PearTrace.event("UI") { "player route pushed" }
         pending.nav.push(Route.Player(pending.request), animate = false)
