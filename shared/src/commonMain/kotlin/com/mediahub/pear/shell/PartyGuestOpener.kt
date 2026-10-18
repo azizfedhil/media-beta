@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.PearTrace
 import com.mediahub.pear.party.PartyPick
 import com.mediahub.pear.party.PartyRole
 import com.mediahub.pear.party.PartySourcePicker
@@ -43,7 +44,10 @@ fun PartyGuestOpener(shell: ShellState) {
             PartyPick.Missing("Something went wrong looking for it.")
         }
         when (pick) {
-            is PartyPick.Found -> shell.currentNav().push(Route.Player(pick.request))
+            is PartyPick.Found -> {
+                PearTrace.event("UI") { "player route pushed" }
+                shell.currentNav().push(Route.Player(pick.request), animate = false)
+            }
             is PartyPick.Missing -> {
                 PearLog.i("Party", "the room's source is not on this device: ${pick.reason}")
                 party.client.ready(false)

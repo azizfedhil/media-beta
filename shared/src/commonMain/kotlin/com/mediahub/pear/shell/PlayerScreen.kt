@@ -16,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -343,22 +342,6 @@ fun PlayerScreen(
     LaunchedEffect(Unit) {
         PearTrace.event("UI") {
             "player opened glassOn=$glassOn blurPlaying=$blurPlaying glassMode=${env.glass.mode} sampleable=$sampleable performance=$performance"
-        }
-    }
-    // UI frame-clock probe, only while tracing: the gap between frames is measured, so a stall in the UI shows in the trace.
-    // While tracing, Compose asks for a frame every vsync. That is a known, accepted side effect of this probe.
-    val traceOn by PearTrace.enabledFlow.collectAsState()
-    if (traceOn) LaunchedEffect(Unit) {
-        var last = 0L
-        while (true) {
-            val t = withFrameNanos { it }
-            if (last != 0L) {
-                val gapMs = (t - last) / 1_000_000.0
-                PearTrace.count("ui.frames")
-                PearTrace.sample("ui.frameGapMs", gapMs)
-                if (gapMs > 40.0) PearTrace.event("UI") { "frame gap ${gapMs.toLong()} ms" }
-            }
-            last = t
         }
     }
     // Picture in Picture follows the Settings switch. The platform opens the window; the player says when it may.

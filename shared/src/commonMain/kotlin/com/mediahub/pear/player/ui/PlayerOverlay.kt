@@ -246,6 +246,14 @@ fun PlayerOverlay(
         }
     }
     val covered = panelCoversControls(panel)
+    // The controls come back only when a covering panel has finished leaving. A covering panel counts at once, and its exit
+    // holds the controls back for PearMotion.FAST, so they do not fade in over a panel that is still on screen.
+    var coveredExit by remember { mutableStateOf(covered) }
+    LaunchedEffect(covered) {
+        if (!covered) delay(PearMotion.FAST.toLong())
+        coveredExit = covered
+    }
+    val coveredHeld = covered || coveredExit
     LaunchedEffect(panel) { PearTrace.event("UI") { "panel ${panel?.name ?: "none"}" } }
 
     val hiddenCursor = remember { hiddenPointerIcon() }
@@ -383,7 +391,7 @@ fun PlayerOverlay(
                 }
 
                 AnimatedVisibility(
-                    visible = visible && !covered && !opening,
+                    visible = visible && !coveredHeld && !opening,
                     enter = fadeIn(tween(PearMotion.BASE)),
                     exit = fadeOut(tween(PearMotion.BASE)),
                 ) {

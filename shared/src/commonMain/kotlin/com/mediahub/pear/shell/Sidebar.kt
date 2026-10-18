@@ -471,7 +471,7 @@ private fun ContinueSidebarRow(entry: HistoryEntry) {
                 .clip(RoundedCornerShape(PearRadii.xs))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize(), maxEdge = 256)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             PearText(entry.item.name, style = PearTheme.type.footnote.weight(FontWeight.SemiBold), maxLines = 1)
@@ -573,7 +573,7 @@ private fun PinnedRow(item: MetaPreview) {
                 .clip(RoundedCornerShape(PearRadii.xs))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(item.posterUrl, Modifier.fillMaxSize())
+            RemoteImage(item.posterUrl, Modifier.fillMaxSize(), maxEdge = 256)
         }
         PearText(
             item.name,

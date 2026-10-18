@@ -41,5 +41,11 @@ object PearTransitions {
     val panelIn: EnterTransition =
         fadeIn(tween(PearMotion.BASE, easing = PearMotion.standard)) +
             slideInVertically(animationSpec = tween(PearMotion.BASE, easing = PearMotion.standard)) { it / 16 }
-    val panelOut: ExitTransition = fadeOut(tween(PearMotion.FAST, easing = PearMotion.standard))
+    /**
+     * The panel's exit: it shrinks and drops a little, with no fade. Haze glass does not reliably follow a fading ancestor,
+     * so a faded card would leave its blur behind as a rectangle. This way the card keeps its full opacity while it leaves.
+     */
+    val panelOut: ExitTransition =
+        scaleOut(tween(PearMotion.FAST, easing = FastOutLinearInEasing), targetScale = 0.97f) +
+            slideOutVertically(tween(PearMotion.FAST, easing = FastOutLinearInEasing)) { it / 24 }
 }

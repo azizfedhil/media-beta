@@ -17,11 +17,26 @@ import androidx.compose.ui.unit.dp
 import com.mediahub.pear.shell.LocalHttp
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearTheme
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Decodes raw image bytes into Compose [ImageBitmap] via platform image decoders. */
-expect fun decodeImageBitmap(bytes: ByteArray): ImageBitmap?
+/**
+ * Decodes raw image bytes into Compose [ImageBitmap] via platform image decoders. A picture whose longest edge is over
+ * [maxEdge] is scaled down to it, so a full-size poster is kept (and uploaded to the GPU) at the size it is drawn at.
+ */
+expect fun decodeImageBitmap(bytes: ByteArray, maxEdge: Int = Int.MAX_VALUE): ImageBitmap?
+
+/** The longest edge, in pixels, a picture is decoded to unless a caller asks for another size. */
+const val DEFAULT_MAX_EDGE = 1600
+
+/**
+ * Where the decode in [loadRemoteBitmap] runs. The UI thread never decodes. Tests set this to their own dispatcher, since
+ * the test scheduler cannot see work moved to a real one.
+ */
+object ImageDecode {
+    var dispatcher: CoroutineDispatcher = Dispatchers.Default
+}
 
 /**
  * Memory cache for decoded image bitmaps, least recently used first out. It is capped by count and by decoded size:
@@ -35,13 +50,17 @@ object ImageMemoryCache {
     /** Decoded pixels kept at most (4 bytes a pixel). */
     private const val MAX_BYTES = 256L * 1024 * 1024
 
-    @Synchronized
-    fun get(url: String): ImageBitmap? = cache[url]
+    /** One size of one picture is one entry: the same URL at two sizes is two entries. */
+    private fun keyOf(url: String, maxEdge: Int): String = "$url@$maxEdge"
 
     @Synchronized
-    fun put(url: String, bitmap: ImageBitmap) {
-        cache.remove(url)?.let { bytes -= sizeOf(it) }
-        cache[url] = bitmap
+    fun get(url: String, maxEdge: Int = DEFAULT_MAX_EDGE): ImageBitmap? = cache[keyOf(url, maxEdge)]
+
+    @Synchronized
+    fun put(url: String, bitmap: ImageBitmap, maxEdge: Int = DEFAULT_MAX_EDGE) {
+        val key = keyOf(url, maxEdge)
+        cache.remove(key)?.let { bytes -= sizeOf(it) }
+        cache[key] = bitmap
         bytes += sizeOf(bitmap)
         while (cache.size > 1 && (cache.size > MAX_ENTRIES || bytes > MAX_BYTES)) {
             val oldest = cache.keys.first()
@@ -61,7 +80,8 @@ object ImageMemoryCache {
 }
 
 /**
- * Loads an image from [url] with caching, shimmer placeholder, and fallback icon.
+ * Loads an image from [url] with caching, shimmer placeholder, and fallback icon. [maxEdge] is the longest edge the
+ * picture is decoded to: pass the size it is drawn at, so a small thumb is not decoded at its original size.
  */
 @Composable
 fun RemoteImage(
@@ -70,12 +90,13 @@ fun RemoteImage(
     contentDescription: String? = null,
     fallbackUrl: String? = null,
     contentScale: ContentScale = ContentScale.Crop,
+    maxEdge: Int = DEFAULT_MAX_EDGE,
 ) {
     val http = LocalHttp.current
-    var bitmap by remember(url) { mutableStateOf(url?.let { ImageMemoryCache.get(it) }) }
-    var failed by remember(url) { mutableStateOf(false) }
+    var bitmap by remember(url, maxEdge) { mutableStateOf(url?.let { ImageMemoryCache.get(it, maxEdge) }) }
+    var failed by remember(url, maxEdge) { mutableStateOf(false) }
 
-    LaunchedEffect(url) {
+    LaunchedEffect(url, maxEdge) {
         if (url.isNullOrBlank()) {
             failed = true
             return@LaunchedEffect
@@ -91,11 +112,11 @@ fun RemoteImage(
                 val fallbackReq = HttpRequest(fallbackUrl, timeoutMillis = 10_000)
                 bytes = attempt { http.execute(fallbackReq).body }
             }
-            bytes?.let { decodeImageBitmap(it) }
+            bytes?.let { decodeImageBitmap(it, maxEdge) }
         }
 
         if (loaded != null) {
-            ImageMemoryCache.put(targetUrl, loaded)
+            ImageMemoryCache.put(targetUrl, loaded, maxEdge)
             bitmap = loaded
         } else {
             failed = true
@@ -132,18 +153,19 @@ fun ImagePlaceholder(modifier: Modifier = Modifier) {
 }
 
 /**
- * Loads and decodes [url] through the same memory cache [RemoteImage] uses. Null when the image cannot be loaded. Callers
- * that must know whether an image arrived (a title logo replaces its text only once it has loaded) use this, not RemoteImage,
- * which shows a placeholder or an icon instead.
+ * Loads and decodes [url] through the same memory cache [RemoteImage] uses, at the same [maxEdge]. Null when the image
+ * cannot be loaded. Callers that must know whether an image arrived (a title logo replaces its text only once it has
+ * loaded) use this, not RemoteImage, which shows a placeholder or an icon instead.
  */
-suspend fun loadRemoteBitmap(http: Http, url: String): ImageBitmap? {
-    ImageMemoryCache.get(url)?.let { return it }
-    // Runs on the caller's context, not Dispatchers.Default: callers that must know whether an image arrived wait on
-    // this call, and tests drive it through a virtual-time scheduler that cannot see work moved to a real dispatcher.
+suspend fun loadRemoteBitmap(http: Http, url: String, maxEdge: Int = DEFAULT_MAX_EDGE): ImageBitmap? {
+    ImageMemoryCache.get(url, maxEdge)?.let { return it }
+    // The network call stays on the caller's context: callers that must know whether an image arrived wait on it. The
+    // decode runs on ImageDecode.dispatcher, so the UI thread never decodes. Tests drive this call through a virtual-time
+    // scheduler that cannot see work moved to a real dispatcher, so they set ImageDecode.dispatcher to their own.
     val reply = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)) } ?: return null
     // An error answer is never a picture. It isn't decoded at all, so a 404 costs no image work.
     if (reply.status !in 200..299) return null
-    val loaded = decodeImageBitmap(reply.body) ?: return null
-    ImageMemoryCache.put(url, loaded)
+    val loaded = withContext(ImageDecode.dispatcher) { decodeImageBitmap(reply.body, maxEdge) } ?: return null
+    ImageMemoryCache.put(url, loaded, maxEdge)
     return loaded
 }

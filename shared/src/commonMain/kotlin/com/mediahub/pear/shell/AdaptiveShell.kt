@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.mediahub.pear.detail.SourcePickerOverlay
 import com.mediahub.pear.glass.GlassScene
+import com.mediahub.pear.glass.GlassWarmup
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.glass.rememberSidebarGlass
 import com.mediahub.pear.nav.LocalPageActive
@@ -171,6 +172,7 @@ fun AdaptiveShell(
                         onProfileClick = { shell.showProfiles = true },
                     )
                     ShellOverlays(shell, shell.showProfiles, sidebarWidth = sidebarW) { shell.showProfiles = it }
+                    GlassWarmup(Modifier.align(Alignment.BottomEnd))
                 }
             } else {
                 CompositionLocalProvider(LocalBottomInset provides (TabBarHeight + 24.dp)) {
@@ -184,6 +186,7 @@ fun AdaptiveShell(
                     ) {
                         if (!playerOnTop) CompactTabBar(shell, Modifier.align(Alignment.BottomCenter))
                         ShellOverlays(shell, shell.showProfiles) { shell.showProfiles = it }
+                        GlassWarmup(Modifier.align(Alignment.BottomEnd))
                         val isSubPage = shell.currentNav().canGoBack
                         if (!playerOnTop && !isSubPage) ProfileAvatarButton(
                             profile = env.data.profiles.active,
@@ -233,7 +236,7 @@ internal fun ShellPages(shell: ShellState, modifier: Modifier = Modifier) {
                     KeepAlive(shown) {
                         CompositionLocalProvider(LocalPageActive provides shown) {
                             val nav = shell.navFor(tab)
-                            NavHost(nav) { route -> RouteContent(route, nav) }
+                            NavHost(nav, instant = { it is Route.Player }) { route -> RouteContent(route, nav) }
                         }
                     }
                 }
@@ -241,7 +244,7 @@ internal fun ShellPages(shell: ShellState, modifier: Modifier = Modifier) {
         }
         if (catalogue != null && catalogueNav != null) {
             key(catalogue.id) {
-                NavHost(catalogueNav) { route -> RouteContent(route, catalogueNav) }
+                NavHost(catalogueNav, instant = { it is Route.Player }) { route -> RouteContent(route, catalogueNav) }
             }
         }
     }

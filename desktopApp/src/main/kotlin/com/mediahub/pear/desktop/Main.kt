@@ -19,6 +19,7 @@ import com.mediahub.pear.data.AppDirs
 import com.mediahub.pear.data.desktopStorage
 import com.mediahub.pear.net.desktopNetwork
 import com.mediahub.pear.player.mpv.LibmpvSetupGate
+import com.mediahub.pear.player.mpv.PlayerWarmup
 import com.mediahub.pear.glass.BatteryWatch
 import com.mediahub.pear.log.FileCrashReportSource
 import com.mediahub.pear.log.PearLog
@@ -209,7 +210,13 @@ fun main(args: Array<String>) = application {
         RememberWindowGeometry(window, windowState, storage.prefs)
         // Windows: waits for libmpv (fetched on first run, or again if it went missing) before the app starts.
         LibmpvSetupGate {
-            App(windowControl = control, storage = storage, network = network, overlay = { UpdateNotice() })
+            App(
+                windowControl = control,
+                storage = storage,
+                network = network,
+                overlay = { UpdateNotice() },
+                warmPlayer = { PlayerWarmup.run() },
+            )
         }
     }
 }

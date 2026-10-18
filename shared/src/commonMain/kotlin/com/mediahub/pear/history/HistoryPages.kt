@@ -319,7 +319,7 @@ private fun ContinueCard(
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize(), maxEdge = 600)
 
             // Bottom progress bar
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.25f))) {
@@ -366,7 +366,7 @@ private fun UpNextCard(
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(still ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize(), maxEdge = 600)
 
             // UP NEXT badge, top-left, as on Home
             Box(

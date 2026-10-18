@@ -5,10 +5,7 @@ import com.mediahub.pear.shell.MenuAnchor
 import com.mediahub.pear.shell.clickOrMenu
 import com.mediahub.pear.shell.menuAnchor
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,8 +25,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.mediahub.pear.nav.LocalPageActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -201,6 +200,7 @@ fun EpisodeCard(
         ) {
             RemoteImage(
                 url = ep.image,
+                maxEdge = 1000,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
@@ -427,15 +427,16 @@ fun ShimmerText(
     fontWeight: FontWeight = FontWeight.Bold,
     tracking: TextUnit = 0.8.sp,
 ) {
-    val transition = rememberInfiniteTransition()
-    val sweep by transition.animateFloat(
-        initialValue = -0.5f,
-        targetValue = 2.5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-    )
+    // The sweep runs only while this page is on screen: a page under the player stays composed, and its sweep rests.
+    val pageActive = LocalPageActive.current
+    val sweepPos = remember { Animatable(-0.5f) }
+    LaunchedEffect(pageActive) {
+        if (!pageActive) return@LaunchedEffect
+        while (true) {
+            sweepPos.snapTo(-0.5f)
+            sweepPos.animateTo(2.5f, tween(durationMillis = 3400, easing = LinearEasing))
+        }
+    }
 
     Box(modifier) {
         Row(
@@ -464,7 +465,7 @@ fun ShimmerText(
                 .drawWithContent {
                     drawContent()
                     val w = size.width
-                    val x = sweep * w
+                    val x = sweepPos.value * w
                     drawRect(
                         brush = Brush.horizontalGradient(
                             colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.85f), Color.Transparent),

@@ -68,9 +68,13 @@ fun ImageBitmap.averageColor(): Color? {
 
 private val ambientCache = HashMap<String, Color>()
 
+/** A colour average needs only a few pixels, so the picture is decoded at this size, not the size it is drawn at. */
+private const val AMBIENT_MAX_EDGE = 96
+
 suspend fun heroAmbientFor(http: Http, url: String): Color? {
     ambientCache[url]?.let { return it }
-    val bitmap = ImageMemoryCache.get(url) ?: loadRemoteBitmap(http, url) ?: return null
+    // A picture already decoded for the screen is averaged as it is. Otherwise a small copy is decoded.
+    val bitmap = ImageMemoryCache.get(url) ?: loadRemoteBitmap(http, url, maxEdge = AMBIENT_MAX_EDGE) ?: return null
     val tuned = withContext(Dispatchers.Default) { bitmap.averageColor()?.let(AmbientTone::tune) } ?: return null
     ambientCache[url] = tuned
     return tuned

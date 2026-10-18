@@ -54,6 +54,7 @@ import com.mediahub.pear.addons.Pin
 import com.mediahub.pear.glass.GlassButton
 import com.mediahub.pear.glass.GlassSheet
 import com.mediahub.pear.glass.GlassSurface
+import com.mediahub.pear.log.PearTrace
 import com.mediahub.pear.meta.MdbRating
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.MetaPreview
@@ -166,8 +167,11 @@ suspend fun openSourceChooser(
             logo = logo,
             episodeInfo = episodeInfo,
             onSelect = { request ->
+                PearTrace.event("UI") { "picker select" }
                 env.shell.closeSourcePicker()
-                env.shell.currentNav().push(Route.Player(request.forPartyRoom(env.data.party)))
+                // No slide: the player appears at once (see NavController.push).
+                PearTrace.event("UI") { "player route pushed" }
+                env.shell.currentNav().push(Route.Player(request.forPartyRoom(env.data.party)), animate = false)
             },
         ),
     )
@@ -325,7 +329,7 @@ private fun EpisodePane(request: SourcePickerRequest, ratings: List<MdbRating>, 
                     )
                 },
         ) {
-            RemoteImage(image, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            RemoteImage(image, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, maxEdge = 1000)
         }
 
         // Soft dark gradient overlay for text readability over the lower half

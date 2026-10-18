@@ -115,6 +115,7 @@ fun TrailerCard(
         ) {
             RemoteImage(
                 url = video.thumbnailUrl,
+                maxEdge = 1000,
                 modifier = Modifier.fillMaxSize(),
             )
 

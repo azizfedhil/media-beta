@@ -9,7 +9,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,6 +29,7 @@ import com.mediahub.pear.glass.FramePacing
 import com.mediahub.pear.glass.GlassMode
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.glass.PowerStatus
+import com.mediahub.pear.log.PearTrace
 import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.onboarding.OnboardingHost
 import com.mediahub.pear.p2p.blockingUntil
@@ -45,10 +48,20 @@ import com.mediahub.pear.shell.WindowControl
 import com.mediahub.pear.theme.NoIndication
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.ThemeStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Composable
-fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage: Storage? = null, network: Network? = null, overlay: @Composable BoxScope.() -> Unit = {}) {
+fun App(
+    windowControl: WindowControl? = null,
+    devTools: Boolean = true,
+    storage: Storage? = null,
+    network: Network? = null,
+    overlay: @Composable BoxScope.() -> Unit = {},
+    /** Runs once, on a background thread, after the launch intro (desktop loads the player there; Android passes nothing). */
+    warmPlayer: () -> Unit = {},
+) {
     val data = remember(storage, network) {
         AppData(storage ?: Storage.inMemory(), network ?: Network.offline(), autoStartAddons = false)
     }
@@ -125,6 +138,29 @@ fun App(windowControl: WindowControl? = null, devTools: Boolean = true, storage:
         data.addons.start()
         data.addons.retryUnreachable()
         AppLifecycle.foregrounded.collect { data.addons.retryUnreachable() }
+    }
+    // UI frame-clock probe, only while tracing: the gap between frames is measured, so a stall in the UI shows in the trace.
+    // It runs for the whole session: the launch and the source picker are measured as well as the player.
+    // While tracing, Compose asks for a frame every vsync. That is a known, accepted side effect of this probe.
+    val traceOn by PearTrace.enabledFlow.collectAsState()
+    if (traceOn) LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) {
+            val t = withFrameNanos { it }
+            if (last != 0L) {
+                val gapMs = (t - last) / 1_000_000.0
+                PearTrace.count("ui.frames")
+                PearTrace.sample("ui.frameGapMs", gapMs)
+                if (gapMs > 40.0) PearTrace.event("UI") { "frame gap ${gapMs.toLong()} ms" }
+            }
+            last = t
+        }
+    }
+    // The player's native library and classes are loaded after the launch intro, off the UI thread, so its first open does not
+    // stall (see PlayerWarmup on desktop).
+    LaunchedEffect(Unit) {
+        delay(6_000L)
+        withContext(Dispatchers.Default) { warmPlayer() }
     }
     PearTheme(theme) {
         CompositionLocalProvider(

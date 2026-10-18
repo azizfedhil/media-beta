@@ -216,7 +216,7 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: entry.item.backdropUrl ?: entry.item.posterUrl), Modifier.fillMaxSize(), maxEdge = 600)
 
             // Clear from the middle of the still to black at half strength at the bottom, so the bar and the pill read.
             Box(
@@ -281,7 +281,7 @@ private fun UpNextCard(item: UpNextItem, onClick: () -> Unit, onMenu: (Rect) -> 
                 .clip(RoundedCornerShape(PearRadii.md))
                 .background(PearTheme.colors.fill),
         ) {
-            RemoteImage(upgradeTmdbStill(still ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize())
+            RemoteImage(upgradeTmdbStill(still ?: item.item.backdropUrl ?: item.item.posterUrl), Modifier.fillMaxSize(), maxEdge = 600)
 
             Box(
                 Modifier.align(Alignment.TopStart).padding(8.dp)

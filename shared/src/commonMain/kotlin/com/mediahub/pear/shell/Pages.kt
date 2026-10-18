@@ -3,6 +3,7 @@ package com.mediahub.pear.shell
 import androidx.compose.foundation.background
 import com.mediahub.pear.party.forPartyRoom
 import com.mediahub.pear.log.PearLog
+import com.mediahub.pear.log.PearTrace
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -142,7 +143,10 @@ private fun RouteBody(route: Route, nav: NavController<Route>) {
             startEpisode = route.startEpisode,
             onBack = { nav.pop() },
             onSelectTitle = { item -> nav.push(Route.Detail(item)) },
-            onPlay = { request -> nav.push(Route.Player(request.forPartyRoom(env.data.party))) },
+            onPlay = { request ->
+                PearTrace.event("UI") { "player route pushed" }
+                nav.push(Route.Player(request.forPartyRoom(env.data.party)), animate = false)
+            },
         )
         is Route.Player -> PlayerScreen(request = route.request, onBack = { nav.pop() })
         Route.ProfileDetail -> ProfileDetailScreen(

@@ -81,7 +81,7 @@ fun ProfileAvatar(
         contentAlignment = Alignment.Center,
     ) {
         if (photoUrl != null) {
-            RemoteImage(photoUrl, Modifier.fillMaxSize())
+            RemoteImage(photoUrl, Modifier.fillMaxSize(), maxEdge = 256)
         } else {
             Box(
                 Modifier.fillMaxSize().background(

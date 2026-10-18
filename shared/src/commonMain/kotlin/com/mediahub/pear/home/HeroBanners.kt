@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import com.mediahub.pear.detail.RatingBadge
 import com.mediahub.pear.meta.MdbRating
 import com.mediahub.pear.model.MetaPreview
+import com.mediahub.pear.nav.LocalPageActive
 import com.mediahub.pear.net.RemoteImage
 import com.mediahub.pear.net.attempt
 import com.mediahub.pear.net.rememberDominantColor
@@ -111,8 +112,10 @@ private fun easedFade(start: Float, steps: Int = 10): Brush {
 @Composable
 private fun rememberHeroIndex(count: Int, intervalMillis: Long, paused: Boolean): MutableIntState {
     val index = remember { mutableIntStateOf(0) }
-    LaunchedEffect(count, paused) {
-        if (paused || count < 2) return@LaunchedEffect
+    // A page under another one (the player, a pushed page) is not on screen, so its hero rests.
+    val pageActive = LocalPageActive.current
+    LaunchedEffect(count, paused, pageActive) {
+        if (paused || !pageActive || count < 2) return@LaunchedEffect
         while (true) {
             delay(intervalMillis)
             index.intValue = (index.intValue + 1) % count
@@ -157,7 +160,10 @@ private fun HeroArt(
     modifier: Modifier = Modifier,
 ) {
     val zoom = remember { Animatable(1f) }
-    LaunchedEffect(active) {
+    // The zoom holds still while this page is not on screen (see LocalPageActive).
+    val pageActive = LocalPageActive.current
+    LaunchedEffect(active, pageActive) {
+        if (!pageActive) return@LaunchedEffect
         if (active) zoom.animateTo(1.1f, tween(durationMillis = 18_000, easing = LinearEasing))
         else zoom.animateTo(1f, tween(durationMillis = 900))
     }
@@ -337,11 +343,13 @@ fun HeroCarousel(
     val dragged by pagerState.interactionSource.collectIsDraggedAsState()
     val paused = expandedId != null
     LaunchedEffect(pagerState.currentPage) { expandedId = null }
+    // A carousel under another page does not advance either.
+    val pageActive = LocalPageActive.current
     // Auto-advance every seven seconds, from the settled page. It keys on the settled page, which only changes once a slide
     // has finished, so the effect never restarts in the middle of one. The slide runs in [scope] for the same reason: a
     // change of paused or dragged while it runs must not cancel it.
-    LaunchedEffect(pagerState.settledPage, paused, dragged) {
-        if (paused || dragged || items.size < 2) return@LaunchedEffect
+    LaunchedEffect(pagerState.settledPage, paused, dragged, pageActive) {
+        if (paused || dragged || !pageActive || items.size < 2) return@LaunchedEffect
         delay(7_000L)
         val next = (pagerState.settledPage + 1) % items.size
         scope.launch {
@@ -457,10 +465,24 @@ fun WideHeroPanel(
     }
 }
 
+/** How many hero pictures are read for their colour at launch. */
+private const val PREFETCH_LIMIT = 4
+
+/** The launch intro runs about five seconds, then a 700 ms fade. The colours are read after it, so the intro stays smooth. */
+private const val PREFETCH_AFTER_INTRO_MILLIS = 6_000L
+
+/** A short pause between two reads, so one read never follows another straight away. */
+private const val PREFETCH_GAP_MILLIS = 150L
+
 @Composable
 private fun PrefetchHeroAmbient(urls: List<String?>) {
     val http = LocalHttp.current
     LaunchedEffect(urls) {
-        urls.forEach { url -> url?.let { heroAmbientFor(http, it) } }
+        delay(PREFETCH_AFTER_INTRO_MILLIS)
+        // One picture at a time, and no more than PREFETCH_LIMIT of them.
+        for (url in urls.filterNotNull().take(PREFETCH_LIMIT)) {
+            heroAmbientFor(http, url)
+            delay(PREFETCH_GAP_MILLIS)
+        }
     }
 }

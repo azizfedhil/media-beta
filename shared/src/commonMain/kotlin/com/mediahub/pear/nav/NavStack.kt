@@ -1,6 +1,7 @@
 package com.mediahub.pear.nav
 
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,6 +39,10 @@ class NavEntry<K : Any> internal constructor(val id: Long, val key: K, animateIn
     var progress: Float by mutableFloatStateOf(if (animateIn) 0f else 1f)
         internal set
 
+    /** The opacity of an instant page (see [NavHost]). It fades out on pop, and stays 1 for every other page. */
+    var fade: Float by mutableFloatStateOf(1f)
+        internal set
+
     /** True from the moment it is popped until its slide-out has finished and it is removed. */
     var leaving: Boolean by mutableStateOf(false)
         internal set
@@ -62,10 +67,14 @@ class NavController<K : Any>(root: K) {
 
     internal fun topEntry(): NavEntry<K> = entries.last { !it.leaving }
 
-    fun push(key: K) {
+    /**
+     * Pushes [key] on top. With [animate] false the page is on screen at once, with no slide: the player opens this way,
+     * so no slide runs while it is being built.
+     */
+    fun push(key: K, animate: Boolean = true) {
         // A page still sliding away is finished at once, so the new page animates over a settled stack.
         entries.removeAll { it.leaving }
-        entries.add(NavEntry(nextId++, key, animateIn = true))
+        entries.add(NavEntry(nextId++, key, animateIn = animate))
     }
 
     /** Go back one page. False (and nothing happens) at the root. */
@@ -95,13 +104,15 @@ private const val PARALLAX = 0.30f
 private const val SCRIM_ALPHA = 0.30f
 
 /**
- * Shows [controller]'s stack. A pushed page slides in from the right over the one below, which drifts left and
- * dims; a pop plays it backwards. Only the top page takes mouse and keyboard input.
+ * Shows [controller]'s stack. A pushed page slides in from the right over the one below, which drifts left and dims; a
+ * pop plays it backwards. A page for which [instant] is true does not slide: it appears at once, nothing drifts or dims
+ * beneath it, and on pop it fades out. Only the top page takes mouse and keyboard input.
  */
 @Composable
 fun <K : Any> NavHost(
     controller: NavController<K>,
     modifier: Modifier = Modifier,
+    instant: (K) -> Boolean = { false },
     content: @Composable (K) -> Unit,
 ) {
     val parentActive = LocalPageActive.current
@@ -113,12 +124,22 @@ fun <K : Any> NavHost(
         entries.forEachIndexed { index, entry ->
             key(entry.id) {
                 val above: NavEntry<K>? = entries.getOrNull(index + 1)
+                val isInstant = instant(entry.key)
+                val aboveInstant = above != null && instant(above.key)
                 LaunchedEffect(entry.leaving) {
                     if (entry.leaving) {
-                        animate(entry.progress, 0f, animationSpec = PearMotion.pushSpec<Float>()) { value, _ -> entry.progress = value }
+                        if (isInstant) {
+                            animate(entry.fade, 0f, animationSpec = tween(PearMotion.FAST, easing = PearMotion.standard)) { value, _ -> entry.fade = value }
+                        } else {
+                            animate(entry.progress, 0f, animationSpec = PearMotion.pushSpec<Float>()) { value, _ -> entry.progress = value }
+                        }
                         controller.finishLeaving(entry)
                     } else if (entry.progress < 1f) {
-                        animate(entry.progress, 1f, animationSpec = PearMotion.pushSpec<Float>()) { value, _ -> entry.progress = value }
+                        if (isInstant) {
+                            entry.progress = 1f
+                        } else {
+                            animate(entry.progress, 1f, animationSpec = PearMotion.pushSpec<Float>()) { value, _ -> entry.progress = value }
+                        }
                     }
                 }
                 val isTop = entry === topLive
@@ -126,8 +147,9 @@ fun <K : Any> NavHost(
                     Modifier
                         .fillMaxSize()
                         // A page buried under another is neither measured nor drawn nor hit-tested, but stays composed.
+                        // The exception is an instant page leaving: the page below shows through while it fades.
                         .layout { measurable, constraints ->
-                            val buried = above != null && above.progress >= 1f
+                            val buried = above != null && above.progress >= 1f && !(aboveInstant && above.leaving)
                             if (buried) {
                                 layout(constraints.maxWidth, constraints.maxHeight) {}
                             } else {
@@ -136,12 +158,14 @@ fun <K : Any> NavHost(
                             }
                         }
                         .graphicsLayer {
-                            val cover = above?.progress ?: 0f
-                            translationX = (1f - entry.progress) * widthPx - cover * widthPx * PARALLAX
+                            // Nothing slides over an instant page, so the page below neither drifts nor dims for it.
+                            val cover = if (aboveInstant) 0f else (above?.progress ?: 0f)
+                            translationX = if (isInstant) 0f else (1f - entry.progress) * widthPx - cover * widthPx * PARALLAX
+                            alpha = entry.fade
                         }
                         .drawWithContent {
                             drawContent()
-                            val cover = above?.progress ?: 0f
+                            val cover = if (aboveInstant) 0f else (above?.progress ?: 0f)
                             if (cover > 0f) drawRect(Color.Black.copy(alpha = SCRIM_ALPHA * cover))
                         }
                         .background(background),

@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mediahub.pear.glass.GlassPerformance
 import com.mediahub.pear.glass.GlassSurface
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearMotion
@@ -96,7 +97,15 @@ internal fun PlayerSurface(
     when (LocalPlayerLook.current) {
         PlayerLook.Blur -> {
             val veil = if (tint != null) null else if (kind == SurfaceKind.Card) PLAYER_CARD_VEIL else PLAYER_CONTROL_VEIL
-            GlassSurface(modifier, shape, wash = tint?.copy(alpha = 0.55f), veil = veil, content = wrappedContent)
+            // The player's glass is drawn at the cheapest blur quality: it sits over live video, which is redrawn every frame.
+            GlassSurface(
+                modifier,
+                shape,
+                wash = tint?.copy(alpha = 0.55f),
+                veil = veil,
+                performanceOverride = GlassPerformance.Performance,
+                content = wrappedContent,
+            )
         }
         PlayerLook.Tint -> {
             val base = Color.Black.copy(alpha = if (kind == SurfaceKind.Card) 0.55f else 0.38f)

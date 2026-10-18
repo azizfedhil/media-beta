@@ -101,7 +101,7 @@ fun PosterCard(
                 .background(PearTheme.colors.fill),
         ) {
             val posterUrl = ArtworkRotation.poster(item, 0)
-            RemoteImage(posterUrl, Modifier.fillMaxSize())
+            RemoteImage(posterUrl, Modifier.fillMaxSize(), maxEdge = 600)
 
             // Watched checkmark badge
             if (isWatched) {

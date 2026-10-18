@@ -4,7 +4,11 @@ import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 
-actual fun decodeImageBitmap(bytes: ByteArray): ImageBitmap? = try {
+/**
+ * Android decodes at the picture's own size for now: [maxEdge] is not applied here yet. The desktop decoder scales it.
+ */
+@Suppress("UNUSED_PARAMETER")
+actual fun decodeImageBitmap(bytes: ByteArray, maxEdge: Int): ImageBitmap? = try {
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
 } catch (_: Exception) {
     null

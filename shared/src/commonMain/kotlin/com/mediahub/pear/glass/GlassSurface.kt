@@ -117,6 +117,8 @@ fun GlassSurface(
     highlight: Boolean = false,
     /** Draws this surface in the given style instead of the store's [GlassStore.mode]. Null: the store's mode. */
     modeOverride: GlassMode? = null,
+    /** The blur quality of this surface alone, instead of the store's [GlassStore.performance]. Null: the store's. */
+    performanceOverride: GlassPerformance? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = PearTheme.colors
@@ -127,7 +129,7 @@ fun GlassSurface(
     val seeThrough = LocalFlatSeeThrough.current
     if (nested && GlassTuning.NESTING_WARNINGS) println("Pear: a glass surface sits inside another glass surface, so it is drawn flat.")
     val mode = effectiveGlassMode(hasScene = state != null, lowBattery = PowerStatus.lowBattery, nested = nested, mode = modeOverride ?: store.mode)
-    val perf = store.performance.haze
+    val perf = (performanceOverride ?: store.performance).haze
     // The hover fill fades in and out. It is read in the draw phase, so the glass itself does not recompose as it moves.
     val lit by animateFloatAsState(if (highlight) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))
     val hover = c.fillSubtle

@@ -32,6 +32,15 @@ if (!iconIco.isFile || !iconPng.isFile) {
 compose.desktop {
     application {
         mainClass = "com.mediahub.pear.desktop.MainKt"
+        // An AppCDS archive, written on the first run and read after that (JDK 19 or newer; CI builds with 21). It cuts the
+        // class-loading stalls at launch and at the player's first open. The JVM carries on without it when the file cannot
+        // be written. The guard flag lets an older JVM ignore these options instead of refusing to start.
+        jvmArgs += listOf(
+            "-XX:+IgnoreUnrecognizedVMOptions",
+            "-Xshare:auto",
+            "-XX:+AutoCreateSharedArchive",
+            "-XX:SharedArchiveFile=\$APPDIR/pear.jsa",
+        )
         nativeDistributions {
             packageName = "Pear"
             packageVersion = pearNumericVersion

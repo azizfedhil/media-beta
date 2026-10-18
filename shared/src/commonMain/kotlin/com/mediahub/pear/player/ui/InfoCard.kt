@@ -83,7 +83,7 @@ private fun InfoThumb(info: PlayerInfo, logo: String?, stacked: Boolean) {
                 Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                     .clip(shape),
             ) {
-                RemoteImage(url, Modifier.fillMaxSize())
+                RemoteImage(url, Modifier.fillMaxSize(), maxEdge = 1000)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent))))
                 info.episodeTag?.let { tag ->
                     PearText(

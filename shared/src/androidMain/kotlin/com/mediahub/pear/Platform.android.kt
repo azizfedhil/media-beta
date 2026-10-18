@@ -1,11 +1,9 @@
 package com.mediahub.pear
 
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import java.text.DateFormat
 import java.util.Date
 
@@ -13,11 +11,7 @@ actual val platformName: String = "Android ${Build.VERSION.RELEASE} (API ${Build
 
 actual fun currentTimeLabel(): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
 
-actual fun decodeImageBitmap(bytes: ByteArray): ImageBitmap? = try {
-    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-} catch (_: Exception) {
-    null
-}
+actual fun decodeImageBitmap(bytes: ByteArray, maxEdge: Int): ImageBitmap? = com.mediahub.pear.net.decodeImageBitmap(bytes, maxEdge)
 
 actual fun openUrl(url: String) {
     try {
