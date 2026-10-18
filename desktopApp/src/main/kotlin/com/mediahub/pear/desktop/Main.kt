@@ -1,5 +1,6 @@
 package com.mediahub.pear.desktop
 
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
@@ -39,8 +40,16 @@ import kotlinx.coroutines.delay
 import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.Toolkit
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import javax.swing.SwingUtilities
 import java.io.File
+
+/**
+ * Full screen is exclusive, so Windows minimizes the window when it loses focus, and it can come back small, still marked
+ * Fullscreen. true: restoring puts the window back into full screen. false: restoring leaves full screen instead (the fallback).
+ */
+private const val KEEP_FULLSCREEN_AFTER_MINIMIZE = true
 
 fun main(args: Array<String>) = application {
     startLogging(traceAtStart = "--trace" in args)
@@ -135,6 +144,38 @@ fun main(args: Array<String>) = application {
         }
     }
 
+    /**
+     * Puts a window that came back from minimized as a small window, still marked Fullscreen, back into full screen. Windows
+     * minimizes an exclusive full-screen window on focus loss, and nothing re-applies the screen bounds on restore. If the window
+     * is still not full screen after a short wait, it leaves full screen instead, so no tiny window is left marked Fullscreen.
+     */
+    fun repairFullscreen(window: java.awt.Window) {
+        PearLog.w("Window", "[Window] fullscreen repair: before=${window.width}x${window.height}")
+        if (!KEEP_FULLSCREEN_AFTER_MINIMIZE) {
+            control.mode = control.modeBeforeFullscreen
+            return
+        }
+        val device = window.graphicsConfiguration?.device
+        runCatching { device?.fullScreenWindow = null }
+        runCatching { device?.fullScreenWindow = window }
+        javax.swing.Timer(150) { _ ->
+            // A change the person made within the wait is theirs to keep, so this check only acts while still full screen.
+            if (windowState.placement == WindowPlacement.Fullscreen) {
+                val screen = device?.defaultConfiguration?.bounds?.size
+                val held = heldInFullscreen(window)
+                if (screen == null || window.size != screen || !held) {
+                    PearLog.w("Window", "fullscreen repair failed: after=${window.width}x${window.height} held=$held")
+                    control.mode = control.modeBeforeFullscreen
+                } else {
+                    PearLog.i("Window", "[Window] fullscreen repair: after=${window.width}x${window.height}")
+                }
+            }
+        }.apply {
+            isRepeats = false
+            start()
+        }
+    }
+
     val appIcon = remember { loadAppIcon() }
     Window(
         onCloseRequest = { AppExit.runAll(); PearLogFile.markCleanExit(); storage.flush(); exitApplication() },
@@ -144,6 +185,21 @@ fun main(args: Array<String>) = application {
     ) {
         window.minimumSize = Dimension(360, 600)
         SideEffect { awtWindow[0] = window }
+        DisposableEffect(window) {
+            // Full screen is exclusive, so a restore can leave the window small and still marked Fullscreen. Repair it on restore.
+            val listener = object : WindowAdapter() {
+                override fun windowDeiconified(e: WindowEvent) {
+                    if (windowState.placement != WindowPlacement.Fullscreen) return
+                    // AWT also fires a spurious deiconify while ICONIFIED is still set. The real restore comes after it.
+                    if (isIconified(window)) return
+                    SwingUtilities.invokeLater {
+                        if (windowState.placement == WindowPlacement.Fullscreen) repairFullscreen(window)
+                    }
+                }
+            }
+            window.addWindowListener(listener)
+            onDispose { window.removeWindowListener(listener) }
+        }
         LaunchedEffect(windowState.placement, windowState.isMinimized) {
             PearLog.i("Window", "placement=${windowState.placement} minimized=${windowState.isMinimized} size=${windowState.size}")
         }
@@ -187,3 +243,7 @@ private fun loadAppIcon(): Painter? {
 
 private fun heldInFullscreen(window: java.awt.Window): Boolean =
     runCatching { window.graphicsConfiguration.device.fullScreenWindow === window }.getOrDefault(false)
+
+/** True while the window is minimized, by AWT's ICONIFIED bit in its extended state. A window that is not a Frame is never minimized here. */
+private fun isIconified(window: java.awt.Window): Boolean =
+    (((window as? java.awt.Frame)?.extendedState ?: 0) and java.awt.Frame.ICONIFIED) != 0
