@@ -67,6 +67,15 @@ class FileResponseCache(
         withContext(Dispatchers.Default) { entries().forEach { it.delete() } }
     }
 
+    override suspend fun purgeUnusedSince(cutoffMillis: Long): Int = withContext(Dispatchers.Default) {
+        var removed = 0
+        for (f in entries()) if (f.lastModified() < cutoffMillis && f.delete()) removed++
+        // Temp files a crash left behind (a week old is certainly dead).
+        dir.listFiles { f -> f.isFile && f.name.endsWith(".tmp") && f.lastModified() < cutoffMillis }?.forEach { it.delete() }
+        trim() // also re-applies the size cap
+        removed
+    }
+
     override suspend fun describe(): String = withContext(Dispatchers.Default) {
         val files = entries()
         "disk: ${files.size} answers, ${files.sumOf { it.length() } / 1024} KB in ${dir.path}"

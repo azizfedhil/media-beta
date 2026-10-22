@@ -17,12 +17,18 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.mediahub.pear.epochMillis
 import com.mediahub.pear.shell.LocalHttp
+import com.mediahub.pear.shell.LocalImageCache
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.pearShimmer
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -83,6 +89,38 @@ object ImageMemoryCache {
     }
 }
 
+/** Longest edge the low-quality stand-in is decoded to. */
+const val PREVIEW_MAX_EDGE = 160
+
+/** The full picture gets this long alone first. A disk hit or a fast network never pays for a second request. */
+private const val PREVIEW_DELAY_MILLIS = 150L
+
+/** How long the full picture takes to fade in over a stand-in. */
+private const val PREVIEW_CROSSFADE_MILLIS = 200
+
+/**
+ * Picture for [url]: the disk cache first, then the network. A picture that decoded is written to [disk]; an error
+ * answer or something that does not decode is never stored. A damaged cached file is fetched again. Null when there is
+ * no picture. The decode runs on [decodeOn], never on the UI thread.
+ */
+internal suspend fun loadImageBitmap(
+    http: Http,
+    disk: ResponseCache,
+    url: String,
+    maxEdge: Int,
+    decodeOn: CoroutineDispatcher = ImageDecode.dispatcher,
+): ImageBitmap? {
+    attempt { disk.get(url) }?.let { hit ->
+        val cached = withContext(decodeOn) { decodeImageBitmap(hit.body, maxEdge) }
+        if (cached != null) return cached
+    }
+    val reply = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)) } ?: return null
+    if (reply.status !in 200..299) return null
+    val loaded = withContext(decodeOn) { decodeImageBitmap(reply.body, maxEdge) } ?: return null
+    attempt { disk.put(url, reply.body, epochMillis()) }
+    return loaded
+}
+
 /**
  * Loads an image from [url] with caching, shimmer placeholder, and fallback icon. [maxEdge] is the longest edge the
  * picture is decoded to: pass the size it is drawn at, so a small thumb is not decoded at its original size.
@@ -101,12 +139,17 @@ fun RemoteImage(
     fadeInMillis: Int = 0,
 ) {
     val http = LocalHttp.current
+    val disk = LocalImageCache.current
     var bitmap by remember(url, maxEdge) { mutableStateOf(url?.let { ImageMemoryCache.get(it, maxEdge) }) }
+    // A small, blurry copy shown until the full picture is ready. It is never set once the full one is there.
+    var preview by remember(url, maxEdge) { mutableStateOf<ImageBitmap?>(null) }
     var failed by remember(url, maxEdge) { mutableStateOf(false) }
-    // A picture that was already in memory shows at once; one that had to be fetched fades in.
-    val reveal = remember(url, maxEdge) { Animatable(if (bitmap != null || fadeInMillis <= 0) 1f else 0f) }
+    // A picture already in memory shows at once; one that had to be loaded fades in over whatever is underneath.
+    val reveal = remember(url, maxEdge) { Animatable(if (bitmap != null) 1f else 0f) }
     LaunchedEffect(bitmap) {
-        if (bitmap != null && reveal.value < 1f) reveal.animateTo(1f, tween(fadeInMillis))
+        if (bitmap == null || reveal.value >= 1f) return@LaunchedEffect
+        val ms = if (fadeInMillis > 0) fadeInMillis else if (preview != null) PREVIEW_CROSSFADE_MILLIS else 0
+        if (ms > 0) reveal.animateTo(1f, tween(ms)) else reveal.snapTo(1f)
     }
 
     LaunchedEffect(url, maxEdge) {
@@ -117,30 +160,47 @@ fun RemoteImage(
         if (bitmap != null) return@LaunchedEffect
 
         failed = false
-        val targetUrl = url
-        val loaded: ImageBitmap? = withContext(Dispatchers.Default) {
-            val targetReq = HttpRequest(targetUrl, timeoutMillis = 10_000)
-            var bytes: ByteArray? = attempt { http.execute(targetReq).body }
-            if (bytes == null && fallbackUrl != null) {
-                val fallbackReq = HttpRequest(fallbackUrl, timeoutMillis = 10_000)
-                bytes = attempt { http.execute(fallbackReq).body }
+        val lowUrl = lowQualityUrl(url)
+        preview = lowUrl?.let { ImageMemoryCache.get(it, PREVIEW_MAX_EDGE) }
+        coroutineScope {
+            val full = async(Dispatchers.Default) {
+                var loaded = loadImageBitmap(http, disk, url, maxEdge)
+                if (loaded == null && fallbackUrl != null) loaded = loadImageBitmap(http, disk, fallbackUrl, maxEdge)
+                loaded
             }
-            bytes?.let { decodeImageBitmap(it, maxEdge) }
-        }
+            // Only asked for when the full picture is slow: a disk hit or a quick answer cancels this before it starts.
+            val previewJob = if (lowUrl != null && preview == null) {
+                launch(Dispatchers.Default) {
+                    delay(PREVIEW_DELAY_MILLIS)
+                    val small = loadImageBitmap(http, disk, lowUrl, PREVIEW_MAX_EDGE) ?: return@launch
+                    ImageMemoryCache.put(lowUrl, small, PREVIEW_MAX_EDGE)
+                    if (bitmap == null) preview = small
+                }
+            } else null
 
-        if (loaded != null) {
-            ImageMemoryCache.put(targetUrl, loaded, maxEdge)
-            bitmap = loaded
-        } else {
-            failed = true
+            val loaded = full.await()
+            if (loaded != null) previewJob?.cancel() else previewJob?.join()
+            if (loaded != null) {
+                ImageMemoryCache.put(url, loaded, maxEdge)
+                bitmap = loaded
+            } else if (preview == null) {
+                failed = true
+            }
         }
     }
 
     Box(modifier) {
         val currentBitmap = bitmap
+        val stand = preview
         if (currentBitmap == null || reveal.value < 1f) {
-            // The placeholder stays underneath until the fade-in has finished.
+            // Underneath until the fade-in has finished: the small copy when there is one, else the flat or shimmer fill.
             when {
+                stand != null -> Image(
+                    bitmap = stand,
+                    contentDescription = null,
+                    contentScale = contentScale,
+                    modifier = Modifier.fillMaxSize(),
+                )
                 failed -> Box(Modifier.fillMaxSize().background(PearTheme.colors.fill), contentAlignment = androidx.compose.ui.Alignment.Center) {
                     PearIcon("film", size = 24.dp, tint = PearTheme.colors.textTertiary)
                 }
@@ -170,15 +230,17 @@ fun ImagePlaceholder(modifier: Modifier = Modifier) {
  * cannot be loaded. Callers that must know whether an image arrived (a title logo replaces its text only once it has
  * loaded) use this, not RemoteImage, which shows a placeholder or an icon instead.
  */
-suspend fun loadRemoteBitmap(http: Http, url: String, maxEdge: Int = DEFAULT_MAX_EDGE): ImageBitmap? {
+suspend fun loadRemoteBitmap(
+    http: Http,
+    url: String,
+    maxEdge: Int = DEFAULT_MAX_EDGE,
+    disk: ResponseCache = ResponseCache.None,
+): ImageBitmap? {
     ImageMemoryCache.get(url, maxEdge)?.let { return it }
     // The network call stays on the caller's context: callers that must know whether an image arrived wait on it. The
     // decode runs on ImageDecode.dispatcher, so the UI thread never decodes. Tests drive this call through a virtual-time
     // scheduler that cannot see work moved to a real dispatcher, so they set ImageDecode.dispatcher to their own.
-    val reply = attempt { http.execute(HttpRequest(url, timeoutMillis = 10_000)) } ?: return null
-    // An error answer is never a picture. It isn't decoded at all, so a 404 costs no image work.
-    if (reply.status !in 200..299) return null
-    val loaded = withContext(ImageDecode.dispatcher) { decodeImageBitmap(reply.body, maxEdge) } ?: return null
+    val loaded = loadImageBitmap(http, disk, url, maxEdge) ?: return null
     ImageMemoryCache.put(url, loaded, maxEdge)
     return loaded
 }

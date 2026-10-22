@@ -29,4 +29,5 @@ fun androidNetwork(): Network = Network(
     http = androidHttp(),
     cache = FileResponseCache(File(AndroidDirs.cache(), "http")),
     facts = FileFactStore(File(AndroidDirs.config(), "facts")),
+    images = FileResponseCache(File(AndroidDirs.cache(), "images"), maxBytes = 300L shl 20, trimEvery = 25),
 )

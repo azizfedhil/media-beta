@@ -14,7 +14,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.net.Http
 import com.mediahub.pear.net.ImageMemoryCache
+import com.mediahub.pear.net.ResponseCache
 import com.mediahub.pear.net.loadRemoteBitmap
+import com.mediahub.pear.net.lowQualityUrl
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.theme.Accents
 import com.mediahub.pear.theme.PearTheme
@@ -71,10 +73,13 @@ private val ambientCache = HashMap<String, Color>()
 /** A colour average needs only a few pixels, so the picture is decoded at this size, not the size it is drawn at. */
 private const val AMBIENT_MAX_EDGE = 96
 
-suspend fun heroAmbientFor(http: Http, url: String): Color? {
+suspend fun heroAmbientFor(http: Http, url: String, disk: ResponseCache = ResponseCache.None): Color? {
     ambientCache[url]?.let { return it }
-    // A picture already decoded for the screen is averaged as it is. Otherwise a small copy is decoded.
-    val bitmap = ImageMemoryCache.get(url) ?: loadRemoteBitmap(http, url, maxEdge = AMBIENT_MAX_EDGE) ?: return null
+    // A picture already decoded for the screen is averaged as it is. Otherwise a small copy is decoded: an average
+    // colour does not need the original, so a small variant of the address is fetched when the source has one.
+    val bitmap = ImageMemoryCache.get(url)
+        ?: loadRemoteBitmap(http, lowQualityUrl(url) ?: url, maxEdge = AMBIENT_MAX_EDGE, disk = disk)
+        ?: return null
     val tuned = withContext(Dispatchers.Default) { bitmap.averageColor()?.let(AmbientTone::tune) } ?: return null
     ambientCache[url] = tuned
     return tuned

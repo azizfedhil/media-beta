@@ -35,6 +35,7 @@ import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.onboarding.OnboardingHost
 import com.mediahub.pear.p2p.blockingUntil
 import com.mediahub.pear.onboarding.OnboardingState
+import com.mediahub.pear.net.ImageCacheMaintenance
 import com.mediahub.pear.net.Network
 import com.mediahub.pear.shell.AdaptiveShell
 import com.mediahub.pear.shell.CrashBriefingHost
@@ -42,6 +43,7 @@ import com.mediahub.pear.shell.AppEnv
 import com.mediahub.pear.shell.CatalogueItem
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalHttp
+import com.mediahub.pear.shell.LocalImageCache
 import com.mediahub.pear.shell.LocalWindowControl
 import com.mediahub.pear.shell.ShellState
 import com.mediahub.pear.shell.SystemBackHandler
@@ -105,6 +107,15 @@ fun App(
     }
     // Leftovers of an earlier crash or kill go at launch, whether or not P2P is on: nothing of P2P stays on disk between runs.
     LaunchedEffect(data) { data.p2p.engine.removeLeftovers() }
+    // Pictures not shown for a week leave the disk cache. Started well after launch so it never competes with the first
+    // screen, and checked again every few hours so a long-running desktop session is swept too.
+    LaunchedEffect(data) {
+        delay(30_000L)
+        while (true) {
+            withContext(Dispatchers.Default) { ImageCacheMaintenance.runIfDue(data.network.images, data.network.facts) }
+            delay(6L * 60 * 60 * 1000)
+        }
+    }
     // Android: when the app runs slowly (under 55 fps, or it hangs), the effects drop one tier and the person is told.
     var perfNote by remember { mutableStateOf<String?>(null) }
     if (PlatformCaps.hasPlayerGlassChoice) {
@@ -168,6 +179,7 @@ fun App(
             LocalAppEnv provides env,
             LocalWindowControl provides windowControl,
             LocalHttp provides data.network.http,
+            LocalImageCache provides data.network.images,
             LocalIndication provides NoIndication,
         ) {
             val catalogues = HomeCatalogs.jobs(data.addons.enabledAddons, data.content.rules, data.addons.pickerIds)

@@ -14,6 +14,9 @@ interface ResponseCache {
     suspend fun put(key: String, body: ByteArray, nowMillis: Long)
     suspend fun clear() {}
 
+    /** Deletes entries not read or written since [cutoffMillis]. Returns how many went. Default: nothing to purge. */
+    suspend fun purgeUnusedSince(cutoffMillis: Long): Int = 0
+
     /** One line for the Metadata check screen. */
     suspend fun describe(): String = "no cache"
 

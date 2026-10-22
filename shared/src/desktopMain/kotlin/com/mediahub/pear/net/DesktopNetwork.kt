@@ -36,4 +36,5 @@ fun desktopNetwork(dirs: AppDirs = AppDirs.detect()): Network =
         http = desktopHttp(),
         cache = FileResponseCache(File(dirs.cache, "http")),
         facts = FileFactStore(File(dirs.config, "facts")),
+        images = FileResponseCache(File(dirs.cache, "images"), maxBytes = 300L shl 20, trimEvery = 25),
     )

@@ -86,6 +86,7 @@ import kotlin.math.abs
 import kotlin.math.min
 import androidx.compose.animation.animateContentSize
 import com.mediahub.pear.shell.LocalHttp
+import com.mediahub.pear.shell.LocalImageCache
 
 fun fallbackHeroAmbientColor(title: String): Color {
     val h = (abs(title.hashCode()) % 360).toFloat()
@@ -544,11 +545,12 @@ private const val PREFETCH_GAP_MILLIS = 150L
 @Composable
 private fun PrefetchHeroAmbient(urls: List<String?>) {
     val http = LocalHttp.current
+    val disk = LocalImageCache.current
     LaunchedEffect(urls) {
         delay(PREFETCH_AFTER_INTRO_MILLIS)
         // One picture at a time, and no more than PREFETCH_LIMIT of them.
         for (url in urls.filterNotNull().take(PREFETCH_LIMIT)) {
-            heroAmbientFor(http, url)
+            heroAmbientFor(http, url, disk = disk)
             delay(PREFETCH_GAP_MILLIS)
         }
     }

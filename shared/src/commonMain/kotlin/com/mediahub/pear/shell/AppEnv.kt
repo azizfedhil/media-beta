@@ -8,11 +8,14 @@ import com.mediahub.pear.data.AppData
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.net.Http
 import com.mediahub.pear.net.OfflineHttp
+import com.mediahub.pear.net.ResponseCache
 import com.mediahub.pear.theme.ThemeStore
 
 val LocalAppEnv = staticCompositionLocalOf<AppEnv> { error("AppEnv not provided: wrap the UI in App()") }
 
 val LocalHttp = staticCompositionLocalOf<Http> { OfflineHttp }
+
+val LocalImageCache = staticCompositionLocalOf<ResponseCache> { ResponseCache.None }
 
 /** True inside the expanded (sidebar) layout. Views use it to pick bigger posters, skip the avatar button, etc. */
 val LocalWideLayout = compositionLocalOf { false }

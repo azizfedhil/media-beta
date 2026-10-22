@@ -20,6 +20,7 @@ import com.mediahub.pear.net.attempt
 import com.mediahub.pear.net.loadRemoteBitmap
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalHttp
+import com.mediahub.pear.shell.LocalImageCache
 import com.mediahub.pear.shell.rememberPref
 import com.mediahub.pear.theme.PearText
 
@@ -39,13 +40,14 @@ fun TitleArt(
 ) {
     val env = LocalAppEnv.current
     val http = LocalHttp.current
+    val disk = LocalImageCache.current
     val titleLogos = rememberPref(env.data.prefs, PrefKeys.UI_TITLE_LOGOS) { it.bool(PrefKeys.UI_TITLE_LOGOS, true) }
 
     val logoUrl by produceState<String?>(initialValue = null, item.id, item.logo, titleLogos) {
         value = if (!titleLogos) null else item.logo ?: attempt { env.data.meta.tmdb.logo(item.id, item.type) }
     }
     val logo by produceState<ImageBitmap?>(initialValue = null, logoUrl) {
-        value = logoUrl?.let { loadRemoteBitmap(http, it) }
+        value = logoUrl?.let { loadRemoteBitmap(http, it, disk = disk) }
     }
 
     val bitmap = logo

@@ -5,6 +5,8 @@ class Network(
     val http: Http,
     val cache: ResponseCache,
     val facts: FactStore,
+    /** Downloaded pictures (posters, backdrops, logos), kept apart from [cache] so they never push API answers out. */
+    val images: ResponseCache = ResponseCache.None,
 ) {
     companion object {
         /** Nothing leaves the machine and nothing is kept (previews, tests). */
