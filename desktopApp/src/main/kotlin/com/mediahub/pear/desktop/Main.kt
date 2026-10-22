@@ -186,22 +186,24 @@ fun main(args: Array<String>) = application {
     val closeScope = rememberCoroutineScope()
     var closing by remember { mutableStateOf(false) }
     val appIcon = remember { loadAppIcon() }
-    Window(
-        onCloseRequest = {
-            if (!closing) {
-                closing = true
-                AppExit.runAll()
-                PearLogFile.markCleanExit()
+    // The window's close and the updater's "Update now" both end the app here: exit hooks, clean-exit mark, storage flush.
+    val quit: () -> Unit = {
+        if (!closing) {
+            closing = true
+            AppExit.runAll()
+            PearLogFile.markCleanExit()
+            storage.flush()
+            // The window goes away at once. The process stays up for a moment so the last position reaches Pear.pair,
+            // then the storage is flushed again, because that push updates its snapshot.
+            closeScope.launch {
+                AppExit.runFinishers(3_000L)
                 storage.flush()
-                // The window goes away at once. The process stays up for a moment so the last position reaches Pear.pair,
-                // then the storage is flushed again, because that push updates its snapshot.
-                closeScope.launch {
-                    AppExit.runFinishers(3_000L)
-                    storage.flush()
-                    exitApplication()
-                }
+                exitApplication()
             }
-        },
+        }
+    }
+    Window(
+        onCloseRequest = quit,
         visible = !closing,
         title = "Pear.",
         state = windowState,
@@ -246,7 +248,7 @@ fun main(args: Array<String>) = application {
                 windowControl = control,
                 storage = storage,
                 network = network,
-                overlay = { UpdateNotice() },
+                overlay = { UpdateNotice(onQuit = quit) },
                 warmPlayer = { PlayerWarmup.run() },
             )
         }

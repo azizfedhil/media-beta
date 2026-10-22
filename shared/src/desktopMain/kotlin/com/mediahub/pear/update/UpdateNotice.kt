@@ -2,7 +2,6 @@ package com.mediahub.pear.update
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -20,15 +19,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mediahub.pear.data.PrefKeys
-import com.mediahub.pear.data.PrefStore
 import com.mediahub.pear.detail.DownloadBar
 import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.StreamSize
-import com.mediahub.pear.openUrl
 import com.mediahub.pear.shell.LocalAppEnv
 import com.mediahub.pear.shell.LocalHttp
 import com.mediahub.pear.shell.PearButtonStyle
@@ -39,7 +34,6 @@ import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.weight
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,20 +66,17 @@ private const val OPENED_NOTE_MILLIS = 4_000L
 private sealed interface NoticePhase {
     val update: ReleaseDecision.Available
 
-    /** A newer release is here: the person can update now, or later. */
-    data class Offer(override val update: ReleaseDecision.Available) : NoticePhase
-
+    /** The installer is coming down in the background. */
     data class Downloading(override val update: ReleaseDecision.Available) : NoticePhase
 
-    /** The installer is being handed to the system. */
+    /** The installer is on disk and checked: the person can update now, or later. */
+    data class Ready(override val update: ReleaseDecision.Available, val file: File) : NoticePhase
+
+    /** The installer is being started. */
     data class Opening(override val update: ReleaseDecision.Available) : NoticePhase
 
-    /** [savedAt] is set when the installer was downloaded but would not open: Try again then opens that file, not a new download. */
-    data class Failed(
-        override val update: ReleaseDecision.Available,
-        val message: String,
-        val savedAt: File?,
-    ) : NoticePhase
+    /** The installer would not start. [file] is where it is saved, so Try again starts that file, not a new download. */
+    data class Failed(override val update: ReleaseDecision.Available, val message: String, val file: File) : NoticePhase
 }
 
 /** Bytes so far of a download, and the total (-1 while it is unknown). */
@@ -102,40 +93,33 @@ private fun downloadText(p: DownloadProgress): String {
     }
 }
 
-/** Remembers [update]'s installer as the one this machine has, so the same build is not offered again. */
-private fun rememberInstalled(prefs: PrefStore, update: ReleaseDecision.Available) {
-    prefs.setString(PrefKeys.UPDATE_SEEN_HASH, update.fingerprint)
-    prefs.setString(PrefKeys.UPDATE_SEEN_VERSION, update.version)
-}
-
 /**
- * Checks for a newer release a few seconds after launch and then every six hours, and shows a small notice in the bottom-right
- * corner. A newer release is offered on every launch until the app catches up. A re-uploaded installer of the current version
- * (a new build under the same number) is offered once. Update downloads the installer, checks its SHA-256 when GitHub gives
- * one, and runs it; Later hides the notice until the next launch. Nothing shows when the app is up to date or the check fails
- * (offline). The notice stays off the player, and a download keeps going while it is hidden.
+ * Checks for a release with a higher version number a few seconds after launch and then every six hours. When there is
+ * one, its installer downloads in the background with a progress bar; then the card offers Update now / Later. Update now
+ * runs the installer, and on Windows the app quits so the installer can replace it ([onQuit] does the normal shutdown).
+ * Later hides the card until the next launch. Nothing shows when the app is up to date, offline, or a background download
+ * fails (it is tried again at the next check). The card stays off the player, and a download keeps going while it is hidden.
  */
 @Composable
-fun BoxScope.UpdateNotice() {
+fun BoxScope.UpdateNotice(onQuit: () -> Unit = {}) {
     val http = LocalHttp.current
     val env = LocalAppEnv.current
-    val prefs = env.data.prefs
-    // The scope outlives the early return below, so a download keeps going while the card is hidden over the player.
     val scope = rememberCoroutineScope()
     var phase by remember { mutableStateOf<NoticePhase?>(null) }
     var progress by remember { mutableStateOf(DownloadProgress(0L, -1L)) }
-    var downloadJob by remember { mutableStateOf<Job?>(null) }
     var dismissed by remember { mutableStateOf(false) }
 
-    fun openInstallerFile(update: ReleaseDecision.Available, file: File) {
+    fun install(update: ReleaseDecision.Available, file: File) {
         phase = NoticePhase.Opening(update)
         scope.launch {
             val opened = withContext(Dispatchers.IO) { openInstaller(file) }
             if (opened.isSuccess) {
-                // The installer is running. This build is now the release, so it is not offered again.
-                rememberInstalled(prefs, update)
-                delay(OPENED_NOTE_MILLIS)
-                phase = null
+                if (installerReplacesApp()) {
+                    onQuit() // the installer takes over from here and starts Pear again
+                } else {
+                    delay(OPENED_NOTE_MILLIS)
+                    phase = null
+                }
             } else {
                 PearLog.w("Update", "the installer did not open", opened.exceptionOrNull())
                 phase = NoticePhase.Failed(update, "Saved to ${file.absolutePath}. Open it to install.", file)
@@ -143,65 +127,38 @@ fun BoxScope.UpdateNotice() {
         }
     }
 
-    fun startDownload(update: ReleaseDecision.Available) {
-        phase = NoticePhase.Downloading(update)
-        progress = DownloadProgress(0L, -1L)
-        downloadJob = scope.launch {
-            try {
-                var lastShown = 0L
-                val file = downloadUpdate(update.asset) { done, total ->
-                    // About ten updates a second: a progress bar does not need more, and each one redraws the card.
-                    val time = System.currentTimeMillis()
-                    if (done == total || time - lastShown >= 100L) {
-                        lastShown = time
-                        progress = DownloadProgress(done, total)
-                    }
-                }
-                openInstallerFile(update, file)
-            } catch (e: CancellationException) {
-                throw e // Cancel has already put the offer back on screen.
-            } catch (e: Exception) {
-                PearLog.w("Update", "the update did not download", e)
-                phase = NoticePhase.Failed(update, "Couldn't download it (${e.message ?: "unknown error"}).", null)
-            }
-        }
-    }
-
-    fun cancelDownload(update: ReleaseDecision.Available) {
-        downloadJob?.cancel()
-        downloadJob = null
-        phase = NoticePhase.Offer(update)
-    }
-
     LaunchedEffect(Unit) {
         val repo = PearBuild.UPDATE_REPO.trim().trim('/')
-        val extension = installerExtension(updatePlatformKey()) ?: return@LaunchedEffect
+        val platform = updatePlatformKey() ?: return@LaunchedEffect
         if (repo.isEmpty()) return@LaunchedEffect
         delay(5_000) // not during the launch intro
         while (true) {
-            // A download or an open in progress is left alone; the check picks up again on the next round.
-            val showing = phase
-            if (showing == null || showing is NoticePhase.Offer) {
-                val decision = checkForRelease(
-                    http = http,
-                    repo = repo,
-                    current = PearBuild.VERSION,
-                    extension = extension,
-                    seenHash = prefs.string(PrefKeys.UPDATE_SEEN_HASH),
-                    seenVersion = prefs.string(PrefKeys.UPDATE_SEEN_VERSION),
-                )
-                when (decision) {
+            // Once there is a card (downloading, ready, opening, failed) or the person said Later, the check leaves it alone.
+            if (phase == null && !dismissed) {
+                when (val decision = checkForRelease(http, repo, PearBuild.VERSION, platform)) {
                     is ReleaseDecision.Available -> {
-                        if (!dismissed && (phase == null || phase is NoticePhase.Offer)) {
-                            phase = NoticePhase.Offer(decision)
-                            // A re-upload of this build is recorded once it is on screen, so it is offered only once.
-                            if (decision.sameVersion) prefs.setString(PrefKeys.UPDATE_SEEN_HASH, decision.fingerprint)
+                        phase = NoticePhase.Downloading(decision)
+                        progress = DownloadProgress(0L, -1L)
+                        try {
+                            var lastShown = 0L
+                            val file = downloadUpdate(decision.asset) { done, total ->
+                                // About ten updates a second: a progress bar does not need more, and each one redraws the card.
+                                val time = System.currentTimeMillis()
+                                if (done == total || time - lastShown >= 100L) {
+                                    lastShown = time
+                                    progress = DownloadProgress(done, total)
+                                }
+                            }
+                            phase = NoticePhase.Ready(decision, file)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            // Quiet: the next check tries again.
+                            PearLog.w("Update", "the update did not download", e)
+                            phase = null
                         }
                     }
-                    is ReleaseDecision.UpToDate -> decision.baseline?.let { seen ->
-                        prefs.setString(PrefKeys.UPDATE_SEEN_HASH, seen.fingerprint)
-                        prefs.setString(PrefKeys.UPDATE_SEEN_VERSION, seen.version)
-                    }
+                    is ReleaseDecision.UpToDate -> Unit
                     is ReleaseDecision.Unknown -> PearLog.i("Update", "no update check: ${decision.reason}")
                 }
             }
@@ -214,18 +171,19 @@ fun BoxScope.UpdateNotice() {
     val update = shown.update
     val c = PearTheme.colors
     val failed = shown is NoticePhase.Failed
+    val replaces = installerReplacesApp()
 
     val title = when (shown) {
-        is NoticePhase.Offer ->
-            if (update.sameVersion) "A new build of Pear ${update.version} is available" else "Pear ${update.version} is available"
-        is NoticePhase.Downloading -> "Pear ${update.version}"
-        is NoticePhase.Opening -> "Opening the installer…"
+        is NoticePhase.Downloading -> "Downloading Pear ${update.version}"
+        is NoticePhase.Ready -> "Pear ${update.version} is ready"
+        is NoticePhase.Opening -> if (replaces) "Installing…" else "Opening the installer…"
         is NoticePhase.Failed -> "The update did not finish"
     }
     val detail = when (shown) {
-        is NoticePhase.Offer -> "You have ${PearBuild.VERSION}."
         is NoticePhase.Downloading -> downloadText(progress)
-        is NoticePhase.Opening -> "The installer opens in its own window."
+        is NoticePhase.Ready ->
+            if (replaces) "You have ${PearBuild.VERSION}. Pear closes and opens again to finish." else "You have ${PearBuild.VERSION}."
+        is NoticePhase.Opening -> if (replaces) "Pear opens again in a moment." else "The installer opens in its own window."
         is NoticePhase.Failed -> shown.message
     }
     val symbol = when (shown) {
@@ -253,8 +211,8 @@ fun BoxScope.UpdateNotice() {
                 progress.fraction?.let { DownloadBar(it) }
             }
             when (shown) {
-                is NoticePhase.Offer -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PearCapsuleButton(label = "Update", style = PearButtonStyle.Accent, onClick = { startDownload(update) })
+                is NoticePhase.Ready -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PearCapsuleButton(label = "Update now", style = PearButtonStyle.Accent, onClick = { install(update, shown.file) })
                     PearCapsuleButton(
                         label = "Later",
                         onClick = {
@@ -263,19 +221,8 @@ fun BoxScope.UpdateNotice() {
                         },
                     )
                 }
-                is NoticePhase.Downloading -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PearCapsuleButton(label = "Cancel", onClick = { cancelDownload(update) })
-                }
-                is NoticePhase.Opening -> Unit
                 is NoticePhase.Failed -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PearCapsuleButton(
-                        label = "Try again",
-                        style = PearButtonStyle.Accent,
-                        onClick = {
-                            val saved = shown.savedAt
-                            if (saved != null) openInstallerFile(update, saved) else startDownload(update)
-                        },
-                    )
+                    PearCapsuleButton(label = "Try again", style = PearButtonStyle.Accent, onClick = { install(update, shown.file) })
                     PearCapsuleButton(
                         label = "Later",
                         onClick = {
@@ -284,16 +231,7 @@ fun BoxScope.UpdateNotice() {
                         },
                     )
                 }
-            }
-            if (shown !is NoticePhase.Downloading && shown !is NoticePhase.Opening) {
-                PearText(
-                    "Release page",
-                    style = PearTheme.type.footnote,
-                    color = c.accent,
-                    modifier = Modifier.clickable(role = Role.Button) {
-                        openUrl(update.releaseUrl.ifEmpty { update.asset.url })
-                    },
-                )
+                is NoticePhase.Downloading, is NoticePhase.Opening -> Unit
             }
         }
     }

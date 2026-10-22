@@ -33,28 +33,12 @@ data class GitHubAsset(
 /** The installer an update would run, as [downloadUpdate] needs it. [sha256] is lowercase hex, or null when GitHub gave none. */
 data class ReleaseAsset(val name: String, val url: String, val size: Long, val sha256: String?)
 
-/** The installer a build has seen: its [fingerprint] and the [version] it belonged to. */
-data class SeenRelease(val fingerprint: String, val version: String)
-
-/** What the app does about the newest release. */
+/** What the app does about the newest release. Only the version number decides. */
 sealed interface ReleaseDecision {
-    /**
-     * Nothing to show. [baseline] is set when the app should remember the installer as seen without showing anything: the
-     * first launch of a build, or a manual upgrade, so an installer already on the machine is not offered as new.
-     */
-    data class UpToDate(val baseline: SeenRelease? = null) : ReleaseDecision
+    data object UpToDate : ReleaseDecision
 
-    /**
-     * A release to offer. [sameVersion] is true for a re-upload of the build this app already is: the notice then says so,
-     * and the caller records [fingerprint] as seen once the notice is on screen.
-     */
-    data class Available(
-        val version: String,
-        val releaseUrl: String,
-        val asset: ReleaseAsset,
-        val fingerprint: String,
-        val sameVersion: Boolean,
-    ) : ReleaseDecision
+    /** A release with a higher version than this build. [version] is the tag's number, e.g. `0.0.4-Alpha`. */
+    data class Available(val version: String, val asset: ReleaseAsset) : ReleaseDecision
 
     /** The check could not be done, so the app says nothing. [reason] is for the log. */
     data class Unknown(val reason: String) : ReleaseDecision
@@ -66,11 +50,11 @@ sealed interface ReleaseList {
     class Failed(val reason: String) : ReleaseList
 }
 
-/** The file ending of this machine's installer on GitHub: `.exe` on Windows, `.rpm` on Linux, null where Pear has none. */
-internal fun installerExtension(platform: String?): String? = when (platform) {
-    "windows-x64" -> ".exe"
-    "linux-x64-rpm" -> ".rpm"
-    else -> null
+/** True for the file an update installs on this machine: `PearSetup.exe` on Windows, any `.rpm` on Linux. */
+internal fun isInstallerAsset(platform: String?, name: String): Boolean = when (platform) {
+    "windows-x64" -> name.equals("PearSetup.exe", ignoreCase = true)
+    "linux-x64-rpm" -> name.endsWith(".rpm", ignoreCase = true)
+    else -> false
 }
 
 /** The version as written in a release tag: `desktop-v0.0.2-Alpha` and `v0.0.2-Alpha` both read `0.0.2-Alpha`. */
@@ -88,23 +72,18 @@ internal fun sha256Of(asset: GitHubAsset): String? {
 }
 
 /**
- * What tells one installer from another: its SHA-256 when GitHub gives one, else `id:<assetId>`. GitHub gives every upload
- * a new asset id, so a re-upload changes the fingerprint even when there is no digest.
+ * Of the releases that are not drafts, have a version in their tag and carry this machine's installer, the one with the
+ * highest version. Pre-releases count: manual uploads are often marked as one.
  */
-fun fingerprint(asset: GitHubAsset): String = sha256Of(asset) ?: "id:${asset.id}"
-
-/**
- * The newest release that is not a draft, has a version in its tag, and has a file ending in [extension]. Pre-releases
- * count: manual uploads are often marked as one. GitHub lists releases newest first, so the first match wins.
- */
-internal fun pickInstaller(releases: List<GitHubRelease>, extension: String): Pair<GitHubRelease, GitHubAsset>? {
-    for (release in releases) {
-        if (release.draft || releaseVersion(release.tagName) == null) continue
-        val asset = release.assets.firstOrNull { it.name.endsWith(extension, ignoreCase = true) } ?: continue
-        return release to asset
-    }
-    return null
-}
+internal fun pickInstaller(releases: List<GitHubRelease>, platform: String?): Triple<GitHubRelease, GitHubAsset, PearVersion>? =
+    releases.asSequence()
+        .filter { !it.draft }
+        .mapNotNull { release ->
+            val version = releaseVersion(release.tagName) ?: return@mapNotNull null
+            val asset = release.assets.firstOrNull { isInstallerAsset(platform, it.name) } ?: return@mapNotNull null
+            Triple(release, asset, version)
+        }
+        .maxByOrNull { it.third }
 
 /**
  * Reads the newest releases of [repo] (`owner/name`) from the GitHub API. It never throws: no answer, a bad status, or a
@@ -137,57 +116,19 @@ suspend fun fetchReleases(http: Http, repo: String): ReleaseList {
 }
 
 /**
- * Reads the releases and decides about the newest one that has an installer for this machine. Never throws.
- * [seenHash] and [seenVersion] are what the app recorded the last time it looked (both null on a first launch).
+ * Reads the releases of [repo] and says whether one has a higher version than [current] and carries this machine's
+ * installer. Never throws. No stored state: the tag number is the whole decision.
  */
-suspend fun checkForRelease(
-    http: Http,
-    repo: String,
-    current: String,
-    extension: String,
-    seenHash: String?,
-    seenVersion: String?,
-): ReleaseDecision {
+suspend fun checkForRelease(http: Http, repo: String, current: String, platform: String?): ReleaseDecision {
     val releases = when (val list = fetchReleases(http, repo)) {
         is ReleaseList.Failed -> return ReleaseDecision.Unknown(list.reason)
         is ReleaseList.Listed -> list.releases
     }
-    val (release, asset) = pickInstaller(releases, extension)
-        ?: return ReleaseDecision.Unknown("no release has an installer ending in $extension")
-    return decideRelease(release, asset, current, seenHash, seenVersion)
-}
-
-/**
- * Decides about one release and its installer [asset], given what the app saw before. Pure: it returns what to show and
- * what to remember, and the caller does the saving.
- */
-fun decideRelease(
-    release: GitHubRelease,
-    asset: GitHubAsset,
-    current: String,
-    seenHash: String?,
-    seenVersion: String?,
-): ReleaseDecision {
-    val currentVersion = PearVersion.parse(current)
+    val (release, asset, newest) = pickInstaller(releases, platform)
+        ?: return ReleaseDecision.Unknown("no release has the installer for this machine")
+    val now = PearVersion.parse(current)
         ?: return ReleaseDecision.Unknown("this build's version '$current' is not numbers")
-    val newest = releaseVersion(release.tagName)
-        ?: return ReleaseDecision.Unknown("the release tag '${release.tagName}' is not a version")
-    val text = releaseVersionText(release.tagName)
-    val fp = fingerprint(asset)
+    if (newest <= now) return ReleaseDecision.UpToDate
     val installer = ReleaseAsset(asset.name, asset.browserDownloadUrl, asset.size, sha256Of(asset))
-
-    fun offer(sameVersion: Boolean) = ReleaseDecision.Available(text, release.htmlUrl, installer, fp, sameVersion)
-
-    return when {
-        // 1. This build is newer than the newest release: nothing to say.
-        newest < currentVersion -> ReleaseDecision.UpToDate()
-        // 2. A newer release: offered on every launch until this build catches up.
-        newest > currentVersion -> offer(sameVersion = false)
-        // 3. The first launch of this build, or a manual upgrade: note the installer already here, and say nothing.
-        seenVersion != current -> ReleaseDecision.UpToDate(SeenRelease(fp, current))
-        // 4. The same version with a different installer: a re-upload. It is offered once (the caller records it on show).
-        fp != seenHash -> offer(sameVersion = true)
-        // 5. Nothing new.
-        else -> ReleaseDecision.UpToDate()
-    }
+    return ReleaseDecision.Available(releaseVersionText(release.tagName), installer)
 }

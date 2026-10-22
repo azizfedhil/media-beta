@@ -27,11 +27,17 @@ suspend fun downloadUpdate(
 ): File = withContext(Dispatchers.IO) {
     val folder = updateFolder
     folder.mkdirs()
-    // A file still in use (an installer that is running, say) cannot be deleted, and stays: that is fine.
-    folder.listFiles()?.forEach { it.delete() }
-
     val name = File(asset.name).name.ifEmpty { "PearUpdate" }
     val target = File(folder, name)
+    // An installer from an earlier run (the person chose Later) is used again when it is the one this release has.
+    if (target.isFile && asset.size > 0 && target.length() == asset.size &&
+        (asset.sha256 == null || sha256Hex(target) == asset.sha256)
+    ) {
+        onProgress(asset.size, asset.size)
+        return@withContext target
+    }
+    // A file still in use (an installer that is running, say) cannot be deleted, and stays: that is fine.
+    folder.listFiles()?.forEach { it.delete() }
     // A staging file of its own: a cancelled download must never delete a newer one that replaced it.
     val staging = File(folder, "$name.${System.nanoTime()}.download")
     val job: Job? = coroutineContext[Job]
@@ -54,15 +60,19 @@ suspend fun downloadUpdate(
     }
 }
 
+/** True where running the installer replaces this app, so the app quits once the installer has started: Windows. */
+fun installerReplacesApp(): Boolean = "win" in System.getProperty("os.name").orEmpty().lowercase()
+
 /**
- * Runs the installer [file]. On Windows it starts the setup program: it is set up to close Pear and start it again when it
- * is done, so this does not exit the app. On Linux the .rpm goes to the desktop's own opener. A failure is a failed
- * [Result]; the file stays where it is, so the caller can say where it is saved.
+ * Runs the installer [file]. On Windows it starts `PearSetup.exe` silently: no wizard pages, only a small progress window
+ * (and the installer's own error box if something fails; do NOT pass /SUPPRESSMSGBOXES, because its libmpv step uses a
+ * Retry box). The installer closes Pear if it is still running and starts it again when done (see pear.iss). The caller
+ * quits the app after this returns. On Linux the .rpm goes to the desktop's own opener. A failure is a failed [Result];
+ * the file stays where it is.
  */
 fun openInstaller(file: File): Result<Unit> = runCatching {
-    val os = System.getProperty("os.name").orEmpty().lowercase()
-    if ("win" in os) {
-        ProcessBuilder(file.absolutePath).start()
+    if (installerReplacesApp()) {
+        ProcessBuilder(file.absolutePath, "/SILENT", "/CLOSEAPPLICATIONS", "/NORESTARTAPPLICATIONS", "/NOCANCEL").start()
     } else if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
         Desktop.getDesktop().open(file)
     } else {

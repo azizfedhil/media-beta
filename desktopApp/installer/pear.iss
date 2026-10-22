@@ -67,6 +67,8 @@ Name: "{userdesktop}\Pear."; Filename: "{app}\Pear.exe"; WorkingDir: "{app}"; Ta
 
 [Run]
 Filename: "{app}\Pear.exe"; Description: "Open Pear."; Flags: nowait postinstall skipifsilent
+; A silent run (the in-app updater) skips the "Open Pear." checkbox above, so it starts the app itself.
+Filename: "{app}\Pear.exe"; Flags: nowait; Check: WizardSilent
 
 [UninstallDelete]
 ; libmpv and the caches are not user data: they are downloaded or rebuilt. Settings are asked about in [Code].
