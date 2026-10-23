@@ -12,7 +12,7 @@ permissions:
 
 env:
   # The version of a manual run. A tag sets its own: desktop-v0.0.1-Alpha builds 0.0.1-Alpha.
-  PEAR_DEFAULT_VERSION: 0.0.3-Alpha
+  PEAR_DEFAULT_VERSION: 0.0.4-Alpha
 
 jobs:
   build:
