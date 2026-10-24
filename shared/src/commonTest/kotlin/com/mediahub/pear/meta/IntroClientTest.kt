@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 private val movie = MetaPreview("tt1", "movie", "A Movie")
 private val show = MetaPreview("tt2", "series", "A Show")
 
-private const val BASE = "https://api.theintrodb.org/v3/media?"
+private const val BASE = "https://api.theintrodb.org/v4/media?"
 
 private const val FULL =
     """{"intro":[{"start_ms":1000,"end_ms":61000}],"credits":[{"start_ms":3000000,"end_ms":null}],"recap":[{"start_ms":null,"end_ms":2000}],"preview":[{"start_ms":10000,"end_ms":20000}]}"""

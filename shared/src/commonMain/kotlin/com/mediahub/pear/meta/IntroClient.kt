@@ -30,7 +30,7 @@ data class SkipSegment(val kind: Kind, val start: Double, /** null = runs to the
 
 /**
  * Intro / recap / credits / preview times from TheIntroDB (community-verified, free, no key for reads), spec: `IntroClient`.
- * `GET https://api.theintrodb.org/v3/media?tmdb_id=...&season=...&episode=...` answers
+ * `GET https://api.theintrodb.org/v4/media?tmdb_id=...&season=...&episode=...` answers
  * `{ intro: [{start_ms, end_ms}], recap: [...], credits: [...], preview: [...] }`; a missing start means the beginning
  * of the media, a missing end means the end.
  */
@@ -88,7 +88,7 @@ class IntroClient(
 
     /** One request, retried once after a short pause if the network or the server hiccups. */
     private suspend fun fetch(query: Map<String, String>): Fetch {
-        val url = attempt { buildUrl("https://api.theintrodb.org/v3/media", query) } ?: return Fetch.Failed
+        val url = attempt { buildUrl("https://api.theintrodb.org/v4/media", query) } ?: return Fetch.Failed
         for (n in 0 until 2) {
             if (n > 0) delay(retryDelayMillis)
             val reply = attempt { http.execute(HttpRequest(url, headers = mapOf("Accept" to "application/json"), timeoutMillis = 10_000)) } ?: continue
