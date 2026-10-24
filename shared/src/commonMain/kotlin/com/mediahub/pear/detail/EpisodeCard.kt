@@ -29,6 +29,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.mediahub.pear.nav.LocalPageActive
+import com.mediahub.pear.perf.DeviceProfile
+import com.mediahub.pear.perf.DeviceTier
+import com.mediahub.pear.shell.PlatformCaps
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -431,7 +434,8 @@ fun ShimmerText(
     val pageActive = LocalPageActive.current
     val sweepPos = remember { Animatable(-0.5f) }
     LaunchedEffect(pageActive) {
-        if (!pageActive) return@LaunchedEffect
+        // On a Low Android phone the sweep rests too, off the left edge, so the badge stays plain text and nothing redraws per frame.
+        if (!pageActive || (PlatformCaps.isTouchFirst && DeviceProfile.tier == DeviceTier.Low)) return@LaunchedEffect
         while (true) {
             sweepPos.snapTo(-0.5f)
             sweepPos.animateTo(2.5f, tween(durationMillis = 3400, easing = LinearEasing))

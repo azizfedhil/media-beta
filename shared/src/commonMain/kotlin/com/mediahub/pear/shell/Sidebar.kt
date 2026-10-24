@@ -160,6 +160,8 @@ private fun SidebarHeader(profile: Profile, onProfileClick: () -> Unit, iconsOnl
         while (true) {
             time = currentTimeLabel()
             delay(15_000)
+            // Android: the clock stops while the app is hidden, so the timer does not wake the device.
+            if (PlatformCaps.isTouchFirst) AppLifecycle.awaitForeground()
         }
     }
     Column(Modifier.fillMaxWidth().padding(bottom = 22.dp)) {

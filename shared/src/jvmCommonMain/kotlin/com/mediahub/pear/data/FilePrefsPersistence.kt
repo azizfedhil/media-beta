@@ -19,6 +19,7 @@ class FilePrefsPersistence(
     private val file: File,
     private val debounceMillis: Long = 400,
     registerShutdownHook: Boolean = true,
+    private val pretty: Boolean = true,
 ) : PrefsPersistence {
     private val pending = AtomicReference<Map<String, PrefValue>?>(null)
     private val lock = Any()
@@ -61,7 +62,7 @@ class FilePrefsPersistence(
             try {
                 file.absoluteFile.parentFile?.mkdirs()
                 val tmp = File(file.path + ".tmp")
-                tmp.writeText(PrefsCodec.encode(values), StandardCharsets.UTF_8)
+                tmp.writeText(PrefsCodec.encode(values, pretty), StandardCharsets.UTF_8)
                 try {
                     Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
                 } catch (_: IOException) {

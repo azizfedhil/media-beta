@@ -56,7 +56,7 @@ internal val LocalGlassStore = staticCompositionLocalOf { GlassStore() }
 internal fun rememberSidebarGlass(): Boolean =
     effectiveGlassMode(
         hasScene = LocalGlassState.current != null,
-        lowBattery = PowerStatus.lowBattery,
+        lowBattery = PowerStatus.saving,
         nested = false,
         mode = LocalGlassStore.current.sidebarMode,
     ) != GlassMode.Flat
@@ -128,7 +128,7 @@ fun GlassSurface(
     val nested = LocalInsideGlass.current
     val seeThrough = LocalFlatSeeThrough.current
     if (nested && GlassTuning.NESTING_WARNINGS) println("Pear: a glass surface sits inside another glass surface, so it is drawn flat.")
-    val mode = effectiveGlassMode(hasScene = state != null, lowBattery = PowerStatus.lowBattery, nested = nested, mode = modeOverride ?: store.mode)
+    val mode = effectiveGlassMode(hasScene = state != null, lowBattery = PowerStatus.saving, nested = nested, mode = modeOverride ?: store.mode)
     val perf = (performanceOverride ?: store.performance).haze
     // The hover fill fades in and out. It is read in the draw phase, so the glass itself does not recompose as it moves.
     val lit by animateFloatAsState(if (highlight) 1f else 0f, PearMotion.snappy<Float>(PearMotion.FAST))

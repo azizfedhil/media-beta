@@ -11,12 +11,15 @@ import com.mediahub.pear.player.PlaybackState
 import com.mediahub.pear.player.PlayerEngine
 import com.mediahub.pear.player.PlayerTrack
 import com.mediahub.pear.player.SubtitleRendering
+import com.mediahub.pear.perf.DeviceProfile
+import com.mediahub.pear.perf.DeviceTier
 import com.mediahub.pear.player.TrackKind
 import dev.jdtech.mpv.MPVLib
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
 
@@ -216,9 +219,13 @@ class AndroidMpvEngine private constructor(
 
     override fun eventProperty(property: String, value: Double) {
         when (property) {
-            "time-pos" -> _positionSeconds.value = value
+            "time-pos" -> {
+                // A seek back is always written. Smaller steps are skipped, because mpv reports the position on every frame.
+                val last = _positionSeconds.value
+                if (value < last || abs(value - last) >= POSITION_STEP_SECONDS) _positionSeconds.value = value
+            }
             "duration" -> _durationSeconds.value = value
-            "demuxer-cache-time" -> _bufferedSeconds.value = value
+            "demuxer-cache-time" -> if (abs(value - _bufferedSeconds.value) >= BUFFER_STEP_SECONDS) _bufferedSeconds.value = value
             "speed" -> _playbackRate.value = value
             "volume" -> _volume.value = (value / 100.0).toFloat().coerceIn(0f, 1f)
             "video-params/aspect" -> if (value > 0.0) mainHandler.post { PipState.videoAspect = value }
@@ -403,6 +410,10 @@ class AndroidMpvEngine private constructor(
         /** Hardware first: zero-copy when the video output allows it, copy-back otherwise. Software is the fallback mpv takes. */
         private const val HARDWARE_DECODERS = "mediacodec,mediacodec-copy"
         private const val PERFORMANCE_MAX_PIXELS = 1920L * 1080L
+        /** The position is written only after it moves this far, or when it goes back. A guess. */
+        private const val POSITION_STEP_SECONDS = 0.1
+        /** The buffered amount is written only after it moves this far. A guess. */
+        private const val BUFFER_STEP_SECONDS = 0.5
         private const val TAG = "PearPlayer"
 
         /**
@@ -431,6 +442,32 @@ class AndroidMpvEngine private constructor(
                 mpv.setOptionString("tls-ca-file", caCertFile.absolutePath)
                 mpv.setOptionString("tls-verify", "yes")
             }
+
+            // Cache and picture options by tier: a Low phone reads less ahead and scales more cheaply. Each is wrapped, so a
+            // libmpv build that does not know one ignores it and the player still starts.
+            val tier = DeviceProfile.tier
+            val (readAhead, backBuffer) = when (tier) {
+                DeviceTier.Low -> "24MiB" to "8MiB"
+                DeviceTier.Mid -> "48MiB" to "16MiB"
+                DeviceTier.High -> "96MiB" to "32MiB"
+            }
+            val options = mutableListOf(
+                "cache" to "yes",
+                "demuxer-max-bytes" to readAhead,
+                "demuxer-max-back-bytes" to backBuffer,
+                "scale" to "bilinear",
+                "dscale" to "bilinear",
+                "cscale" to "bilinear",
+                "correct-downscaling" to "no",
+                "linear-downscaling" to "no",
+                "sigmoid-upscaling" to "no",
+                "dither-depth" to "no",
+                "deband" to "no",
+                "interpolation" to "no",
+                "hdr-compute-peak" to "no",
+            )
+            if (tier == DeviceTier.Low) options += listOf("vd-lavc-fast" to "yes", "vd-lavc-skiploopfilter" to "nonref")
+            for ((name, value) in options) runCatching { mpv.setOptionString(name, value) }
 
             // Observers before init, so the first START_FILE and property events are not missed.
             mpv.addObserver(engine)

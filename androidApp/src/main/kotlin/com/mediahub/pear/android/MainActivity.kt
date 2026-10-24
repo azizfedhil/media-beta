@@ -10,7 +10,7 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import android.os.PowerManager
 import android.util.Rational
 import android.view.FrameMetrics
@@ -55,6 +55,12 @@ class MainActivity : ComponentActivity() {
     private val control by lazy { AndroidWindowControl(this) }
     private var powerReceiver: BroadcastReceiver? = null
     private var frameListener: Window.OnFrameMetricsAvailableListener? = null
+    private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
+
+    companion object {
+        /** Frame timings are delivered on this thread, not the UI thread. Made on first use and kept: it is cheap. */
+        private val frameHandler: Handler by lazy { Handler(HandlerThread("pear-frames").apply { start() }.looper) }
+    }
 
     // systemBarsIgnoringVisibility is marked experimental in Compose; the CI compile reported it (MainActivity.kt:71).
     // Opted in for this function only, as the shared module does for its layout APIs (PearControls.kt).
@@ -105,13 +111,15 @@ class MainActivity : ComponentActivity() {
             if (metrics.getMetric(FrameMetrics.FIRST_DRAW_FRAME) == 0L) FramePacing.frame(metrics.getMetric(FrameMetrics.TOTAL_DURATION))
         }
         frameListener = listener
-        window.addOnFrameMetricsAvailableListener(listener, Handler(Looper.getMainLooper()))
+        window.addOnFrameMetricsAvailableListener(listener, frameHandler)
         watchPowerSave()
+        watchThermal()
         AppLifecycle.notifyForegrounded()
     }
 
     override fun onStop() {
         unwatchPowerSave()
+        unwatchThermal()
         // A Picture in Picture window keeps the film going, so only an app that is really hidden counts as left.
         if (!isInPictureInPictureMode) AppLifecycle.notifyBackgrounded()
         storage.flush()
@@ -178,6 +186,25 @@ class MainActivity : ComponentActivity() {
     private fun unwatchPowerSave() {
         powerReceiver?.let { unregisterReceiver(it) }
         powerReceiver = null
+    }
+
+    /** Heat counts as saving too: from moderate heat on, glass goes flat and P2P uploads less (PowerStatus.saving). Android 10 and later. */
+    private fun watchThermal() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || thermalListener != null) return
+        val power = getSystemService(PowerManager::class.java)
+        // The listener only reports changes, so the status at the start is read here: a change while the app was hidden is not missed.
+        PowerStatus.thermalThrottled = power.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
+        val listener = PowerManager.OnThermalStatusChangedListener { status ->
+            PowerStatus.thermalThrottled = status >= PowerManager.THERMAL_STATUS_MODERATE
+        }
+        power.addThermalStatusListener(ContextCompat.getMainExecutor(this), listener)
+        thermalListener = listener
+    }
+
+    private fun unwatchThermal() {
+        val listener = thermalListener ?: return
+        getSystemService(PowerManager::class.java).removeThermalStatusListener(listener)
+        thermalListener = null
     }
 
     /** Dev tools show only in debug builds. */

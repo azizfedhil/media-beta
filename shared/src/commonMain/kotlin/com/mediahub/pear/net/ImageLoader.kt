@@ -18,8 +18,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.epochMillis
+import com.mediahub.pear.perf.DeviceProfile
+import com.mediahub.pear.perf.DeviceTier
 import com.mediahub.pear.shell.LocalHttp
 import com.mediahub.pear.shell.LocalImageCache
+import com.mediahub.pear.shell.PlatformCaps
 import com.mediahub.pear.theme.PearIcon
 import com.mediahub.pear.theme.PearTheme
 import com.mediahub.pear.theme.pearShimmer
@@ -45,7 +48,30 @@ const val DEFAULT_MAX_EDGE = 1600
  * the test scheduler cannot see work moved to a real one.
  */
 object ImageDecode {
-    var dispatcher: CoroutineDispatcher = Dispatchers.Default
+    /** Decodes at once on a touch device: 2 on a Low phone, where each one holds more of a small memory budget. A guess. */
+    private const val LOW_DECODE_PARALLELISM = 2
+
+    /** Decodes at once on a touch device that is not Low. A guess. */
+    private const val DECODE_PARALLELISM = 3
+
+    /** Desktop keeps Dispatchers.Default. A touch device gets its own pool, made on first use, after the tier is set. */
+    private val defaultDispatcher: CoroutineDispatcher by lazy {
+        if (!PlatformCaps.isTouchFirst) {
+            Dispatchers.Default
+        } else {
+            val parallelism = if (DeviceProfile.tier == DeviceTier.Low) LOW_DECODE_PARALLELISM else DECODE_PARALLELISM
+            Dispatchers.Default.limitedParallelism(parallelism)
+        }
+    }
+
+    private var assigned: CoroutineDispatcher? = null
+
+    /** Where decodes run. A test assigns its own; without one, reading this gives the default. */
+    var dispatcher: CoroutineDispatcher
+        get() = assigned ?: defaultDispatcher
+        set(value) {
+            assigned = value
+        }
 }
 
 /**
@@ -55,10 +81,12 @@ object ImageDecode {
 object ImageMemoryCache {
     private val cache = LinkedHashMap<String, ImageBitmap>(100, 0.75f, true)
     private var bytes = 0L
-    private const val MAX_ENTRIES = 250
 
-    /** Decoded pixels kept at most (4 bytes a pixel). */
-    private const val MAX_BYTES = 256L * 1024 * 1024
+    /** Entries kept at most. PearApplication lowers this on smaller phones. */
+    @Volatile private var maxEntries = 250
+
+    /** Decoded pixels kept at most (4 bytes a pixel). PearApplication lowers this on smaller phones. */
+    @Volatile private var maxBytes = 256L * 1024 * 1024
 
     /** One size of one picture is one entry: the same URL at two sizes is two entries. */
     private fun keyOf(url: String, maxEdge: Int): String = "$url@$maxEdge"
@@ -72,7 +100,7 @@ object ImageMemoryCache {
         cache.remove(key)?.let { bytes -= sizeOf(it) }
         cache[key] = bitmap
         bytes += sizeOf(bitmap)
-        while (cache.size > 1 && (cache.size > MAX_ENTRIES || bytes > MAX_BYTES)) {
+        while (cache.size > 1 && (cache.size > maxEntries || bytes > maxBytes)) {
             val oldest = cache.keys.first()
             val removed = cache.remove(oldest) ?: break
             bytes -= sizeOf(removed)
@@ -86,6 +114,23 @@ object ImageMemoryCache {
     fun clear() {
         cache.clear()
         bytes = 0L
+    }
+
+    /** Sets the limits for this device. The next [put] enforces them, so entries already cached can stay above them until then. */
+    @Synchronized
+    fun configure(maxBytes: Long, maxEntries: Int) {
+        this.maxBytes = maxBytes
+        this.maxEntries = maxEntries
+    }
+
+    /** Evicts least recently used entries until the decoded size is at most [maxBytes]. Used when memory runs low. */
+    @Synchronized
+    fun trimTo(maxBytes: Long) {
+        while (cache.isNotEmpty() && bytes > maxBytes) {
+            val oldest = cache.keys.first()
+            val removed = cache.remove(oldest) ?: break
+            bytes -= sizeOf(removed)
+        }
     }
 }
 
@@ -140,19 +185,20 @@ fun RemoteImage(
 ) {
     val http = LocalHttp.current
     val disk = LocalImageCache.current
-    var bitmap by remember(url, maxEdge) { mutableStateOf(url?.let { ImageMemoryCache.get(it, maxEdge) }) }
+    val edge = DeviceProfile.capEdge(maxEdge)
+    var bitmap by remember(url, edge) { mutableStateOf(url?.let { ImageMemoryCache.get(it, edge) }) }
     // A small, blurry copy shown until the full picture is ready. It is never set once the full one is there.
-    var preview by remember(url, maxEdge) { mutableStateOf<ImageBitmap?>(null) }
-    var failed by remember(url, maxEdge) { mutableStateOf(false) }
+    var preview by remember(url, edge) { mutableStateOf<ImageBitmap?>(null) }
+    var failed by remember(url, edge) { mutableStateOf(false) }
     // A picture already in memory shows at once; one that had to be loaded fades in over whatever is underneath.
-    val reveal = remember(url, maxEdge) { Animatable(if (bitmap != null) 1f else 0f) }
+    val reveal = remember(url, edge) { Animatable(if (bitmap != null) 1f else 0f) }
     LaunchedEffect(bitmap) {
         if (bitmap == null || reveal.value >= 1f) return@LaunchedEffect
         val ms = if (fadeInMillis > 0) fadeInMillis else if (preview != null) PREVIEW_CROSSFADE_MILLIS else 0
         if (ms > 0) reveal.animateTo(1f, tween(ms)) else reveal.snapTo(1f)
     }
 
-    LaunchedEffect(url, maxEdge) {
+    LaunchedEffect(url, edge) {
         if (url.isNullOrBlank()) {
             failed = true
             return@LaunchedEffect
@@ -164,8 +210,8 @@ fun RemoteImage(
         preview = lowUrl?.let { ImageMemoryCache.get(it, PREVIEW_MAX_EDGE) }
         coroutineScope {
             val full = async(Dispatchers.Default) {
-                var loaded = loadImageBitmap(http, disk, url, maxEdge)
-                if (loaded == null && fallbackUrl != null) loaded = loadImageBitmap(http, disk, fallbackUrl, maxEdge)
+                var loaded = loadImageBitmap(http, disk, url, edge)
+                if (loaded == null && fallbackUrl != null) loaded = loadImageBitmap(http, disk, fallbackUrl, edge)
                 loaded
             }
             // Only asked for when the full picture is slow: a disk hit or a quick answer cancels this before it starts.
@@ -181,7 +227,7 @@ fun RemoteImage(
             val loaded = full.await()
             if (loaded != null) previewJob?.cancel() else previewJob?.join()
             if (loaded != null) {
-                ImageMemoryCache.put(url, loaded, maxEdge)
+                ImageMemoryCache.put(url, loaded, edge)
                 bitmap = loaded
             } else if (preview == null) {
                 failed = true
@@ -236,11 +282,12 @@ suspend fun loadRemoteBitmap(
     maxEdge: Int = DEFAULT_MAX_EDGE,
     disk: ResponseCache = ResponseCache.None,
 ): ImageBitmap? {
-    ImageMemoryCache.get(url, maxEdge)?.let { return it }
+    val edge = DeviceProfile.capEdge(maxEdge)
+    ImageMemoryCache.get(url, edge)?.let { return it }
     // The network call stays on the caller's context: callers that must know whether an image arrived wait on it. The
     // decode runs on ImageDecode.dispatcher, so the UI thread never decodes. Tests drive this call through a virtual-time
     // scheduler that cannot see work moved to a real dispatcher, so they set ImageDecode.dispatcher to their own.
-    val loaded = loadImageBitmap(http, disk, url, maxEdge) ?: return null
-    ImageMemoryCache.put(url, loaded, maxEdge)
+    val loaded = loadImageBitmap(http, disk, url, edge) ?: return null
+    ImageMemoryCache.put(url, loaded, edge)
     return loaded
 }

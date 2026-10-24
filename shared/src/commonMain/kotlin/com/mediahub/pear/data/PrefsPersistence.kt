@@ -39,10 +39,13 @@ object NoPersistence : PrefsPersistence {
 object PrefsCodec {
     const val FORMAT = 1
     private val json = Json { prettyPrint = true; prettyPrintIndent = "  " }
+    // One line with no indentation: the same data, fewer bytes for each rewrite of the file.
+    private val compactJson = Json { prettyPrint = false }
 
-    fun encode(values: Map<String, PrefValue>): String {
+    fun encode(values: Map<String, PrefValue>, pretty: Boolean = true): String {
         val obj = sortedObject(values) { encodeValue(it) }
-        return json.encodeToString(JsonObject.serializer(), JsonObject(mapOf("format" to JsonPrimitive(FORMAT), "values" to obj)))
+        val writer = if (pretty) json else compactJson
+        return writer.encodeToString(JsonObject.serializer(), JsonObject(mapOf("format" to JsonPrimitive(FORMAT), "values" to obj)))
     }
 
     /** Null when [text] is not a settings file at all (so the caller can keep a copy instead of overwriting it). */

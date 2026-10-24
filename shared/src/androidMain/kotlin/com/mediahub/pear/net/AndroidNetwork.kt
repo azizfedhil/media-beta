@@ -1,6 +1,8 @@
 package com.mediahub.pear.net
 
 import com.mediahub.pear.data.AndroidDirs
+import com.mediahub.pear.perf.DeviceProfile
+import com.mediahub.pear.perf.DeviceTier
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
@@ -9,11 +11,16 @@ import java.io.File
 /** OkHttp underneath, as on desktop: system proxy settings, HTTP/2, compressed answers, and the same tuned pool that can be emptied. */
 fun androidHttp(): Http {
     val pool = okhttp3.ConnectionPool(5, 30, java.util.concurrent.TimeUnit.SECONDS)
+    // Fewer parallel requests on weaker phones: each one holds a socket, a buffer and a TLS session. Total, then per host.
+    val (total, perHost) = when (DeviceProfile.tier) {
+        DeviceTier.Low -> 24 to 6
+        DeviceTier.Mid -> 48 to 12
+        DeviceTier.High -> 128 to 24
+    }
     val okHttp = okhttp3.OkHttpClient.Builder()
         .connectionPool(pool)
         .retryOnConnectionFailure(true)
-        .pingInterval(30, java.util.concurrent.TimeUnit.SECONDS)
-        .dispatcher(okhttp3.Dispatcher().apply { maxRequests = 128; maxRequestsPerHost = 24 })
+        .dispatcher(okhttp3.Dispatcher().apply { maxRequests = total; maxRequestsPerHost = perHost })
         .build()
     return KtorHttp(
         HttpClient(OkHttp) {

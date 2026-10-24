@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.Volatile
 
 /**
  * The app's handle on the P2P engine (spec: `P2PManager` in P2PManager.swift).
@@ -32,6 +33,10 @@ class P2PEngine(private val platform: P2PPlatform) {
     /** Bumped by every [stop]; an [open] that finds it changed was stopped while it was waiting on the engine. */
     private var generation = 0
 
+    /** The last power-saving choice the app made. Null until it makes one, so an engine created before that makes no call. */
+    @Volatile
+    private var desired: Boolean? = null
+
     /**
      * Starts the engine if it isn't running, resolves the torrent and returns the loopback stream. Suspends for as long as
      * the torrent's metadata takes (up to the engine's timeout). Throws [P2PFailure].
@@ -46,6 +51,16 @@ class P2PEngine(private val platform: P2PPlatform) {
     suspend fun stopStream() {
         val engine = state.withLock { native } ?: return
         withContext(dispatcher) { engine.stopStream() }
+    }
+
+    /**
+     * Low Power Mode or a hot phone: less upload and a smaller read-ahead. The choice is kept, so an engine created later
+     * gets it too. With no engine running, this only keeps the choice.
+     */
+    suspend fun setPowerSaving(on: Boolean) {
+        desired = on
+        val engine = state.withLock { native } ?: return
+        withContext(dispatcher) { engine.setPowerSaving(on) }
     }
 
     /** The engine's state for a status line. Cheap; does not wait for an open in progress. */
@@ -106,6 +121,8 @@ class P2PEngine(private val platform: P2PPlatform) {
             }
             throw P2PFailure.Cancelled
         }
+        // Read after the engine is published, so a choice made while it was being created is not missed.
+        desired?.let { on -> withContext(dispatcher) { created.setPowerSaving(on) } }
         return created
     }
 }

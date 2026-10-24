@@ -28,12 +28,15 @@ import com.mediahub.pear.data.AppData
 import com.mediahub.pear.data.Storage
 import com.mediahub.pear.glass.FramePacing
 import com.mediahub.pear.glass.GlassMode
+import com.mediahub.pear.glass.GlassPerformance
 import com.mediahub.pear.glass.GlassStore
 import com.mediahub.pear.glass.PowerStatus
 import com.mediahub.pear.log.PearTrace
 import com.mediahub.pear.model.CatalogSource
 import com.mediahub.pear.onboarding.OnboardingHost
 import com.mediahub.pear.p2p.blockingUntil
+import com.mediahub.pear.perf.DeviceProfile
+import com.mediahub.pear.perf.DeviceTier
 import com.mediahub.pear.onboarding.OnboardingState
 import com.mediahub.pear.net.ImageCacheMaintenance
 import com.mediahub.pear.net.Network
@@ -75,7 +78,18 @@ fun App(
         data.onThemeSettingsSynced = { theme.reload() }
         onDispose { data.onThemeSettingsSynced = {} }
     }
-    val glass = remember(data) { GlassStore(prefs = data.prefs) }
+    // The starting look by device tier. A choice the person saved is read first, so these only set the default.
+    val glass = remember(data) {
+        GlassStore(
+            initialMode = when (DeviceProfile.tier) {
+                DeviceTier.Low -> GlassMode.Flat
+                DeviceTier.Mid -> GlassMode.Frosted
+                DeviceTier.High -> GlassMode.Glass
+            },
+            initialPerformance = if (DeviceProfile.tier == DeviceTier.High) GlassPerformance.Balanced else GlassPerformance.Performance,
+            prefs = data.prefs,
+        )
+    }
     val shell = remember { ShellState() }
     // Decided once per storage: a fresh install sees the setup first, an existing one never does (see OnboardingState).
     val setupNeeded = remember(data) {
@@ -92,6 +106,8 @@ fun App(
         data.simklHistory.pull(data.profiles.activeID, force = true)
         while (true) {
             delay(5 * 60_000L)
+            // Android: the poll waits while the app is hidden, so it does not wake the radio with the screen off.
+            if (PlatformCaps.isTouchFirst) AppLifecycle.awaitForeground()
             data.simklHistory.pull(data.profiles.activeID)
         }
     }
@@ -114,6 +130,8 @@ fun App(
         while (true) {
             withContext(Dispatchers.Default) { ImageCacheMaintenance.runIfDue(data.network.images, data.network.facts) }
             delay(6L * 60 * 60 * 1000)
+            // Android: the sweep waits until the app is in front again, so it does not run with the screen off.
+            if (PlatformCaps.isTouchFirst) AppLifecycle.awaitForeground()
         }
     }
     // Android: when the app runs slowly (under 55 fps, or it hangs), the effects drop one tier and the person is told.
@@ -126,7 +144,7 @@ fun App(
         }
         LaunchedEffect(glass) {
             FramePacing.slow.collect {
-                if (PowerStatus.lowBattery) return@collect
+                if (PowerStatus.saving) return@collect
                 val to = glass.stepDown() ?: return@collect
                 FramePacing.rest(20_000)
                 val name = when (to) {
@@ -143,6 +161,10 @@ fun App(
                 perfNote = null
             }
         }
+    }
+    // Android: battery saver or a hot phone makes P2P upload less and read ahead less. Desktop never sets it.
+    if (PlatformCaps.isTouchFirst) {
+        LaunchedEffect(PowerStatus.saving) { data.p2p.engine.setPowerSaving(PowerStatus.saving) }
     }
     // The launch restore of the saved add-ons is started here, after the first composition has been applied. Saved
     // add-ons that missed the launch fetch (no connection yet) are asked for again at launch and every time the app comes back to the front.

@@ -72,6 +72,9 @@ val buildP2pCoreAndroid by tasks.registering(Exec::class) {
         "-o", file("src/main/jniLibs").absolutePath,
         "rustc", "--release", "--lib", "--crate-type", "cdylib",
     )
+    // Android builds trade library size for SHA-1 hashing and TLS speed on weak cores.
+    environment("CARGO_PROFILE_RELEASE_OPT_LEVEL", "3")
+    inputs.property("p2pOptLevel", "3")
     inputs.dir(File(p2pCoreDir, "src"))
     inputs.file(File(p2pCoreDir, "Cargo.toml"))
     outputs.dir(file("src/main/jniLibs"))

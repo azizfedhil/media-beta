@@ -10,4 +10,10 @@ import androidx.compose.runtime.setValue
  */
 object PowerStatus {
     var lowBattery: Boolean by mutableStateOf(false)
+
+    /** Set by the Android thermal status (moderate heat or worse). Never set on desktop. */
+    var thermalThrottled: Boolean by mutableStateOf(false)
+
+    /** Saving power for any reason: low battery or a hot phone. Glass falls back to flat, and P2P uploads less. */
+    val saving: Boolean get() = lowBattery || thermalThrottled
 }

@@ -18,6 +18,7 @@ import com.mediahub.pear.log.PearLog
 import com.mediahub.pear.model.jDouble
 import com.mediahub.pear.net.attempt
 import com.mediahub.pear.shell.AppLifecycle
+import com.mediahub.pear.shell.PlatformCaps
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -235,6 +236,8 @@ class SyncEngine(
         scope.launch {
             while (true) {
                 delay(SyncRules.PULL_EVERY_MILLIS)
+                // Android: the pull waits while the app is hidden, so it does not wake the radio with the screen off.
+                if (PlatformCaps.isTouchFirst) AppLifecycle.awaitForeground()
                 cycle(full = true)
             }
         }

@@ -29,6 +29,8 @@ import com.mediahub.pear.model.OnlineSubtitle
 import com.mediahub.pear.model.Addon
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.model.StreamItem
+import com.mediahub.pear.perf.DeviceProfile
+import com.mediahub.pear.perf.DeviceTier
 import com.mediahub.pear.player.AspectMode
 import com.mediahub.pear.player.EpisodeSupport
 import com.mediahub.pear.player.PlaybackProgress
@@ -260,7 +262,8 @@ fun PlayerScreen(
     LaunchedEffect(Unit) { if (PlatformCaps.playerStartsFullscreen) setFullscreen(true) }
 
     var aspect by remember { mutableStateOf(AspectMode.Fit) }
-    var performance by remember { mutableStateOf(false) }
+    // Fast 4K starts on for a Low phone, which has the least GPU to spare. Nothing is saved for it, so this is the default each time.
+    var performance by remember { mutableStateOf(DeviceProfile.tier == DeviceTier.Low) }
     LaunchedEffect(engine, aspect) { engine.setAspectMode(aspect) }
 
     // A torrent opens through the P2P engine first: the engine starts if it isn't running and resolves the file, then mpv
@@ -305,6 +308,11 @@ fun PlayerScreen(
     }
     // The status line for a torrent (peers, speed, progress), read once a second. Nothing for a link.
     LaunchedEffect(current.url) {
+        // Android: a link has no status line, so its loop is not started at all. Desktop keeps the loop as it is.
+        if (PlatformCaps.isTouchFirst && current.p2p == null) {
+            p2pStatus = null
+            return@LaunchedEffect
+        }
         while (true) {
             p2pStatus = if (current.p2p != null) p2pStatusLine(data.p2p.engine.status().stats) else null
             delay(1_000)
@@ -323,7 +331,7 @@ fun PlayerScreen(
     val liquid = rememberPref(prefs, PrefKeys.ANDROID_PLAYER_LIQUID_GLASS) { it.bool(PrefKeys.ANDROID_PLAYER_LIQUID_GLASS, false) }
     // Decided once when the player opens: swapping the surface type during a film would flash. Battery saver means Frosted.
     val sampleable = remember {
-        if (PlatformCaps.hasPlayerGlassChoice) liquid && PlatformCaps.videoBlurSupported && !PowerStatus.lowBattery
+        if (PlatformCaps.hasPlayerGlassChoice) liquid && PlatformCaps.videoBlurSupported && !PowerStatus.saving
         else PlatformCaps.videoBlurSupported
     }
     // Where the picture cannot be sampled, glass cannot blur it: the controls get the Frosted look.

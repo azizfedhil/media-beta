@@ -10,6 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mediahub.pear.shell.LocalAppEnv
+import com.mediahub.pear.shell.PlatformCaps
 import kotlinx.coroutines.delay
 
 /** How long the warm-up stays in the tree. The launch intro covers the app for about five seconds on desktop. */
@@ -26,7 +28,9 @@ internal fun GlassWarmup(modifier: Modifier = Modifier) {
         delay(WARMUP_MILLIS)
         shown = false
     }
-    if (shown) {
+    // A touch phone set to Flat draws no glass, so there are no shaders to compile. Desktop never takes this path.
+    val flatTouch = PlatformCaps.isTouchFirst && LocalAppEnv.current.glass.mode == GlassMode.Flat
+    if (shown && !flatTouch) {
         Row(modifier.size(48.dp)) {
             GlassSurface(Modifier.size(24.dp), modeOverride = GlassMode.Glass) {}
             GlassSurface(Modifier.size(24.dp), modeOverride = GlassMode.Frosted) {}

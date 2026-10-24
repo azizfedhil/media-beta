@@ -12,6 +12,10 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.mediahub.pear.nav.LocalPageActive
+import com.mediahub.pear.perf.DeviceProfile
+import com.mediahub.pear.perf.DeviceTier
+import com.mediahub.pear.shell.PlatformCaps
 
 /**
  * A placeholder fill with a soft highlight that sweeps across it. Clip the box first if it needs rounded corners.
@@ -22,6 +26,14 @@ fun Modifier.pearShimmer(
     base: Color = PearTheme.colors.fill,
     highlight: Color = PearTheme.colors.fillStrong,
 ): Modifier {
+    // On Android, a Low phone or a page under the player draws only the static fill: the sweep would redraw every frame
+    // for nothing. Desktop never takes this branch, so its sweep runs as before.
+    if (PlatformCaps.isTouchFirst && (DeviceProfile.tier == DeviceTier.Low || !LocalPageActive.current)) {
+        return this.drawWithContent {
+            drawRect(base)
+            drawContent()
+        }
+    }
     val transition = rememberInfiniteTransition(label = "pear-shimmer")
     val phase = transition.animateFloat(
         initialValue = 0f,
