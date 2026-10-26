@@ -1,5 +1,7 @@
 package com.mediahub.pear.p2p
 
+import kotlin.random.Random
+
 /**
  * The line under the loader, or the buffering spinner, while a torrent opens or buffers: peers, speed, progress. Before the
  * stream has numbers it says it is still looking for peers.
@@ -16,11 +18,12 @@ fun p2pStatusLine(stats: P2PStats?): String {
 /** True while no peer has been found yet: the engine has no numbers, or has them and none of its peers is live. */
 fun isLookingForPeers(stats: P2PStats?): Boolean = stats == null || stats.peersLive == 0
 
-/** How long each phrase of [findingPeersPhrase] stays up. */
+/** How long each phrase of [FindingPeersPhrases] stays up. */
 const val FINDING_PEERS_PHRASE_SECONDS = 4
 
-private val findingPeersPhrases = listOf(
-    "Finding peers…",
+private const val PLAIN_PHRASE = "Finding peers…"
+
+private val playfulPhrases = listOf(
     "Asking around the swarm…",
     "Knocking on strangers' doors…",
     "Shaking the pear. tree…",
@@ -38,11 +41,38 @@ private val findingPeersPhrases = listOf(
 )
 
 /**
- * What to say while still looking for peers, given how many seconds the search has taken. It starts with the plain
- * "Finding peers…", then moves to the next phrase every [FINDING_PEERS_PHRASE_SECONDS] seconds, and starts over after the last.
+ * What to say while still looking for peers. The first phrase is the plain "Finding peers…"; after it, [next] hands out the
+ * playful ones in a random order, each once before any comes round again, and never the same one twice in a row. Ask for a
+ * new one every [FINDING_PEERS_PHRASE_SECONDS] seconds, and call [restart] when peers are found, so the next search begins
+ * with the plain line again.
  */
-fun findingPeersPhrase(secondsSearching: Int): String =
-    findingPeersPhrases[(secondsSearching.coerceAtLeast(0) / FINDING_PEERS_PHRASE_SECONDS) % findingPeersPhrases.size]
+class FindingPeersPhrases(private val random: Random = Random.Default) {
+    private val queue = ArrayDeque<String>()
+    private var last: String? = null
+    private var started = false
+
+    fun next(): String {
+        if (!started) {
+            started = true
+            last = PLAIN_PHRASE
+            return PLAIN_PHRASE
+        }
+        if (queue.isEmpty()) refill()
+        return queue.removeFirst().also { last = it }
+    }
+
+    fun restart() {
+        started = false
+        queue.clear()
+        last = null
+    }
+
+    private fun refill() {
+        val round = playfulPhrases.shuffled(random)
+        // A new round must not open with the phrase the last one ended on.
+        queue.addAll(if (round.size > 1 && round.first() == last) round.drop(1) + round.first() else round)
+    }
+}
 
 /** A byte rate as KB or MB with one decimal place. */
 internal fun rate(bytesPerSecond: Long): String =

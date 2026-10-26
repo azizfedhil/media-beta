@@ -1,6 +1,7 @@
 package com.mediahub.pear.brand
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
@@ -23,12 +24,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mediahub.pear.shell.PlatformCaps
+import com.mediahub.pear.theme.PearText
 import com.mediahub.pear.theme.PearTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -126,6 +130,14 @@ private const val DESKTOP_INTRO_MILLIS = 3_000.0
 fun PearLaunchOverlay() {
     var showing by remember { mutableStateOf(true) }
     var dismissing by remember { mutableStateOf(false) }
+    // A playful line under the animation, a different one each launch. It fades in a moment after the animation starts.
+    val phrase = remember { LaunchPhrases.pick() }
+    var phraseShown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(500)
+        phraseShown = true
+    }
+    val phraseAlpha by animateFloatAsState(if (phraseShown) 1f else 0f, tween(400))
     LaunchedEffect(Unit) {
         // Builds the geometry off the UI thread, so the first frame of the intro doesn't stall.
         withContext(Dispatchers.Default) { PearGeometry.duration(PearMode.Intro) }
@@ -150,6 +162,15 @@ fun PearLaunchOverlay() {
                 modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 28.dp),
                 speed = introSpeed,
                 onFinish = { dismissing = true },
+            )
+            // In its own spot at the bottom, so the animation stays exactly where it was.
+            PearText(
+                phrase,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(start = 28.dp, end = 28.dp, bottom = 72.dp).alpha(phraseAlpha),
+                style = PearTheme.type.callout,
+                color = PearBrand.cream.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+                maxLines = 2,
             )
         }
     }
