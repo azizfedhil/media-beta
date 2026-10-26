@@ -1,10 +1,17 @@
-# Inter (optional, recommended)
+# Archivo
 
-The app looks for these files here and falls back to the system font when they are missing:
+Static files, generated from the Archivo variable fonts at width 100 (normal):
 
-    Inter-Regular.ttf   Inter-Medium.ttf   Inter-SemiBold.ttf
-    Inter-Bold.ttf      Inter-ExtraBold.ttf  Inter-Black.ttf
+    Archivo-Regular.ttf   Archivo-Medium.ttf   Archivo-SemiBold.ttf
+    Archivo-Bold.ttf      Archivo-ExtraBold.ttf  Archivo-Black.ttf
+    Archivo-Italic.ttf    (regular weight; the only italic the app uses)
 
-Get them from https://github.com/rsms/inter/releases (the zip's `extras/ttf/` folder, static files, not the
-variable font). Inter is licensed under the SIL Open Font License 1.1: keep its `LICENSE.txt` next to the
-fonts and list it in the About screen (Batch 3.5).
+The same files live in two places, because desktop reads JVM resources and Android reads assets:
+
+    shared/src/desktopMain/resources/fonts/
+    androidApp/src/main/assets/fonts/
+
+Keep the two folders identical. The app falls back to the system font for any file that is missing.
+
+Archivo is licensed under the SIL Open Font License 1.1: keep its `OFL.txt` next to the fonts and list it in the About
+screen.

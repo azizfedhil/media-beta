@@ -2,12 +2,13 @@ package com.mediahub.pear.theme
 
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /**
  * The type scale. Sizes and line heights are the iOS text styles at the default Dynamic Type size, so a screen
- * laid out for the iPad app has the same proportions here. The face is Inter (SF Pro is Apple-only).
+ * laid out for the iPad app has the same proportions here. The face is Archivo.
  */
 class PearTypography(family: FontFamily) {
     val largeTitle = TextStyle(fontFamily = family, fontSize = 34.sp, lineHeight = 41.sp, fontWeight = FontWeight.Normal)
@@ -36,8 +37,26 @@ fun TextStyle.weight(weight: FontWeight): TextStyle = copy(fontWeight = weight)
 /** Digits of equal width, for clocks and counters (SwiftUI `.monospacedDigit()`). */
 fun TextStyle.monospacedDigits(): TextStyle = copy(fontFeatureSettings = "tnum")
 
+/** One bundled Archivo file: its name, and the weight and style it is registered under. */
+internal class ArchivoFile(val name: String, val weight: FontWeight, val style: FontStyle = FontStyle.Normal)
+
 /**
- * Inter, if its files are bundled (see `shared/src/desktopMain/resources/fonts/README.md`); otherwise null and
+ * The static Archivo files the app looks for, one per weight it uses, plus the regular italic (the only italic in the
+ * app, InfoCard). Desktop reads them from `shared/src/desktopMain/resources/fonts/`, Android from
+ * `androidApp/src/main/assets/fonts/`.
+ */
+internal val archivoFiles = listOf(
+    ArchivoFile("Archivo-Regular.ttf", FontWeight.Normal),
+    ArchivoFile("Archivo-Medium.ttf", FontWeight.Medium),
+    ArchivoFile("Archivo-SemiBold.ttf", FontWeight.SemiBold),
+    ArchivoFile("Archivo-Bold.ttf", FontWeight.Bold),
+    ArchivoFile("Archivo-ExtraBold.ttf", FontWeight.ExtraBold),
+    ArchivoFile("Archivo-Black.ttf", FontWeight.Black),
+    ArchivoFile("Archivo-Italic.ttf", FontWeight.Normal, FontStyle.Italic),
+)
+
+/**
+ * Archivo, if its files are bundled (see `shared/src/desktopMain/resources/fonts/README.md`); otherwise null and
  * the system default is used. Implemented per platform.
  */
-expect fun interFontFamily(): FontFamily?
+expect fun pearFontFamily(): FontFamily?

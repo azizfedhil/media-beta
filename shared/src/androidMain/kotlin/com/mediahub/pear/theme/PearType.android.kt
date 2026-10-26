@@ -1,8 +1,18 @@
 package com.mediahub.pear.theme
 
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import com.mediahub.pear.AndroidHost
 
 /**
- * Android v1 uses the system font. Inter is bundled for desktop; bringing it over is a later polish task (plan section 1.1).
+ * Loads whichever Archivo files are present in `androidApp/src/main/assets/fonts/` (assets of the app module are
+ * visible to the whole process). None present, or assets unreadable: system default.
  */
-actual fun interFontFamily(): FontFamily? = null
+actual fun pearFontFamily(): FontFamily? = runCatching {
+    val assets = AndroidHost.app().assets
+    val present = assets.list("fonts")?.toSet().orEmpty()
+    val fonts = archivoFiles
+        .filter { it.name in present }
+        .map { Font("fonts/${it.name}", assets, it.weight, it.style) }
+    if (fonts.isEmpty()) null else FontFamily(fonts)
+}.getOrNull()

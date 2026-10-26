@@ -1,26 +1,15 @@
 package com.mediahub.pear.theme
 
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 
-private val interFiles = listOf(
-    "Inter-Regular.ttf" to FontWeight.Normal,
-    "Inter-Medium.ttf" to FontWeight.Medium,
-    "Inter-SemiBold.ttf" to FontWeight.SemiBold,
-    "Inter-Bold.ttf" to FontWeight.Bold,
-    "Inter-ExtraBold.ttf" to FontWeight.ExtraBold,
-    "Inter-Black.ttf" to FontWeight.Black,
-)
+private class FontLoader
 
-private class InterLoader
-
-/** Loads whichever Inter files are present in `src/desktopMain/resources/fonts/`. None present: system default. */
-actual fun interFontFamily(): FontFamily? {
-    val fonts = interFiles.mapNotNull { (file, weight) ->
-        val bytes = InterLoader::class.java.getResourceAsStream("/fonts/$file")?.use { it.readBytes() }
-        if (bytes == null) null else Font(identity = file, data = bytes, weight = weight, style = FontStyle.Normal)
+/** Loads whichever Archivo files are present in `src/desktopMain/resources/fonts/`. None present: system default. */
+actual fun pearFontFamily(): FontFamily? {
+    val fonts = archivoFiles.mapNotNull { f ->
+        val bytes = FontLoader::class.java.getResourceAsStream("/fonts/${f.name}")?.use { it.readBytes() }
+        if (bytes == null) null else Font(identity = f.name, data = bytes, weight = f.weight, style = f.style)
     }
     return if (fonts.isEmpty()) null else FontFamily(fonts)
 }

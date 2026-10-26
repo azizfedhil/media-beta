@@ -83,7 +83,7 @@ fun ThemePreviewScreen(theme: ThemeStore, glass: GlassStore, onBack: (() -> Unit
                     }
                 }
 
-                PreviewSection("Type (Inter, iOS sizes)") {
+                PreviewSection("Type (Archivo, iOS sizes)") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         t.all().forEach { (name, style) ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

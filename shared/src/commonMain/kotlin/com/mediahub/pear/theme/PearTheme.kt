@@ -31,7 +31,7 @@ fun PearTheme(store: ThemeStore, content: @Composable () -> Unit) {
         Appearance.System -> isSystemInDarkTheme()
     }
     val colors = remember(store.accentHex, dark) { pearColors(store.accentHex, dark) }
-    val type = remember { PearTypography(interFontFamily() ?: FontFamily.Default) }
+    val type = remember { PearTypography(pearFontFamily() ?: FontFamily.Default) }
     CompositionLocalProvider(LocalPearColors provides colors, LocalPearType provides type) {
         ProvideSystemDark(dark) { content() }
     }
