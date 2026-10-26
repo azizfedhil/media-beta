@@ -143,19 +143,34 @@ impl Drop for Inner {
     }
 }
 
-fn build_magnet(hash: &str, trackers: &[String]) -> Result<String, P2pError> {
+fn build_magnet(hash: &str, trackers: &[String], max_trackers: usize) -> Result<String, P2pError> {
     if hash.len() != 40 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(P2pError::InvalidInput { msg: "info hash must be 40 hex chars".into() });
     }
     let mut m = format!("magnet:?xt=urn:btih:{}", hash.to_ascii_lowercase());
-    for t in trackers.iter().filter(|t| ["udp://", "http://", "https://"].iter().any(|p| t.starts_with(p))).take(12) {
+    for t in trackers.iter().filter(|t| ["udp://", "http://", "https://"].iter().any(|p| t.starts_with(p))).take(max_trackers) {
         m.push_str("&tr=");
         m.extend(url::form_urlencoded::byte_serialize(t.as_bytes()));
     }
     Ok(m)
 }
 
+/// The metadata wait of a desktop with power to spare: effectively none. Leaving the stream cancels it sooner.
+const PERFORMANCE_METADATA_WAIT: Duration = Duration::from_secs(30 * 60);
+/// Trackers put in the magnet: the usual cap, and the larger one for a desktop with power to spare.
+const MAX_TRACKERS: usize = 12;
+const PERFORMANCE_MAX_TRACKERS: usize = 30;
+
 impl Ctx {
+    fn performance(&self) -> bool {
+        self.shared.pace.performance.load(Ordering::Relaxed)
+    }
+
+    /// How long to wait for a torrent's metadata: the configured time, or the long one in performance mode.
+    fn metadata_wait(&self) -> Duration {
+        if self.performance() { PERFORMANCE_METADATA_WAIT.max(self.meta_timeout) } else { self.meta_timeout }
+    }
+
     async fn drop_current(&self) {
         let cur = self.shared.current.write().ok().and_then(|mut g| g.take());
         if let Some(c) = cur {
@@ -165,14 +180,14 @@ impl Ctx {
 
     async fn open(&self, info_hash: String, trackers: Vec<String>, file_idx: Option<u32>) -> Result<StreamInfo, P2pError> {
         self.drop_current().await; // one stream at a time: bounded peers, disk and memory
-        let magnet = build_magnet(&info_hash, &trackers)?;
+        let magnet = build_magnet(&info_hash, &trackers, if self.performance() { PERFORMANCE_MAX_TRACKERS } else { MAX_TRACKERS })?;
         let opts = AddTorrentOptions {
             paused: true, // metadata resolves, but no piece traffic until we pick the one file we need
             overwrite: true,
             only_files: file_idx.map(|i| vec![i as usize]),
             ..Default::default()
         };
-        let resp = timeout(self.meta_timeout, self.session.add_torrent(AddTorrent::from_url(magnet), Some(opts)))
+        let resp = timeout(self.metadata_wait(), self.session.add_torrent(AddTorrent::from_url(magnet), Some(opts)))
             .await
             .map_err(|_| P2pError::MetadataTimeout)?
             .map_err(t_err)?;
@@ -264,7 +279,7 @@ impl P2pEngine {
     /// Resolves metadata, selects the file (`file_idx` from Torrentio, else largest video), returns the loopback URL.
     /// Blocking (up to metadata_timeout): call off the main thread.
     pub fn start_stream(&self, info_hash: String, trackers: Vec<String>, file_idx: Option<u32>) -> Result<StreamInfo, P2pError> {
-        let wait = self.grab()?.1.meta_timeout + Duration::from_secs(20);
+        let wait = self.grab()?.1.metadata_wait() + Duration::from_secs(20);
         self.run(wait, move |ctx| async move { ctx.open(info_hash, trackers, file_idx).await })?
     }
 
@@ -297,6 +312,13 @@ impl P2pEngine {
         let Ok((_, ctx)) = self.grab() else { return };
         ctx.shared.pace.low_power.store(on, Ordering::Relaxed);
         ctx.session.ratelimits.set_upload_bps(NonZeroU32::new(if on { MIN_LIMIT_BPS } else { ctx.upload_bps }));
+    }
+
+    /// Desktop on AC or a healthy battery: no throttling worth the name (a very large read-ahead window), a long metadata wait
+    /// and more trackers. Off by default, so every other platform behaves as before. Cheap, non-blocking.
+    pub fn set_performance_mode(&self, on: bool) {
+        let Ok((_, ctx)) = self.grab() else { return };
+        ctx.shared.pace.performance.store(on, Ordering::Relaxed);
     }
 
     pub fn is_running(&self) -> bool {

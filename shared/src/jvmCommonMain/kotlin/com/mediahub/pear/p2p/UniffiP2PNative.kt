@@ -29,6 +29,8 @@ internal class UniffiP2PNative(private val engine: P2pEngine) : P2PNative {
 
     override fun setPowerSaving(on: Boolean) = guarded { engine.setPowerSaving(on) }
 
+    override fun setPerformanceMode(on: Boolean) = guarded { engine.setPerformanceMode(on) }
+
     override fun stop() = guarded { engine.stop() }
 
     override fun close() = engine.close()

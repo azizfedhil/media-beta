@@ -166,6 +166,10 @@ fun App(
     if (PlatformCaps.isTouchFirst) {
         LaunchedEffect(PowerStatus.saving) { data.p2p.engine.setPowerSaving(PowerStatus.saving) }
     }
+    // Desktop on AC (or with no battery), or with a battery above 50%: P2P runs without its power saving. Android never does this.
+    if (!PlatformCaps.isTouchFirst) {
+        LaunchedEffect(PowerStatus.plentyOfPower) { data.p2p.engine.setPerformanceMode(PowerStatus.plentyOfPower) }
+    }
     // The launch restore of the saved add-ons is started here, after the first composition has been applied. Saved
     // add-ons that missed the launch fetch (no connection yet) are asked for again at launch and every time the app comes back to the front.
     LaunchedEffect(data) {

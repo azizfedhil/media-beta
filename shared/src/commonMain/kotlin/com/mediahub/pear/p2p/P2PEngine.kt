@@ -37,6 +37,10 @@ class P2PEngine(private val platform: P2PPlatform) {
     @Volatile
     private var desired: Boolean? = null
 
+    /** The last performance-mode choice (desktop on AC or a healthy battery). Null until the app makes one. */
+    @Volatile
+    private var desiredPerformance: Boolean? = null
+
     /**
      * Starts the engine if it isn't running, resolves the torrent and returns the loopback stream. Suspends for as long as
      * the torrent's metadata takes (up to the engine's timeout). Throws [P2PFailure].
@@ -61,6 +65,16 @@ class P2PEngine(private val platform: P2PPlatform) {
         desired = on
         val engine = state.withLock { native } ?: return
         withContext(dispatcher) { engine.setPowerSaving(on) }
+    }
+
+    /**
+     * Desktop on AC or a healthy battery: no power saving in the engine. The choice is kept, so an engine created later gets
+     * it too. With no engine running, this only keeps the choice.
+     */
+    suspend fun setPerformanceMode(on: Boolean) {
+        desiredPerformance = on
+        val engine = state.withLock { native } ?: return
+        withContext(dispatcher) { engine.setPerformanceMode(on) }
     }
 
     /** The engine's state for a status line. Cheap; does not wait for an open in progress. */
@@ -123,6 +137,7 @@ class P2PEngine(private val platform: P2PPlatform) {
         }
         // Read after the engine is published, so a choice made while it was being created is not missed.
         desired?.let { on -> withContext(dispatcher) { created.setPowerSaving(on) } }
+        desiredPerformance?.let { on -> withContext(dispatcher) { created.setPerformanceMode(on) } }
         return created
     }
 }

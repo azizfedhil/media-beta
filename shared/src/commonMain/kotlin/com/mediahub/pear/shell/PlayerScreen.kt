@@ -1,6 +1,8 @@
 package com.mediahub.pear.shell
 
 import kotlinx.coroutines.CancellationException
+import com.mediahub.pear.p2p.findingPeersPhrase
+import com.mediahub.pear.p2p.isLookingForPeers
 import com.mediahub.pear.p2p.p2pStatusLine
 import com.mediahub.pear.p2p.p2pSource
 import com.mediahub.pear.p2p.P2PFailure
@@ -314,8 +316,21 @@ fun PlayerScreen(
             p2pStatus = null
             return@LaunchedEffect
         }
+        // While no peer is found, the line is a phrase that changes every few seconds; once there are peers, the numbers.
+        var secondsSearching = 0
         while (true) {
-            p2pStatus = if (current.p2p != null) p2pStatusLine(data.p2p.engine.status().stats) else null
+            if (current.p2p != null) {
+                val stats = data.p2p.engine.status().stats
+                if (isLookingForPeers(stats)) {
+                    p2pStatus = findingPeersPhrase(secondsSearching)
+                    secondsSearching++
+                } else {
+                    p2pStatus = p2pStatusLine(stats)
+                    secondsSearching = 0
+                }
+            } else {
+                p2pStatus = null
+            }
             delay(1_000)
         }
     }

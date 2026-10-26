@@ -21,6 +21,12 @@ interface P2PNative {
     /** Low Power Mode and thermal pressure: a slower upload and a smaller read-ahead. */
     fun setPowerSaving(on: Boolean)
 
+    /**
+     * Desktop on AC or a healthy battery: the engine drops its power-saving behaviour (a very large read-ahead, a long
+     * metadata wait, more trackers). Only the desktop turns it on. A default no-op, so a platform or test that doesn't care ignores it.
+     */
+    fun setPerformanceMode(on: Boolean) {}
+
     /** Killswitch: closes every socket, joins the engine's threads and deletes the cached data. Idempotent. */
     fun stop()
 

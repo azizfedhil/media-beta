@@ -18,7 +18,7 @@ use tokio::sync::Notify;
 
 use crate::{
     engine::Shared,
-    pacer_logic::{decide, is_jump, is_stalled, window, Estimator, COOLDOWN_MS, IDLE_DOWNLOAD_BPS, STALL_GRACE_MS},
+    pacer_logic::{decide, is_jump, is_stalled, window_for, Estimator, COOLDOWN_MS, IDLE_DOWNLOAD_BPS, STALL_GRACE_MS},
 };
 
 #[derive(Default)]
@@ -29,6 +29,8 @@ pub struct Pace {
     epoch: AtomicU64,
     /// Low Power Mode / thermal pressure: smaller window.
     pub low_power: AtomicBool,
+    /// Desktop with power to spare: a much larger window, so the download is hardly ever throttled. Off unless the app turns it on.
+    pub performance: AtomicBool,
     /// Set by the pacer while the download limit is on; only then do waiting reads wake it.
     throttled: AtomicBool,
     next_id: AtomicU64,
@@ -116,7 +118,7 @@ pub async fn run(session: Arc<Session>, shared: Arc<Shared>, id: usize) {
         if is_stalled(pace.oldest_wait_age(now), throttled) {
             cooldown_until = now + COOLDOWN_MS;
         }
-        let (high, low) = window(pace.low_power.load(Relaxed));
+        let (high, low) = window_for(pace.low_power.load(Relaxed), pace.performance.load(Relaxed));
         let ahead = est.ahead(pace.epoch.load(Relaxed), handle.stats().progress_bytes, pace.served.load(Relaxed));
         let want = decide(throttled, ahead, high, low, now < cooldown_until);
         if want != throttled {

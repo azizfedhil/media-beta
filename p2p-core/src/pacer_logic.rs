@@ -28,6 +28,21 @@ pub fn window(low_power: bool) -> (u64, u64) {
     if low_power { (16 * MIB, 6 * MIB) } else { (48 * MIB, 16 * MIB) }
 }
 
+/// Read-ahead window of a desktop with power to spare (on AC, or a battery above 50%): so large that throttling hardly ever
+/// happens, but still bounded, so a very large file is not pulled to disk in full while only a few minutes are watched.
+pub const PERFORMANCE_WINDOW: (u64, u64) = (4096 * MIB, 2048 * MIB);
+
+/// The window for the current power situation. Low power wins; the performance window is only used when it is switched on.
+pub fn window_for(low_power: bool, performance: bool) -> (u64, u64) {
+    if low_power {
+        window(true)
+    } else if performance {
+        PERFORMANCE_WINDOW
+    } else {
+        window(false)
+    }
+}
+
 /// True when a request starting at `start` is NOT a continuation of the stream that last served up to `served`.
 pub fn is_jump(served: u64, start: u64) -> bool {
     start.saturating_add(CONTINUATION_SLACK) < served || start > served.saturating_add(CONTINUATION_SLACK)
@@ -145,6 +160,14 @@ mod tests {
         assert!(is_stalled(Some(STALL_GRACE_MS + 1), true));
         assert!(!is_stalled(Some(STALL_GRACE_MS + 1), false));
         assert!(is_stalled(Some(STARVE_MS + 1), false));
+    }
+
+    #[test]
+    fn performance_window_is_larger_and_low_power_still_wins() {
+        assert!(window_for(false, true).0 > window(false).0);
+        assert_eq!(window_for(false, false), window(false));
+        assert_eq!(window_for(true, true), window(true));
+        assert!(PERFORMANCE_WINDOW.1 < PERFORMANCE_WINDOW.0);
     }
 
     #[test]

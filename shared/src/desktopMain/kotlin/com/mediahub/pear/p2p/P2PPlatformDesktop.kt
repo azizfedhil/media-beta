@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import uniffi.p2p_core.P2pEngine
 import uniffi.p2p_core.P2pException
+import uniffi.p2p_core.EngineConfig
 import uniffi.p2p_core.defaultEngineConfig
 
 /** Desktop: the engine is the UniFFI-generated binding of p2p-core, in its own folder under the app's cache. */
@@ -20,7 +21,7 @@ internal object DesktopP2PPlatform : P2PPlatform {
         // Before the first binding call: the bindings read this once, when they first load the library.
         P2PLibrary.point(lib)
         val engine = try {
-            P2pEngine(defaultEngineConfig(cacheDir))
+            P2pEngine(desktopConfig(cacheDir))
         } catch (e: P2pException) {
             throw e.toFailure()
         } catch (e: UnsatisfiedLinkError) {
@@ -38,5 +39,17 @@ internal object DesktopP2PPlatform : P2PPlatform {
         return leftovers.size
     }
 }
+
+/** Upload cap on desktop: 50 KiB/s. Peers reward an uploader with a faster download, and 16 KiB/s (the default) is the floor. */
+private val DESKTOP_UPLOAD_BPS: UInt = 50u * 1024u
+
+/**
+ * How long a desktop waits for a torrent's metadata when it is not on AC or a healthy battery: 2 minutes, not the default 45
+ * seconds. With power to spare the engine waits far longer (see `set_performance_mode`), so a slow swarm is not given up on.
+ */
+private val DESKTOP_METADATA_TIMEOUT_SECS: UInt = 120u
+
+private fun desktopConfig(cacheDir: String): EngineConfig =
+    defaultEngineConfig(cacheDir).copy(uploadLimitBps = DESKTOP_UPLOAD_BPS, metadataTimeoutSecs = DESKTOP_METADATA_TIMEOUT_SECS)
 
 actual fun p2pPlatform(): P2PPlatform = DesktopP2PPlatform
