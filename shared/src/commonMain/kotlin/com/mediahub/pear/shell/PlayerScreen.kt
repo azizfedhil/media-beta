@@ -253,7 +253,8 @@ fun PlayerScreen(
     fun setFullscreen(value: Boolean) {
         window?.mode = if (value) WindowMode.Fullscreen else windowAfterFullscreen
     }
-    DisposableEffect(Unit) { onDispose { window?.mode = windowAfterFullscreen } }
+    // An app that was already full screen (F11) when the player opened stays that way after it.
+    DisposableEffect(Unit) { onDispose { if (windowBefore != WindowMode.Fullscreen) window?.mode = windowAfterFullscreen } }
     // Escape leaves full screen before it leaves the player: the shell asks this first (see handleShellKey).
     val exitFullscreen: () -> Boolean = { setFullscreen(false); true }
     LaunchedEffect(fullscreen) { env.shell.escapeHook = if (fullscreen) exitFullscreen else null }

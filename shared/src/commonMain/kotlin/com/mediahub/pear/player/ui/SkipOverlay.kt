@@ -96,17 +96,18 @@ internal fun BoxScope.SkipButtons(
     var shown by remember { mutableStateOf<SkipChoice?>(null) }
     LaunchedEffect(choice) { if (choice != null) shown = choice }
 
-    val bottom by animateDpAsState(
-        targetValue = if (controlsShown) 140.dp else 40.dp,
-        animationSpec = PearMotion.snappy<Dp>(PearMotion.BASE),
-    )
-
     val margins = LocalPlayerMargins.current
     val metrics = LocalPlayerMetrics.current
     // The controls rise and move in by their extra margin on touch; the button moves by the same amount, so it keeps its place.
     val lift = (margins.bottom - metrics.bottomMarginDp).dp
-    val inward = (margins.end - metrics.sideMarginDp).dp
-    Box(Modifier.align(Alignment.BottomEnd).padding(end = 28.dp + inward, bottom = bottom + lift)) {
+    // Controls up: just above the pill and the seek bar (the controls' own margin and height), and in line with the pill's
+    // right edge. Controls hidden: low in the corner.
+    val bottom by animateDpAsState(
+        targetValue = if (controlsShown) margins.panelClearance + 10.dp else 40.dp + lift,
+        animationSpec = PearMotion.snappy<Dp>(PearMotion.BASE),
+    )
+
+    Box(Modifier.align(Alignment.BottomEnd).padding(end = margins.end.dp, bottom = bottom)) {
         AnimatedVisibility(
             visible = choice != null,
             enter = slideInHorizontally(initialOffsetX = { it / 2 }) + fadeIn(),

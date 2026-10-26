@@ -96,7 +96,19 @@ fun AdaptiveShell(
                 false
             }
         }
-        onDispose { shell.leaveWindowFullscreen = null }
+        shell.toggleWindowFullscreen = {
+            // Desktop only: on a phone, full screen is the player's landscape view, not something a key toggles.
+            if (window == null || PlatformCaps.isTouchFirst) {
+                false
+            } else {
+                window.mode = if (window.mode == WindowMode.Fullscreen) window.modeBeforeFullscreen else WindowMode.Fullscreen
+                true
+            }
+        }
+        onDispose {
+            shell.leaveWindowFullscreen = null
+            shell.toggleWindowFullscreen = null
+        }
     }
 
     BoxWithConstraints(
@@ -207,6 +219,7 @@ internal fun handleShellKey(event: KeyEvent, shell: ShellState): Boolean {
     if (event.key == Key.Escape) {
         return shell.escape()
     }
+    if (event.key == Key.F11) return shell.toggleWindowFullscreen?.invoke() == true
     if (event.isCtrlPressed) {
         val tab = when (event.key) {
             Key.One -> AppTab.Home

@@ -98,6 +98,9 @@ class ShellState(initialTab: AppTab = AppTab.Home) {
      */
     var leaveWindowFullscreen: (() -> Boolean)? = null
 
+    /** Set by the shell: F11 asks it to put the window into full screen, or back to what it was. Returns true if it took the key. */
+    var toggleWindowFullscreen: (() -> Boolean)? = null
+
     /** Escape and the mouse's back button: the player's full screen, then the window's, then back one page. */
     fun escape(): Boolean = escapeHook?.invoke() == true || leaveWindowFullscreen?.invoke() == true || back()
 
