@@ -2,6 +2,7 @@ package com.mediahub.pear.pair
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import kotlin.random.Random
 
 /** The kinds of record Pear.pair keeps (cloud/CLOUD_API.md §2.2). [wire] is the name the server uses. */
 enum class SyncKind(val wire: String) {
@@ -87,8 +88,17 @@ object SyncRules {
     const val WATCHLOG_EVERY_MILLIS = 5 * 60_000L
     const val RETRY_MIN_MILLIS = 30_000L
     const val RETRY_MAX_MILLIS = 10 * 60_000L
+
+    /** Offline retries stay short: a request that never leaves the device costs the server nothing. */
+    const val RETRY_NETWORK_MAX_MILLIS = 90_000L
     const val DAY_MILLIS = 86_400_000L
     const val MAX_PAGES = 1_000
+
+    /** A 4xx that says "later", not "no": request timeout, too early, too many requests. Retried with backoff. */
+    fun isTransient(status: Int): Boolean = status == 408 || status == 425 || status == 429
+
+    /** A retry delay spread by up to 20% either way, so devices that failed together do not all come back together. */
+    fun jittered(millis: Long): Long = (millis * (0.8 + Random.nextDouble() * 0.4)).toLong()
 
     /** Live history entries kept on the Continue Watching side (the same cap WatchHistory uses). */
     const val HISTORY_LIVE_CAP = 30

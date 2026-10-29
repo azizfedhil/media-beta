@@ -118,6 +118,9 @@ class SyncEngine(
 
     /** When the last full sync (push, then pull) finished without error. 0 before the first. */
     private var lastFullSyncAt = 0L
+
+    /** When the last full sync that finished without error began. A queued full sync that was asked for earlier is redundant. */
+    private var lastFullSyncStartedAt = 0L
     private var retryGen = 0
     private var retryMillis = SyncRules.RETRY_MIN_MILLIS
 
@@ -234,6 +237,10 @@ class SyncEngine(
             AppLifecycle.foregrounded.collect { if (clock() - lastFullSyncAt >= FRESH_ENOUGH_MILLIS) syncNow() }
         }
         scope.launch {
+            // Leaving the screen: what is waiting goes out now, not after the debounce, because the process may be frozen soon.
+            AppLifecycle.backgrounded.collect { if (dirty.isNotEmpty() || forced.isNotEmpty()) cycle(full = false) }
+        }
+        scope.launch {
             while (true) {
                 delay(SyncRules.PULL_EVERY_MILLIS)
                 // Android: the pull waits while the app is hidden, so it does not wake the radio with the screen off.
@@ -282,6 +289,8 @@ class SyncEngine(
         val gen = retryGen
         scope.launch {
             delay(maxOf(millis, 1_000L))
+            // Android: a retry waits until the app is in front again, so it does not wake the radio with the screen off.
+            if (PlatformCaps.isTouchFirst) AppLifecycle.awaitForeground()
             if (gen == retryGen) cycle(full = true)
         }
     }
@@ -318,8 +327,13 @@ class SyncEngine(
         if (!store.isSignedIn) return
         val paused = mutableState.value.pausedUntil
         if (paused != null && clock() < paused) return
+        val requestedAt = clock()
         lock.withLock {
+            // Several triggers can queue a full sync at once (focus, the timer, a title opening). One that began after this
+            // was asked for already did its work, so the queued ones are skipped instead of each hitting the server.
+            if (full && !replaceLocal && lastFullSyncStartedAt >= requestedAt) return@withLock
             val bearer = store.bearer() ?: return@withLock
+            val startedAt = clock()
             val taken = HashSet(dirty)
             dirty.clear()
             if (full) mutableState.value = mutableState.value.copy(syncing = true)
@@ -351,7 +365,10 @@ class SyncEngine(
                 if (changed || replaceLocal) onRemoteApplied()
                 retryMillis = SyncRules.RETRY_MIN_MILLIS
                 if (full || outcome.sent > 0) store.lastSyncAt = clock()
-                if (full) lastFullSyncAt = clock()
+                if (full) {
+                    lastFullSyncAt = clock()
+                    lastFullSyncStartedAt = startedAt
+                }
                 mutableState.value = mutableState.value.copy(
                     syncing = false,
                     pausedUntil = null,
@@ -369,7 +386,8 @@ class SyncEngine(
                 dirty += taken
                 PearLog.e(TAG, "Sync failed.", e)
                 mutableState.value = mutableState.value.copy(syncing = false, error = "Sync failed. It will try again.")
-                retryIn(retryMillis)
+                retryIn(SyncRules.jittered(retryMillis))
+                retryMillis = minOf(retryMillis * 2, SyncRules.RETRY_MAX_MILLIS)
             }
         }
     }
@@ -389,21 +407,27 @@ class SyncEngine(
                         needsSignIn = true,
                         error = "This device was signed out of Pear.pair. Pair it again to sync.",
                     )
+                } else if (SyncRules.isTransient(e.status)) {
+                    backOff(e)
                 } else {
                     mutableState.value = mutableState.value.copy(syncing = false, error = e.message)
                 }
             }
-            else -> {
-                val text = if (e is CloudError.Network) {
-                    "No connection to Pear.pair. It will try again."
-                } else {
-                    "Pear.pair had a problem. It will try again."
-                }
-                mutableState.value = mutableState.value.copy(syncing = false, error = text)
-                retryIn(retryMillis)
-                retryMillis = minOf(retryMillis * 2, SyncRules.RETRY_MAX_MILLIS)
-            }
+            else -> backOff(e)
         }
+    }
+
+    /** Network trouble, a "try later" answer (408, 425, 429), a bad answer or a 5xx: try again later, a little longer each time. */
+    private fun backOff(e: CloudError) {
+        val offline = e is CloudError.Network
+        val text = when {
+            offline -> "No connection to Pear.pair. It will try again."
+            e is CloudError.Rejected -> "Pear.pair is busy. It will try again."
+            else -> "Pear.pair had a problem. It will try again."
+        }
+        mutableState.value = mutableState.value.copy(syncing = false, error = text)
+        retryIn(SyncRules.jittered(if (offline) minOf(retryMillis, SyncRules.RETRY_NETWORK_MAX_MILLIS) else retryMillis))
+        retryMillis = minOf(retryMillis * 2, SyncRules.RETRY_MAX_MILLIS)
     }
 
     private fun nextUtcMidnight(now: Long): Long = (now / SyncRules.DAY_MILLIS + 1) * SyncRules.DAY_MILLIS
