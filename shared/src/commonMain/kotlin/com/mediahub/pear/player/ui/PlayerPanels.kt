@@ -307,6 +307,8 @@ internal fun InfoPanel(
         info?.let { card ->
             Box(Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
                 PlayerSurface(Modifier.widthIn(max = 720.dp).fillMaxWidth(), SurfaceKind.Card) {
+                    // The still bleeds into the card from behind; it follows the card's size, content layout is unchanged.
+                    InfoBleed(card.image, Modifier.matchParentSize())
                     Box(Modifier.padding(20.dp).animateContentSize(PearMotion.snappy<IntSize>(PearMotion.BASE))) {
                         PlayerInfoCard(card, logo, onClose)
                     }

@@ -33,11 +33,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediahub.pear.detail.RatingLogo
@@ -82,19 +87,15 @@ internal fun PlayerInfoCard(
     }
 }
 
-/** The still (230 dp wide, 16:9) with the episode tag on it, and the title logo underneath. */
+/** The still's slot (230 dp wide, 16:9) with the episode tag on it, and the title logo underneath. */
 @Composable
 private fun InfoThumb(info: PlayerInfo, logo: String?, stacked: Boolean) {
     val columnWidth = if (stacked) Modifier.fillMaxWidth() else Modifier.width(THUMB_DP.dp)
     Column(columnWidth, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        info.image?.let { url ->
-            val shape = RoundedCornerShape(16.dp)
-            Box(
-                Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                    .clip(shape),
-            ) {
-                RemoteImage(url, Modifier.fillMaxSize(), maxEdge = 1000)
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent))))
+        // Only the slot and the episode tag: the picture itself is drawn by [InfoBleed] behind the whole card, so the
+        // layout is the same as when the still was a rounded thumbnail here.
+        if (info.image != null) {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
                 info.episodeTag?.let { tag ->
                     PearText(
                         tag,
@@ -256,3 +257,48 @@ private fun RatingChip(rating: MdbRating) {
 }
 
 private const val THUMB_DP = 230
+
+/**
+ * The episode still, bleeding into the info card the way the desktop source picker's artwork does ([EpisodePane]
+ * in SourcePicker.kt): drawn from the card's top-start corner and dissolving to the right and downwards into the glass.
+ * It only paints, behind the card's content, and sizes itself from the card ([Modifier.matchParentSize] in
+ * [PlayerSurface]), so the content's layout and the size animation are untouched. Narrow cards (the still on top of
+ * the text, same 520 dp rule as [PlayerInfoCard]) let it run the full width and fade at the bottom only.
+ *
+ * @param contentInset the padding the card's content has inside the surface (it decides stacked vs wide).
+ */
+@Composable
+internal fun InfoBleed(url: String?, modifier: Modifier = Modifier, contentInset: Dp = 20.dp) {
+    if (url == null) return
+    BoxWithConstraints(modifier.clip(RoundedCornerShape(26.dp))) {
+        val stacked = maxWidth - contentInset * 2 < 520.dp
+        val width = if (stacked) maxWidth else minOf(BLEED_DP.dp, maxWidth)
+        Box(
+            Modifier.size(width, width * (9f / 16f))
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.verticalGradient(0f to Color.Black, 0.3f to Color.Black, 1f to Color.Transparent),
+                        blendMode = BlendMode.DstIn,
+                    )
+                    if (!stacked) {
+                        drawRect(
+                            brush = Brush.horizontalGradient(0f to Color.Black, 0.45f to Color.Black, 0.95f to Color.Transparent),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    }
+                },
+        ) {
+            RemoteImage(url, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, maxEdge = 1000)
+            // Same top scrim the thumbnail had, so the episode tag stays readable.
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.4f), 0.5f to Color.Transparent)))
+            // Calms the part of the picture that sits behind the title and chips.
+            if (!stacked) {
+                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.35f))))
+            }
+        }
+    }
+}
+
+private const val BLEED_DP = 350
