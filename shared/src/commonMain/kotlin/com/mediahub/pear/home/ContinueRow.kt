@@ -40,6 +40,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import com.mediahub.pear.epochMillis
+import com.mediahub.pear.pair.LivePresence
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -69,7 +75,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import com.mediahub.pear.theme.PearMotion
 
 private sealed class ContinueCardItem(val updated: Long) {
-    class InProgress(val entry: HistoryEntry) : ContinueCardItem(entry.updated)
+    /** [live] is set for a title another device of the account is playing now: it goes first and carries a badge. */
+    class InProgress(val entry: HistoryEntry, val live: LivePresence? = null) :
+        ContinueCardItem(if (live != null) Long.MAX_VALUE else entry.updated)
     class Next(val item: UpNextItem) : ContinueCardItem(item.updated)
 }
 
@@ -86,9 +94,19 @@ fun ContinueRow(
     upNext: List<UpNextItem>,
     onSelectTitle: (MetaPreview, Int?, Int?) -> Unit,
     modifier: Modifier = Modifier,
+    /** What the account's other devices play right now (already filtered for freshness). Each goes to the front. */
+    live: List<LivePresence> = emptyList(),
+    /** The time [live] positions are carried forward to. */
+    now: Long = 0L,
 ) {
-    val items = remember(entries, upNext) {
-        (entries.map { ContinueCardItem.InProgress(it) } + upNext.map { ContinueCardItem.Next(it) })
+    val items = remember(entries, upNext, live, now) {
+        // A title that is playing elsewhere is shown once, as its live card, in place of its saved card and its Up Next card.
+        val liveIds = live.map { it.item.id }.toSet()
+        val saved = entries.filter { e -> liveIds.none { e.matches(it) } }
+        val next = upNext.filter { it.item.id !in liveIds }
+        (live.map { ContinueCardItem.InProgress(liveEntry(it, now), it) } +
+            saved.map { ContinueCardItem.InProgress(it) } +
+            next.map { ContinueCardItem.Next(it) })
             .sortedByDescending { it.updated }
     }
     if (items.isEmpty()) return
@@ -129,6 +147,7 @@ fun ContinueRow(
                         val e = card.entry
                         ContinueCard(
                             entry = e,
+                            badge = card.live?.let { liveBadge(it) },
                             scale = wideScale,
                             onMenu = { rect ->
                                 env.shell.openContextMenu(
@@ -189,7 +208,7 @@ fun ContinueRow(
  * the time left. It has no "Up next" badge: that is for the next episode only.
  */
 @Composable
-private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f) {
+private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect) -> Unit, scale: Float = 1f, badge: String? = null) {
     val still = rememberEpisodeStill(entry.item, entry.seasonEpisode, entry.thumb)
     val width = (CARD_WIDTH_DP * scale).dp
     val source = remember { MutableInteractionSource() }
@@ -224,6 +243,21 @@ private fun ContinueCard(entry: HistoryEntry, onClick: () -> Unit, onMenu: (Rect
                     Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.5f)),
                 ),
             )
+
+            // Another device is playing this right now, top left: a green dot and where.
+            if (badge != null) {
+                Row(
+                    Modifier.align(Alignment.TopStart).padding(8.dp)
+                        .clip(RoundedCornerShape(PearRadii.pill))
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF34C759)))
+                    PearText(badge, style = PearTheme.type.caption2.weight(FontWeight.Black).copy(fontSize = 8.sp), color = Color.White, maxLines = 1)
+                }
+            }
 
             // Where playback stopped, top right (iOS: Fmt.clock of the position).
             Box(
@@ -311,3 +345,38 @@ private fun continueMenuItems(
 ): List<ContextMenuItem> =
     listOf(ContextMenuItem("Remove from Continue Watching", "xmark.circle", destructive = true) { remove() }) +
         titleMenuItems(env, item, onDetails)
+
+/** The ticking time the live cards use. Runs only while something is live, so an idle Home has no timer. */
+@Composable
+internal fun rememberPresenceNow(active: Boolean): Long {
+    var now by remember { mutableStateOf(epochMillis()) }
+    LaunchedEffect(active) {
+        while (active) {
+            now = epochMillis()
+            delay(5_000)
+        }
+    }
+    return now
+}
+
+/** A live title as a history entry, so the card that shows a saved position can show it as well. */
+private fun liveEntry(live: LivePresence, now: Long): HistoryEntry {
+    val r = live.remote
+    return HistoryEntry(
+        item = r.item,
+        key = r.key,
+        position = live.positionNow(now),
+        duration = r.duration,
+        updated = now,
+        season = r.season,
+        episode = r.episode,
+        episodeTitle = r.episodeTitle,
+        thumb = r.thumb,
+    )
+}
+
+/** "PLAYING ON <DEVICE>" or "PAUSED ON <DEVICE>". */
+private fun liveBadge(live: LivePresence): String {
+    val name = live.remote.deviceName.trim().uppercase().take(18).ifEmpty { "ANOTHER DEVICE" }
+    return (if (live.isPlaying) "PLAYING ON " else "PAUSED ON ") + name
+}

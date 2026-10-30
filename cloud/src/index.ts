@@ -7,6 +7,7 @@ import { purgeOld } from "./purge";
 
 // Durable Object classes must be exported from the Worker's main module.
 export { PartyRoom } from "./party-room";
+export { PresenceRoom } from "./pair/presence-room";
 
 const app = new Hono<AppEnv>();
 

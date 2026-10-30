@@ -2,7 +2,9 @@ package com.mediahub.pear.pair
 
 import com.mediahub.pear.cloud.CloudApi
 import com.mediahub.pear.cloud.CloudError
+import com.mediahub.pear.model.MetaPreview
 import com.mediahub.pear.model.jBool
+import com.mediahub.pear.model.jDouble
 import com.mediahub.pear.model.jInt
 import com.mediahub.pear.model.jObject
 import com.mediahub.pear.model.jStr
@@ -14,6 +16,9 @@ import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+
+/** A beat or a poll is small and best effort: it gives up sooner than a sync call does. */
+private const val PRESENCE_TIMEOUT_MILLIS = 8_000L
 
 /**
  * The Pear.pair routes (cloud/CLOUD_API.md §2). Each call goes through [CloudApi], so a failure comes back as a
@@ -140,6 +145,72 @@ class PairClient(private val api: CloudApi) {
             changes.add(change)
         }
         return PullPage(changes, o.reqLong("serverTs"), o["more"].jBool() == true)
+    }
+
+    /** Tells the account what this device is playing, or that it stopped (cloud/CLOUD_API.md §2.3). */
+    suspend fun putPresence(bearer: String, beat: PresenceBeat) {
+        val body = buildJsonObject {
+            put("profileId", beat.profileId)
+            put("itemId", beat.item.id)
+            put("type", beat.item.type)
+            put("name", beat.item.name)
+            beat.item.posterUrl?.let { put("poster", it) }
+            beat.item.backdropUrl?.let { put("background", it) }
+            put("key", beat.key)
+            beat.season?.let { put("season", it) }
+            beat.episode?.let { put("episode", it) }
+            beat.episodeTitle?.let { put("episodeTitle", it) }
+            beat.thumb?.let { put("thumb", it) }
+            put("position", beat.position)
+            put("duration", beat.duration)
+            put("state", beat.state.wire)
+            put("sentAt", JsonPrimitive(beat.sentAt))
+        }
+        api.call("PUT", "/v1/pair/presence", bearer = bearer, body = body, timeoutMillis = PRESENCE_TIMEOUT_MILLIS)
+    }
+
+    /** What the account's other devices are playing for [profileId]. */
+    suspend fun presence(bearer: String, profileId: String): PresenceList {
+        val o = api.call(
+            "GET",
+            "/v1/pair/presence",
+            bearer = bearer,
+            query = mapOf("profileId" to profileId),
+            timeoutMillis = PRESENCE_TIMEOUT_MILLIS,
+        )
+        val arr = o["entries"] as? JsonArray ?: throw CloudError.BadResponse("The server's answer has no entries list.")
+        val out = ArrayList<RemotePresence>(arr.size)
+        for (el in arr) {
+            // An entry that cannot be read is skipped.
+            val e = el.jObject() ?: continue
+            val id = e["itemId"].jStr()?.takeIf { it.isNotEmpty() } ?: continue
+            val name = e["name"].jStr()?.takeIf { it.isNotEmpty() } ?: continue
+            val state = PresenceState.ofWire(e["state"].jStr()) ?: continue
+            out.add(
+                RemotePresence(
+                    deviceId = e["deviceId"].jStr() ?: continue,
+                    deviceName = e["deviceName"].jStr().orEmpty(),
+                    platform = e["platform"].jStr().orEmpty(),
+                    item = MetaPreview(
+                        id = id,
+                        type = e["type"].jStr() ?: "movie",
+                        name = name,
+                        poster = e["poster"].jStr(),
+                        background = e["background"].jStr(),
+                    ),
+                    key = e["key"].jStr() ?: continue,
+                    season = e["season"].jInt(),
+                    episode = e["episode"].jInt(),
+                    episodeTitle = e["episodeTitle"].jStr(),
+                    thumb = e["thumb"].jStr(),
+                    position = e["position"].jDouble() ?: 0.0,
+                    duration = e["duration"].jDouble() ?: 0.0,
+                    state = state,
+                    ageMs = e["ageMs"].jLong() ?: 0L,
+                ),
+            )
+        }
+        return PresenceList(o.reqLong("serverNow"), out)
     }
 
     private fun remoteChangeOf(el: JsonElement): RemoteChange? {

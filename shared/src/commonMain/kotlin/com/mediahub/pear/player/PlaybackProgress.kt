@@ -8,6 +8,8 @@ import com.mediahub.pear.history.WatchHistory
 import com.mediahub.pear.history.WatchLog
 import com.mediahub.pear.model.PlayRequest
 import com.mediahub.pear.pair.PlaybackSaveSink
+import com.mediahub.pear.pair.PresenceSink
+import com.mediahub.pear.pair.PresenceState
 import com.mediahub.pear.simkl.ScrobbleTarget
 import kotlin.math.min
 
@@ -99,6 +101,8 @@ class PlaybackProgress(
     private val now: () -> Long = ::epochMillis,
     /** Told after each save, so Pear.pair can send the progress. Null when no account is signed in. */
     private val saveSink: PlaybackSaveSink? = null,
+    /** Told what this device plays, so the account's other devices can show "currently watching". Null when no account is signed in. */
+    private val presenceSink: PresenceSink? = null,
 ) {
     /** Sends a scrobble. The screen's version checks that Simkl is connected and is the profile's library. */
     fun interface Scrobbler {
@@ -142,6 +146,7 @@ class PlaybackProgress(
         logPlayTime(snapshot.playing)
         save(request, snapshot, isFinal = false)
         saveSink?.progressSaved(request.item.id, immediate = false)
+        announce(request, snapshot, PresenceState.PLAYING)
     }
 
     /** Pausing banks the resume point (a paused window can sit for hours, then be closed by the system). */
@@ -150,6 +155,7 @@ class PlaybackProgress(
         logPlayTime(snapshot.playing)
         save(request, snapshot, isFinal = false)
         saveSink?.progressSaved(request.item.id, immediate = true)
+        announce(request, snapshot, if (snapshot.playing) PresenceState.PLAYING else PresenceState.PAUSED)
         // Simkl's own progress follows the pause, so a title paused past 80% is marked from another app too.
         if (snapshot.duration > 0.0 && request.imdb.isNotBlank()) {
             scrobbler.scrobble("pause", request.scrobbleTarget, ProgressRules.scrobblePercent(snapshot.position, snapshot.duration))
@@ -168,6 +174,7 @@ class PlaybackProgress(
         watchLog.flush()
         save(request, snapshot, isFinal = true)
         saveSink?.progressSaved(request.item.id, immediate = true)
+        announce(request, snapshot, if (snapshot.playing) PresenceState.PLAYING else PresenceState.PAUSED)
     }
 
     /** Leaving this episode: last watch-time tick, full save (updates the lists on screen), Simkl `stop`. */
@@ -178,9 +185,22 @@ class PlaybackProgress(
         watchLog.flush()
         save(request, snapshot, isFinal = true)
         saveSink?.progressSaved(request.item.id, immediate = true)
+        // Always sent, even when nothing was saved: another device must not keep showing a title that is closed here.
+        presenceSink?.beat(request, snapshot.position, snapshot.duration, PresenceState.STOPPED)
         if (snapshot.duration > 0.0 && request.imdb.isNotBlank()) {
             scrobbler.scrobble("stop", request.scrobbleTarget, ProgressRules.scrobblePercent(snapshot.position, snapshot.duration))
         }
+    }
+
+    /**
+     * Tells the presence sink where this device is. Held back, like a save, until the length is known and the playhead has
+     * reached the point the source opened at: a file still opening at 0:00 must not announce "S1E5 at 0:00".
+     */
+    private fun announce(request: PlayRequest, snapshot: PlaybackSnapshot, state: PresenceState) {
+        val sink = presenceSink ?: return
+        if (!ProgressRules.canSave(snapshot.position, snapshot.duration)) return
+        if (!reachedStart && !ProgressRules.hasReachedStart(snapshot.position, openedAt)) return
+        sink.beat(request, snapshot.position, snapshot.duration, state)
     }
 
     private fun logPlayTime(playing: Boolean) {

@@ -24,6 +24,7 @@ import com.mediahub.pear.cloud.CloudApi
 import com.mediahub.pear.cloud.CloudConfig
 import com.mediahub.pear.pair.PairClient
 import com.mediahub.pear.pair.PairStore
+import com.mediahub.pear.pair.PresenceService
 import com.mediahub.pear.pair.SyncEngine
 import com.mediahub.pear.pair.syncsLibraryOverPair
 import com.mediahub.pear.party.PartyService
@@ -131,11 +132,21 @@ class AppData(
         flushWatchLog = { watchLog.flush() },
     )
 
+    /** "Currently watching": what this device plays is told to the account, and what its other devices play is read back. */
+    val presence = PresenceService(
+        store = pairStore,
+        client = pairClient,
+        activeProfile = { profiles.activeID },
+        scope = uiScope,
+    )
+
     init {
         // Starts the sync timers when an account is signed in here. Otherwise it reads no secret and does nothing.
         pairSync.startIfSignedIn()
         // The desktop waits for this, briefly, before it exits, so the position saved on leaving reaches the account.
         AppExit.registerFinisher { pairSync.flushForExit() }
+        // The stop of a title that was playing when the window closed.
+        AppExit.registerFinisher { presence.flushForExit() }
         // Choosing a library starts or stops its Pear.pair sync at once (iOS: LibraryPrefs.choose calls PairSync.localChanged).
         libraryPrefs.onChanged = { pairSync.syncNow() }
     }

@@ -160,7 +160,11 @@ fun PlayerScreen(
 
     // Resume, progress and history (4.3b). The resume point is read once, before the first save can replace it.
     val resumeAt = remember(request) {
-        ProgressRules.startAt(ProgressRules.resumePoint(data.history.entry(request.item.id), request.key))
+        // Another device of the account that is playing this episode right now is ahead of the saved position, which follows it by up to a minute.
+        ProgressRules.startAt(
+            data.presence.resumeHint(request.item.id, request.key)
+                ?: ProgressRules.resumePoint(data.history.entry(request.item.id), request.key),
+        )
     }
     // What is playing. A source switch or an episode switch replaces it; the title and the artwork stay the same.
     var current by remember(request) { mutableStateOf(request) }
@@ -181,6 +185,7 @@ fun PlayerScreen(
                 if (data.libraryPrefs.usesSimkl(data.simkl.isConnected)) data.simkl.scrobble(action, target, percent)
             },
             saveSink = data.pairSync,
+            presenceSink = data.presence,
         ).also { it.begin(resumeAt) }
     }
     val snapshot = remember(engine) {

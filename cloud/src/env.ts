@@ -10,6 +10,8 @@ export interface Env {
   DB: D1Database;
   // Durable Object namespace for watch party rooms, one object per room code.
   PARTY: DurableObjectNamespace;
+  // Durable Object namespace for "currently watching", one object per account.
+  PRESENCE: DurableObjectNamespace;
   // Per-IP limit for the unauthenticated Pear.pair routes.
   PAIR_RATE_LIMIT: RateLimitBinding;
   // Per-IP limit for creating watch party rooms.

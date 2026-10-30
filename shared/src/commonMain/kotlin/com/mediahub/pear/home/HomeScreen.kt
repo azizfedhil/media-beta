@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -197,7 +198,13 @@ private fun FeedRows(
     val visibleAddonRows = model.rows.filter { !rules.isRowHidden(it.prefKey) }
     // iOS `themesHidden`: with the built-in themes row hidden, no theme appears anywhere in the feed.
     val themeCount = if (rules.isRowHidden(BuiltinRows.THEMES)) 0 else model.themes.size
-    val showContinue = env.data.history.continueEntries.isNotEmpty() || model.visibleUpNext.isNotEmpty()
+    // "Currently watching": what the account's other devices play right now. Asked for while Home is on screen.
+    val presence = env.data.presence
+    LaunchedEffect(presence) { presence.watch() }
+    val others by presence.others.collectAsState()
+    val presenceNow = rememberPresenceNow(others.isNotEmpty())
+    val live = others.filter { it.isFresh(presenceNow) }
+    val showContinue = env.data.history.continueEntries.isNotEmpty() || model.visibleUpNext.isNotEmpty() || live.isNotEmpty()
 
     // The blocks of the feed, in iOS order (see feedOrder).
     feedOrder(showContinue, themeCount, visibleAddonRows.size).forEach { slot ->
@@ -205,6 +212,8 @@ private fun FeedRows(
             FeedSlot.Continue -> ContinueRow(
                 entries = env.data.history.continueEntries,
                 upNext = model.visibleUpNext,
+                live = live,
+                now = presenceNow,
                 onSelectTitle = onSelectTitle,
             )
             is FeedSlot.Theme -> ThemeCarousel(model.themes[slot.index], { onSelectTitle(it, null, null) })

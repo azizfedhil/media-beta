@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./env";
+import { presenceRoutes } from "./pair/presence";
 import { pairRoutes } from "./pair/routes";
 import { syncRoutes } from "./pair/sync";
 
@@ -8,3 +9,4 @@ export const pair = new Hono<AppEnv>();
 
 pair.route("/", pairRoutes);
 pair.route("/", syncRoutes);
+pair.route("/", presenceRoutes);

@@ -41,6 +41,10 @@
       {
         "name": "PARTY",
         "class_name": "PartyRoom"
+      },
+      {
+        "name": "PRESENCE",
+        "class_name": "PresenceRoom"
       }
     ]
   },
@@ -48,6 +52,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["PartyRoom"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["PresenceRoom"]
     }
   ],
   "triggers": {

@@ -15,6 +15,7 @@ import type { AppEnv, Env } from "../env";
 import { ApiError } from "../errors";
 import { cleanText, limitByIp, readJson } from "../http";
 import { requireDevice } from "./auth";
+import { presenceStub } from "./presence";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const DEVICE_SECRET_BYTES = 32;
@@ -203,6 +204,12 @@ pairRoutes.delete("/account", requireDevice, async (c) => {
     db.prepare("DELETE FROM devices WHERE account_id = ?").bind(accountId),
     db.prepare("DELETE FROM accounts WHERE id = ?").bind(accountId),
   ]);
+  // The "currently watching" object holds no account data worth keeping. A failure here must not fail the deletion.
+  try {
+    await presenceStub(c.env, accountId).fetch("https://presence/clear", { method: "POST" });
+  } catch {
+    // It empties itself within minutes anyway.
+  }
   return c.json({ ok: true });
 });
 

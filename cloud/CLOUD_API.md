@@ -132,6 +132,56 @@ These run in the apps. The server does not do them.
 - A pulled `watchlog` month is merged, not replaced: each hour keeps the larger of the two counts, and the result is kept for the next push. The server keeps the last write, so a month that a device pushes before it has pulled can replace another device's larger counts until that device pushes again. Clients never send a tombstone for a `watchlog` record.
 - Offline edits go into a local outbox. Nothing in the outbox is dropped.
 
+### 2.3 Currently watching
+
+A device that is playing tells the account what it plays, and the account's other devices show it at the front of Continue Watching. This is a live hint only. It is not a watch history: positions that count still travel in the `progress` records (§2.2). It is held by one Durable Object per account (`PresenceRoom`), in memory with an occasional storage write (about one a minute while playing), and never in D1.
+
+#### Beat
+
+`PUT /v1/pair/presence`
+
+```json
+{
+  "profileId": "P1", "itemId": "tt0903747", "type": "series", "name": "Breaking Bad",
+  "poster": "https://…", "background": "https://…",
+  "key": "1:5", "season": 1, "episode": 5, "episodeTitle": "Gray Matter", "thumb": "https://…",
+  "position": 682.4, "duration": 2860, "state": "playing", "sentAt": 1792122713681
+}
+```
+
+Response: `{ "ok": true, "applied": true }`.
+
+- `state` is `playing`, `paused` or `stopped`. `poster`, `background`, `season`, `episode`, `episodeTitle` and `thumb` are optional. Artwork must be `http(s)`; anything else is dropped. Text is limited to 200 characters, URLs to 500.
+- `sentAt` is the sending device's own clock. The server uses it only to drop a beat that arrives after a newer one from the same device (`applied: false`). It is never compared with another device's clock.
+- `stopped` clears the device's entry only when it names the title and `key` that entry holds, so a late stop for the previous episode cannot remove the next one.
+- An entry expires on its own: 45 seconds after the last beat while `playing`, 5 minutes while `paused`.
+- Invalid fields return `400 invalid_field` with the field in the message.
+
+#### Read
+
+`GET /v1/pair/presence?profileId=<id>`
+
+```json
+{
+  "serverNow": 1792122714000,
+  "entries": [
+    {
+      "deviceId": "…", "deviceName": "Desktop", "platform": "windows", "profileId": "P1",
+      "itemId": "tt0903747", "type": "series", "name": "Breaking Bad", "poster": null, "background": null,
+      "key": "1:5", "season": 1, "episode": 5, "episodeTitle": "Gray Matter", "thumb": null,
+      "position": 682.4, "duration": 2860, "state": "playing", "sentAt": 1792122713681, "ageMs": 319
+    }
+  ]
+}
+```
+
+- Only the account's other devices are listed (never the caller), only for that profile, and only entries that have not expired. A revoked device is not listed.
+- `ageMs` is how old the server's copy was when it answered. A client shows a playing entry at `position + ageMs + time since the answer`, capped at `duration`.
+- Cadence: a playing device beats every 15 seconds, on pause and on stop. A device polls every 20 seconds while its Home screen is on screen and the app is in front, and once when the app comes to the front. A device that is playing does not poll.
+- When a device opens the episode a playing device has open, it starts at the live position instead of the saved one, which follows the other device by up to a minute.
+- Deleting the account empties its presence object.
+- A client that gets `503 quota` stops beating and polling for 10 minutes. `stopped` is still sent.
+
 ## 3. Watch party
 
 ### 3.1 REST
@@ -282,6 +332,8 @@ These apply to both apps (from the follow-up file).
 | Pear.pair push after a local change | 5 second debounce. At most one push per 15 seconds per device. All pending changes go in one request |
 | Progress while playing | Every 60 seconds, and only if the position moved more than 15 seconds since the last push |
 | Progress on pause, stop or exit | Immediately, once. Never for an unchanged position |
+| Presence beat while playing | Every 15 seconds, and at once on pause, background or stop |
+| Presence poll | Every 20 seconds while Home is on screen and the app is in front, and on foreground |
 | Party `ping` | Three at join, then every 30 seconds. Keep the three lowest round-trip samples and use the median offset: `serverNow ≈ clientNow + offset` |
 | Party host `sync` | Every 15 seconds while playing |
 | Party reconnect | Backoff of 1, 2, 4, 8 and 15 seconds, then every 15 seconds |
