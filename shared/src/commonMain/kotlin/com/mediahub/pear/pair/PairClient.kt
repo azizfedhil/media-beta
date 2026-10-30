@@ -112,7 +112,17 @@ class PairClient(private val api: CloudApi) {
                 rejected[index] = r["reason"].jStr() ?: "rejected"
             }
         }
-        return PushResult(accepted.toSet(), rejected, o.reqLong("serverTs"))
+        val ignored = HashMap<Int, RemoteChange>()
+        val beaten = o["ignored"] as? JsonArray
+        if (beaten != null) {
+            for (el in beaten) {
+                val r = el.jObject() ?: continue
+                val index = r["index"].jInt() ?: continue
+                val current = r["current"]?.let { runCatching { remoteChangeOf(it) }.getOrNull() } ?: continue
+                ignored[index] = current
+            }
+        }
+        return PushResult(accepted.toSet(), rejected, o.reqLong("serverTs"), ignored)
     }
 
     suspend fun pull(bearer: String, since: Long): PullPage {

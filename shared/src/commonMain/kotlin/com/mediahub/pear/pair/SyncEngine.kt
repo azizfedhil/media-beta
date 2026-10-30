@@ -36,10 +36,10 @@ import kotlin.math.abs
 private const val TAG = "Pear.pair"
 
 /** How long [SyncEngine.freshen] waits for a sync before a title opens. Past it the title opens with what is on the device. */
-private const val FRESHEN_WAIT_MILLIS = 2_500L
+private const val FRESHEN_WAIT_MILLIS = 4_000L
 
 /** A full sync that finished this recently counts as fresh: none is started again for a window focus or a title opening. */
-private const val FRESH_ENOUGH_MILLIS = 20_000L
+private const val FRESH_ENOUGH_MILLIS = 5_000L
 
 /** A watch-log record's key: the month, `yyyy-MM` (cloud/CLOUD_API.md §2.2). */
 private val WATCHLOG_MONTH = Regex("\\d{4}-\\d{2}")
@@ -130,8 +130,17 @@ class SyncEngine(
     /** Set when the settings switch goes on: the next full pull starts from the beginning, so the account's settings come in. */
     private var rePullSettings = false
 
+    /**
+     * The server's clock minus this device's, from the last pull. Record times that cross devices are on the server's
+     * scale, so a device with a wrong clock cannot make its old data win (or lose). 0 until the first pull.
+     */
+    private var clockOffset = 0L
+
+    /** True only while records the server held instead of ours are applied: a local unsent change must not block them. */
+    private var adopting = false
+
     private class Pending(val key: String, val change: OutgoingChange, val fingerprint: String?)
-    private class PushOutcome(val sent: Int, val refused: String?)
+    private class PushOutcome(val sent: Int, val refused: String?, val adopted: Boolean = false)
     private class LocalSet(val records: Map<String, LocalRecord>, val complete: Boolean)
     private class HistoryRead(val live: List<HistoryEntry>, val archive: List<HistoryEntry>, val complete: Boolean)
 
@@ -361,8 +370,9 @@ class SyncEngine(
                 } else {
                     outcome = pushScopes(bearer, taken, allProgress = false)
                 }
+                lastPushAt = clock()
                 // A replace wipes local data even when the account sends nothing back, so the screens must re-read.
-                if (changed || replaceLocal) onRemoteApplied()
+                if (changed || replaceLocal || outcome.adopted) onRemoteApplied()
                 retryMillis = SyncRules.RETRY_MIN_MILLIS
                 if (full || outcome.sent > 0) store.lastSyncAt = clock()
                 if (full) {
@@ -488,7 +498,7 @@ class SyncEngine(
                 for ((k, old) in snapshot) {
                     if (k in local.records || !inScope(k, target) || isUnsharedSetting(k)) continue
                     val parts = parseKey(k) ?: continue
-                    val change = OutgoingChange(parts.profileId, parts.kind, parts.key, maxOf(now, old.updatedAt + 1), null)
+                    val change = OutgoingChange(parts.profileId, parts.kind, parts.key, maxOf(now + clockOffset, old.updatedAt + 1), null)
                     pending.add(Pending(k, change, null))
                 }
             }
@@ -496,10 +506,18 @@ class SyncEngine(
         }
         var sent = 0
         var refused: String? = null
+        // Changes the server took but did not apply, because it already held a newer record. Ours is not what the account
+        // has, so the snapshot must not say it is: the server's record is adopted below instead.
+        val beaten = ArrayList<Pair<Pending, RemoteChange>>()
         for (chunk in pending.chunked(SyncRules.PUSH_BATCH)) {
             val result = client.push(bearer, chunk.map { it.change })
             for ((i, p) in chunk.withIndex()) {
                 if (i !in result.accepted) continue
+                val current = result.ignored[i]
+                if (current != null) {
+                    beaten.add(Pair(p, current))
+                    continue
+                }
                 sent += 1
                 val fp = p.fingerprint
                 if (fp == null) {
@@ -511,7 +529,39 @@ class SyncEngine(
             if (result.rejected.isNotEmpty()) refused = result.rejected.values.first()
             store.writeSynced(snapshot)
         }
-        return PushOutcome(sent, refused)
+        return PushOutcome(sent, refused, adoptBeaten(beaten))
+    }
+
+    /** SyncedRecord has no value equality, so two reads of the snapshot are compared field by field. */
+    private fun sameRecord(a: SyncedRecord?, b: SyncedRecord?): Boolean =
+        if (a == null || b == null) a == null && b == null else a.fingerprint == b.fingerprint && a.updatedAt == b.updatedAt
+
+    /**
+     * Applies the records the server kept instead of ours (last write wins: theirs is newer), whatever this device has
+     * waiting to send for them. When one still cannot be applied the snapshot takes our version, as before, so the same
+     * change is not sent again every cycle. Returns true when local data changed.
+     */
+    private fun adoptBeaten(beaten: List<Pair<Pending, RemoteChange>>): Boolean {
+        if (beaten.isEmpty()) return false
+        val before = store.readSynced()
+        var changed = false
+        adopting = true
+        try {
+            changed = applyPage(beaten.map { it.second })
+        } finally {
+            adopting = false
+        }
+        val after = store.readSynced()
+        var touched = false
+        for ((p, _) in beaten) {
+            if (!sameRecord(after[p.key], before[p.key])) continue
+            val fp = p.fingerprint
+            if (fp == null) after.remove(p.key) else after[p.key] = SyncedRecord(fp, p.change.updatedAt)
+            touched = true
+        }
+        if (touched) store.writeSynced(after)
+        PearLog.i(TAG, "${beaten.size} pushed change(s) lost to a newer record on the account; the account's version was applied.")
+        return changed
     }
 
     /**
@@ -519,9 +569,11 @@ class SyncEngine(
      * otherwise one past what the server holds, so a change that does not move the record's time still wins.
      */
     private fun stampFor(intrinsic: Long?, old: SyncedRecord?, now: Long): Long {
-        val base = (intrinsic ?: now).coerceAtMost(now).coerceAtLeast(1L)
+        // Both on the server's scale: the record's own time (this device's clock) moved by the offset, never past "now".
+        val serverNow = now + clockOffset
+        val base = ((intrinsic?.plus(clockOffset)) ?: serverNow).coerceAtMost(serverNow).coerceAtLeast(1L)
         if (old == null || base > old.updatedAt) return base
-        return maxOf(now, old.updatedAt + 1)
+        return maxOf(serverNow, old.updatedAt + 1)
     }
 
     /**
@@ -580,6 +632,8 @@ class SyncEngine(
                 cursor = page.serverTs
             } else {
                 store.lastServerTs = page.serverTs
+                // Without more pages, serverTs is the server's clock when it answered.
+                clockOffset = page.serverTs - clock()
             }
         }
         return changed
@@ -614,6 +668,9 @@ class SyncEngine(
         return changed
     }
 
+    /** Keys with an unsent local change. None while a replace or an adoption runs: then the account's record wins. */
+    private fun pendingFor(target: Scope): Set<String> = if (replacing || adopting) emptySet() else pendingKeys(target)
+
     private fun applyProfiles(changes: List<RemoteChange>): Boolean {
         val (current, ok) = profileList()
         if (!ok) {
@@ -622,7 +679,7 @@ class SyncEngine(
         }
         val fromNothing = replacing && prefs.jsonText(PrefKeys.PROFILES_LIST) == null
         val list = (if (fromNothing) emptyList<Profile>() else current).toMutableList()
-        val pending: Set<String> = if (replacing) emptySet() else pendingKeys(Scope("", SyncKind.PROFILE))
+        val pending: Set<String> = pendingFor(Scope("", SyncKind.PROFILE))
         val snapshot = store.readSynced()
         var changed = false
         for (c in changes) {
@@ -667,7 +724,7 @@ class SyncEngine(
             val prefKey = SyncedSettings.prefKeyFor(c.profileId, c.key) ?: continue
             val composite = compositeKey(c.profileId, SyncKind.SETTINGS, c.key)
             val pending = pendingByProfile.getOrPut(c.profileId) {
-                if (replacing) emptySet() else pendingKeys(Scope(c.profileId, SyncKind.SETTINGS))
+                pendingFor(Scope(c.profileId, SyncKind.SETTINGS))
             }
             if (composite in pending) continue
             touched = true
@@ -699,7 +756,7 @@ class SyncEngine(
             PearLog.w(TAG, "A profile's history could not be read. Its changes wait for the next sync.")
             return false
         }
-        val pending = pendingKeys(Scope(profile, SyncKind.HISTORY))
+        val pending = pendingFor(Scope(profile, SyncKind.HISTORY))
         val snapshot = store.readSynced()
         val lists = HistoryLists(read.live.toMutableList(), read.archive.toMutableList())
         var changed = false
@@ -716,7 +773,12 @@ class SyncEngine(
             val remote = decodeHistory(data) ?: continue
             if (remote.id != c.key) continue
             lists.upsert(remote)
-            snapshot[k] = SyncedRecord(historyFingerprint(encodeJson(HistoryEntry.serializer(), remote)), c.updatedAt)
+            // Only a record this device holds under the same key is "in step". A title that merged into an entry with
+            // its other id (tt... vs tmdb:...) must not get a snapshot here: the key is not ours, so it would read as a
+            // local delete and a tombstone would go out for the other device's record.
+            if (lists.holds(c.key)) {
+                snapshot[k] = SyncedRecord(historyFingerprint(encodeJson(HistoryEntry.serializer(), remote)), c.updatedAt)
+            }
             changed = true
         }
         if (!changed) return false
@@ -734,7 +796,7 @@ class SyncEngine(
             PearLog.w(TAG, "A profile's library could not be read. Its changes wait for the next sync.")
             return false
         }
-        val pending = pendingKeys(Scope(profile, SyncKind.LIBRARY))
+        val pending = pendingFor(Scope(profile, SyncKind.LIBRARY))
         val snapshot = store.readSynced()
         var changed = false
         var applied = 0
@@ -791,19 +853,22 @@ class SyncEngine(
             PearLog.w(TAG, "A profile's history could not be read. Its progress waits for the next sync.")
             return false
         }
-        val pending = pendingKeys(Scope(profile, SyncKind.PROGRESS))
         val snapshot = store.readSynced()
         val lists = HistoryLists(read.live.toMutableList(), read.archive.toMutableList())
         var changed = false
         for (c in changes) {
             val k = compositeKey(profile, SyncKind.PROGRESS, c.key)
-            if (k in pending) continue
             // A deleted progress record leaves the local position alone; the history delete handles the title.
             val data = c.data
             if (c.deleted || data == null) continue
             val p = decodeProgress(data) ?: continue
-            if (!lists.applyProgress(c.key, p, c.updatedAt)) continue
-            snapshot[k] = SyncedRecord(progressFingerprint(p), c.updatedAt)
+            // No "unsent local change" check here. A pulled history record rewrites the same local entry, so the entry
+            // always looked unsent and the newest position was thrown away. Time decides instead: the record is applied
+            // only when it is newer than what this device holds (see HistoryLists.applyProgress). A genuinely newer local
+            // position stays, is still unsent, and goes out on the next push.
+            if (!lists.applyProgress(c.key, p, c.updatedAt, clockOffset)) continue
+            // The snapshot follows only a record this device holds under that key (see applyHistory).
+            if (lists.holds(c.key)) snapshot[k] = SyncedRecord(progressFingerprint(p), c.updatedAt)
             changed = true
         }
         if (!changed) return false

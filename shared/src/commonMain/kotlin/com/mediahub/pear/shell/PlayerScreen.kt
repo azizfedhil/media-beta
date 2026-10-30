@@ -196,7 +196,6 @@ fun PlayerScreen(
     // Leaving the stream ends it, and the engine with it: the engine runs only for a stream the user is watching.
     val leave = remember(progress, snapshot) {
         {
-            println("PEAR-CW leave snapshot=${snapshot()}") // TEMP-CW
             progress.finish(nowPlaying.value, snapshot())
             playback.stop()
             data.p2p.engine.requestStop()

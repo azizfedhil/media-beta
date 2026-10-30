@@ -165,7 +165,11 @@ internal fun mergedWatched(local: HistoryEntry?, remote: HistoryEntry): Pair<Int
 internal fun mergedHistory(local: HistoryEntry?, remote: HistoryEntry): HistoryEntry {
     val marker = mergedWatched(local, remote)
     val newer = if (local != null && local.updated > remote.updated) local else remote
-    return newer.copy(wS = marker.first, wE = marker.second)
+    val merged = newer.copy(wS = marker.first, wE = marker.second)
+    if (local == null || local.item.id == merged.item.id) return merged
+    // The same title under another id (tt... on one device, tmdb:... on another). This device keeps the id it already
+    // pushes under, so the merge never renames the entry and never leaves a tombstone behind for its old key.
+    return merged.copy(item = merged.item.copy(id = local.item.id), alias = local.alias ?: merged.item.id)
 }
 
 /** A title belongs in the live list when it is in progress, or a series with a watched marker (Up Next needs it there). */
@@ -187,36 +191,48 @@ internal class HistoryLists(val live: MutableList<HistoryEntry>, val archive: Mu
 
     /** Takes [remote] as the title's record, merged with what is here. */
     fun upsert(remote: HistoryEntry) {
-        val local = (live + archive).firstOrNull { it.id == remote.id }
+        val local = findTitle(remote.id, remote.alias)
         val merged = mergedHistory(local, remote)
-        remove(remote.id)
+        if (local != null) remove(local.id) else remove(remote.id)
         place(merged)
     }
 
+    /** The entry for a title under either of its ids (tt... or tmdb:...), or null. */
+    private fun findTitle(id: String, alias: String? = null): HistoryEntry? =
+        (live + archive).firstOrNull { it.matches(id) || (alias != null && it.matches(alias)) }
+
+    /** True when an entry here has exactly this id, so a record keyed by it is this device's own record of the title. */
+    fun holds(id: String): Boolean = (live + archive).any { it.id == id }
+
+    /** Removes the title whether [id] is its id or its alias. */
     fun remove(id: String) {
-        live.removeAll { it.id == id }
-        archive.removeAll { it.id == id }
+        live.removeAll { it.matches(id) }
+        archive.removeAll { it.matches(id) }
     }
 
     /**
-     * Playback progress from another device, for a title already here. Only a newer record is applied, and only the
-     * position, length and episode move; the watched marker stays as it is. Returns false when nothing was applied.
+     * Playback progress from another device, for a title already here (found under either of its ids). Only a newer
+     * record is applied, and only the position, length and episode move; the watched marker stays as it is. Returns
+     * false when nothing was applied.
+     *
+     * [updatedAt] is on the server's clock and [HistoryEntry.updated] on this device's, so [clockOffset] (server minus device)
+     * puts them on one scale before they are compared. A wrong device clock can then no longer make an old position win.
      */
-    fun applyProgress(titleId: String, p: ProgressData, updatedAt: Long): Boolean {
-        val local = (live + archive).firstOrNull { it.id == titleId } ?: return false
-        if (updatedAt <= local.updated) return false
+    fun applyProgress(titleId: String, p: ProgressData, updatedAt: Long, clockOffset: Long = 0L): Boolean {
+        val local = findTitle(titleId) ?: return false
+        if (updatedAt <= local.updated + clockOffset) return false
         val season = p.season ?: local.season
         val episode = p.episode ?: local.episode
         val key = if (p.season != null && p.episode != null) "${p.season}:${p.episode}" else local.key
         val moved = local.copy(
             position = p.position,
             duration = p.duration,
-            updated = updatedAt,
+            updated = updatedAt - clockOffset,
             season = season,
             episode = episode,
             key = key,
         )
-        remove(titleId)
+        remove(local.id)
         place(moved)
         return true
     }

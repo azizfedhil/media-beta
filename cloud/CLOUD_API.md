@@ -87,14 +87,16 @@ For `settings`, `profileId` is `_account` for an account-wide key, and the profi
 Response:
 
 ```json
-{ "accepted": [0, 1], "rejected": [{ "index": 2, "reason": "history_limit" }], "serverTs": 1792122713681 }
+{ "accepted": [0, 1], "rejected": [{ "index": 2, "reason": "history_limit" }], "ignored": [], "serverTs": 1792122713681 }
 ```
 
 - A push holds at most 200 changes. More returns `400 too_many_changes`.
 - `accepted` lists the indexes of the changes the server took. A change older than the stored record is also accepted, but it is not applied. The rule is last write wins by `updatedAt`.
+- `ignored` lists, among the accepted changes, those that were not applied because the stored record is newer: `[{ "index": 3, "current": { …a pull change… } }]`. `current` is the record the account holds. A client applies it instead of treating its own write as stored. At most 50 are listed per push; a client that gets no `ignored` list (an older server) treats every accepted change as applied.
+- `updatedAt` is clamped to the server's clock: a record is never dated after the time the server read it. More than a day ahead is still refused as `future_timestamp`.
 - `rejected` lists refused changes with a reason: `bad_shape`, `bad_profile_id`, `unknown_kind`, `bad_key`, `bad_updated_at`, `future_timestamp` (more than one day ahead), `missing_data`, `too_large` (data over 32 KB), `profile_limit`, `history_limit`, `library_limit`, `settings_limit`, `watchlog_limit`.
 - Limits: 20 profiles per account, and 5000 live history records, 5000 live library records and 5000 watch-log months per profile. Only new records count against a limit. Updates and tombstones always pass. Progress has no limit.
-- The accepted changes of one push are written in one batch, and every one is stamped with the push's `serverTs`.
+- The accepted changes of one push are written in one batch, and every one is stamped with the push's `serverTs`. The stamp is taken just before the write.
 - Clients never move their pull cursor from a push response. Only pulls move it.
 
 A delete is a tombstone: `"deleted": true` and no `data`. Tombstones are kept for 90 days and then removed by the daily purge.
@@ -122,6 +124,8 @@ A delete is a tombstone: `"deleted": true` and no `data`. Tombstones are kept fo
 #### Client rules
 
 These run in the apps. The server does not do them.
+- A pulled `progress` is applied when it is newer than the local entry, by time alone: a local change that has not been sent yet does not block it. Record times that cross devices are compared on the server's clock (the client keeps the offset from the last pull).
+- A pulled `history` or `progress` record whose key is the title's other id (`tt…` vs `tmdb:…`) is applied to the local entry that holds that id as its `alias`. The entry keeps its own id.
 - A pulled `progress` never lowers a `history` entry's watched marker. `watchedThrough` takes the larger value, unless the newer side explicitly cleared it (`wS == 0`).
 - On first sign-in to an account from a device with local data, ask: "Merge with this account" (the default, last write wins per record) or "Replace this device's data with the account's".
 - When Simkl is the active library, `library` is not synced. `history`, `progress`, `profile` and `watchlog` still are.

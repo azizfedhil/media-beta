@@ -193,7 +193,6 @@ class PlaybackProgress(
     private fun save(request: PlayRequest, snapshot: PlaybackSnapshot, isFinal: Boolean) {
         val p = snapshot.position
         val d = snapshot.duration
-        println("PEAR-CW save position=$p duration=$d canSave=${ProgressRules.canSave(p, d)} reachedStart=$reachedStart isFinal=$isFinal") // TEMP-CW
         if (!ProgressRules.canSave(p, d)) return
         if (!reachedStart) {
             if (!ProgressRules.hasReachedStart(p, openedAt)) return

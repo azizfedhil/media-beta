@@ -51,13 +51,16 @@ export function parseChange(raw: unknown, index: number, now: number): ParseResu
     return { ok: false, reason: "bad_updated_at" };
   }
   if (updatedAt > now + MAX_FUTURE_MS) return { ok: false, reason: "future_timestamp" };
+  // A record can never be dated after the server's own clock. A device whose clock runs ahead would otherwise win every
+  // conflict until real time caught up with it.
+  const at = Math.min(updatedAt, now);
 
   if (raw.deleted === true) {
     // A tombstone: any data sent with it is ignored.
-    return { ok: true, change: { index, profileId, kind, key, updatedAt, deleted: true, dataJson: null } };
+    return { ok: true, change: { index, profileId, kind, key, updatedAt: at, deleted: true, dataJson: null } };
   }
   if (!isObject(raw.data)) return { ok: false, reason: "missing_data" };
   const dataJson = JSON.stringify(raw.data);
   if (encoder.encode(dataJson).byteLength > MAX_DATA_BYTES) return { ok: false, reason: "too_large" };
-  return { ok: true, change: { index, profileId, kind, key, updatedAt, deleted: false, dataJson } };
+  return { ok: true, change: { index, profileId, kind, key, updatedAt: at, deleted: false, dataJson } };
 }

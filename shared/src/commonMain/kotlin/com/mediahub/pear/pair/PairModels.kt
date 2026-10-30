@@ -55,8 +55,17 @@ class OutgoingChange(
     val data: JsonObject?,
 )
 
-/** [accepted] and [rejected] (position to reason) refer to positions in the push. */
-class PushResult(val accepted: Set<Int>, val rejected: Map<Int, String>, val serverTs: Long)
+/**
+ * [accepted] and [rejected] (position to reason) refer to positions in the push. [ignored] (position to the record the
+ * server holds) lists accepted changes that were NOT applied because the server already had a newer record. An older
+ * server sends no such list, and then every accepted change is taken as applied.
+ */
+class PushResult(
+    val accepted: Set<Int>,
+    val rejected: Map<Int, String>,
+    val serverTs: Long,
+    val ignored: Map<Int, RemoteChange> = emptyMap(),
+)
 
 class RemoteChange(
     val serverTs: Long,

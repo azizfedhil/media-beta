@@ -147,9 +147,10 @@ async function applyLimits(
 // Writes every applied change of one push in a single batch. Each change is stamped with the push's serverTs.
 // The upsert applies only when the incoming updatedAt is not older than the stored one (last write wins), so a stale
 // change leaves its row, data and serverTs untouched. records.seq is no longer used and is written as 0.
-async function writeAll(db: Db, accountId: string, changes: PushChange[], serverTs: number): Promise<void> {
-  if (changes.length === 0) return;
-  await db.batch(
+// Returns the changes that were not applied for that reason (the upsert touched no row).
+async function writeAll(db: Db, accountId: string, changes: PushChange[], serverTs: number): Promise<PushChange[]> {
+  if (changes.length === 0) return [];
+  const results = await db.batch(
     changes.map((change) =>
       db
         .prepare(
@@ -174,6 +175,31 @@ async function writeAll(db: Db, accountId: string, changes: PushChange[], server
         ),
     ),
   );
+  return changes.filter((_, i) => results[i]?.meta?.changes === 0);
+}
+
+// The record the account holds for each change that lost, so the pushing device can adopt it instead of believing its
+// own write stuck. Capped: past the cap a lost change is simply reported as accepted, as before.
+const MAX_IGNORED_REPORTED = 50;
+
+async function currentFor(db: Db, accountId: string, lost: PushChange[]) {
+  const out: { index: number; current: ReturnType<typeof toChange> }[] = [];
+  const shown = lost.slice(0, MAX_IGNORED_REPORTED);
+  if (shown.length === 0) return out;
+  const results = await db.batch(
+    shown.map((change) =>
+      db
+        .prepare(
+          "SELECT server_ts, profile_id, kind, key, updated_at, deleted, data FROM records WHERE account_id = ? AND profile_id = ? AND kind = ? AND key = ?",
+        )
+        .bind(accountId, change.profileId, change.kind, change.key),
+    ),
+  );
+  shown.forEach((change, i) => {
+    const row = (results[i]?.results as SyncRow[] | undefined)?.[0];
+    if (row) out.push({ index: change.index, current: toChange(row) });
+  });
+  return out;
 }
 
 function intParam(raw: string | undefined, fallback: number, min: number, max: number, name: string): number {
@@ -197,6 +223,7 @@ function toChange(row: SyncRow) {
 }
 
 // POST /v1/pair/sync: applies a batch of changes. Refused changes are listed with a reason; the rest are accepted.
+// An accepted change that lost to a newer stored record is also listed in `ignored`, with the record that won.
 // Clients advance lastServerTs only from pulls, never from this response.
 syncRoutes.post("/sync", requireDevice, async (c) => {
   const { accountId } = c.get("device");
@@ -208,12 +235,11 @@ syncRoutes.post("/sync", requireDevice, async (c) => {
     throw new ApiError(400, "too_many_changes", `A push holds at most ${MAX_CHANGES_PER_PUSH} changes.`);
   }
 
-  // Every change this push applies is stamped with this time.
-  const serverTs = Date.now();
   const rejected: Rejection[] = [];
   const parsed: PushChange[] = [];
+  const parsedAt = Date.now();
   raws.forEach((raw: unknown, index: number) => {
-    const result = parseChange(raw, index, serverTs);
+    const result = parseChange(raw, index, parsedAt);
     if (result.ok) parsed.push(result.change);
     else rejected.push({ index, reason: result.reason });
   });
@@ -222,7 +248,11 @@ syncRoutes.post("/sync", requireDevice, async (c) => {
   const limited = await applyLimits(db, accountId, parsed, live);
   rejected.push(...limited.rejected);
 
-  await writeAll(db, accountId, limited.allowed, serverTs);
+  // Stamped as late as possible, just before the write. A stamp taken at the start of the request could be older than a
+  // pull that ran while the limit checks above were still reading, and that pull would then never see this push.
+  const serverTs = Date.now();
+  const lost = await writeAll(db, accountId, limited.allowed, serverTs);
+  const ignored = await currentFor(db, accountId, lost);
 
   const refused = new Set(rejected.map((r) => r.index));
   const accepted: number[] = [];
@@ -231,7 +261,7 @@ syncRoutes.post("/sync", requireDevice, async (c) => {
   }
   rejected.sort((a, b) => a.index - b.index);
 
-  return c.json({ accepted, rejected, serverTs });
+  return c.json({ accepted, rejected, ignored, serverTs });
 });
 
 // GET /v1/pair/sync?since=<serverTs>&limit=500: changes stamped after `since`, oldest first.

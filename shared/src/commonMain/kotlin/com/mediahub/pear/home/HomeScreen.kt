@@ -188,7 +188,6 @@ private fun FeedRows(
 ) {
     val env = LocalAppEnv.current
     val rules = env.data.content.rules
-    println("PEAR-CW feed continue=${env.data.history.continueEntries.size} upNext=${model.upNext.size}") // TEMP-CW
 
     // 0. Which add-ons are still loading, and which failed (with a button to try them again)
     AddonStatus(model)
